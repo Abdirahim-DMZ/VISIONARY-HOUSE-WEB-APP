@@ -220,7 +220,7 @@ export default function Home() {
                 />
               </div>
               <div className="absolute -bottom-8 -left-8 bg-primary text-primary-foreground p-8 rounded-lg shadow-elevated hidden md:block">
-                <p className="font-serif text-4xl font-semibold text-accent mb-1">500+</p>
+                <p className="font-heading text-4xl font-bold text-accent mb-1">500+</p>
                 <p className="text-sm text-primary-foreground/70">Visionary clients trust us</p>
               </div>
             </div>
@@ -262,7 +262,7 @@ export default function Home() {
       </section>
 
       {/* CTA Section */}
-      <section className="section-padding bg-primary">
+      <section className="py-24 bg-primary">
         <div className="container-premium text-center">
           <h2 className="heading-section text-primary-foreground mb-6">
             Ready to Elevate Your Business?

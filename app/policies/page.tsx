@@ -149,7 +149,7 @@ export default function Policies() {
             {policies.map((policy, index) => (
               <div key={policy.id} id={policy.id} className="scroll-mt-32">
                 <div className="flex items-center gap-4 mb-8">
-                  <span className="shrink-0 w-10 h-10 rounded-full bg-accent/20 flex items-center justify-center text-accent font-serif font-semibold">
+                  <span className="shrink-0 w-10 h-10 rounded-full bg-accent/20 flex items-center justify-center text-accent font-heading font-bold">
                     {index + 1}
                   </span>
                   <h2 className="heading-section text-foreground">{policy.title}</h2>

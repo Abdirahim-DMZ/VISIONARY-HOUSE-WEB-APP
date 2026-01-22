@@ -25,12 +25,12 @@ const footerLinks = {
 export function Footer() {
   return (
     <footer className="bg-primary text-primary-foreground">
-      <div className="container-premium section-padding">
+      <div className="container-premium py-8">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 lg:gap-8">
           {/* Brand Column */}
           <div className="lg:col-span-1">
             <Link href="/" className="inline-block mb-6">
-              <span className="font-serif text-2xl font-semibold tracking-tight">
+              <span className="font-heading text-2xl font-bold tracking-tight">
                 Visionary <span className="text-accent">House</span>
               </span>
             </Link>
@@ -61,7 +61,7 @@ export function Footer() {
 
           {/* Services */}
           <div>
-            <h4 className="font-serif text-lg font-medium mb-6">Services</h4>
+            <h4 className="font-heading text-lg font-bold mb-6">Services</h4>
             <ul className="space-y-3">
               {footerLinks.services.map((link) => (
                 <li key={link.href}>
@@ -78,7 +78,7 @@ export function Footer() {
 
           {/* Company */}
           <div>
-            <h4 className="font-serif text-lg font-medium mb-6">Company</h4>
+            <h4 className="font-heading text-lg font-bold mb-6">Company</h4>
             <ul className="space-y-3">
               {footerLinks.company.map((link) => (
                 <li key={link.href}>
@@ -95,7 +95,7 @@ export function Footer() {
 
           {/* Contact */}
           <div>
-            <h4 className="font-serif text-lg font-medium mb-6">Contact</h4>
+            <h4 className="font-heading text-lg font-bold mb-6">Contact</h4>
             <ul className="space-y-4">
               <li className="flex items-start gap-3">
                 <MapPin size={18} className="text-accent mt-0.5 shrink-0" />

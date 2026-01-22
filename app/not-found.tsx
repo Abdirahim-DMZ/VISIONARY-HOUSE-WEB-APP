@@ -11,7 +11,7 @@ export default function NotFound() {
       <section className="section-padding bg-background min-h-[70vh] flex items-center">
         <div className="container-premium text-center">
           <div className="max-w-2xl mx-auto">
-            <p className="font-serif text-8xl md:text-9xl font-semibold text-accent mb-6">
+            <p className="font-heading text-8xl md:text-9xl font-bold text-accent mb-6">
               404
             </p>
             <h1 className="heading-display text-foreground mb-6">

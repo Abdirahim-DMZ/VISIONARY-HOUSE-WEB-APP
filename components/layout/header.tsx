@@ -27,7 +27,7 @@ export function Header() {
         <div className="flex items-center justify-between h-18 md:h-20">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2">
-            <span className="font-serif text-xl md:text-2xl font-semibold text-foreground tracking-tight">
+            <span className="font-heading text-xl md:text-2xl font-bold text-foreground tracking-tight">
               Visionary <span className="text-accent">House</span>
             </span>
           </Link>

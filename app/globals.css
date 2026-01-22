@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Lora:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -125,7 +125,7 @@
   }
 
   h1, h2, h3, h4, h5, h6 {
-    @apply font-serif font-semibold tracking-tight;
+    @apply font-heading font-bold tracking-tight;
   }
 
   p {
@@ -143,15 +143,15 @@
   }
 
   .heading-display {
-    @apply text-4xl md:text-5xl lg:text-6xl font-serif font-semibold tracking-tight leading-tight;
+    @apply text-4xl md:text-5xl lg:text-6xl font-heading font-bold tracking-tight leading-tight;
   }
 
   .heading-section {
-    @apply text-3xl md:text-4xl font-serif font-semibold tracking-tight;
+    @apply text-3xl md:text-4xl font-heading font-bold tracking-tight;
   }
 
   .heading-card {
-    @apply text-xl md:text-2xl font-serif font-medium;
+    @apply text-xl md:text-2xl font-heading font-bold;
   }
 
   .text-body {

@@ -16,7 +16,7 @@ A modern, production-ready Next.js website for Visionary House, a premium busine
 - **Styling**: Tailwind CSS
 - **UI Components**: Radix UI + ShadCN
 - **Icons**: Lucide React
-- **Fonts**: Inter (Sans) + Playfair Display (Serif)
+- **Fonts**: Inter (Sans) + Lora (Serif)
 - **Forms**: React Hook Form + Zod
 - **State Management**: TanStack Query
 
@@ -117,7 +117,7 @@ The color scheme uses a premium executive palette defined in `app/globals.css`:
 
 ### Fonts
 
-- **Headings**: Playfair Display (Serif)
+- **Headings**: Lora (Serif, Bold)
 - **Body**: Inter (Sans-serif)
 
 ## License
