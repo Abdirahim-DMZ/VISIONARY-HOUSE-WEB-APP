@@ -28,7 +28,7 @@ export function Header() {
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2">
             <span className="font-serif text-xl md:text-2xl font-semibold text-foreground tracking-tight">
-              Executive<span className="text-accent">Hub</span>
+              Visionary <span className="text-accent">House</span>
             </span>
           </Link>
 

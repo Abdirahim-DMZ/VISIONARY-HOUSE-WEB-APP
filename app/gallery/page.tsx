@@ -8,9 +8,9 @@ import { Layout } from "@/components/layout/layout";
 const categories = ["All", "Event Spaces", "Lounge", "Offices", "Media Studio"];
 
 const galleryItems = [
-  { src: "/assets/hero-bg.jpg", alt: "Executive boardroom with city view", category: "Event Spaces" },
+  { src: "/assets/hero-bg.jpg", alt: "Professional boardroom with city view", category: "Event Spaces" },
   { src: "/assets/service-event.jpg", alt: "Premium conference hall", category: "Event Spaces" },
-  { src: "/assets/service-lounge.jpg", alt: "Executive lounge area", category: "Lounge" },
+  { src: "/assets/service-lounge.jpg", alt: "Professional lounge area", category: "Lounge" },
   { src: "/assets/service-virtual.jpg", alt: "Modern virtual office setup", category: "Offices" },
   { src: "/assets/service-media.jpg", alt: "Professional media studio", category: "Media Studio" },
   { src: "/assets/service-lounge.jpg", alt: "Private meeting alcove", category: "Lounge" },

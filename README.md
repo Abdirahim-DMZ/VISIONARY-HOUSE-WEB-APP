@@ -1,11 +1,11 @@
-# ExecutiveHub - Premium Executive Business Environment
+# Visionary House - Premium Business Environment
 
-A modern, production-ready Next.js website for ExecutiveHub, a premium executive ecosystem designed for founders, executives, and enterprises seeking excellence.
+A modern, production-ready Next.js website for Visionary House, a premium business ecosystem designed for visionary founders, executives, and enterprises seeking excellence.
 
 ## Features
 
 - **Premium Event Spaces** - Sophisticated venues for conferences, board meetings, and corporate gatherings
-- **Executive Lounge Suite** - Premium relaxation spaces for executive comfort and private conversations
+- **Professional Lounge Suite** - Premium relaxation spaces for comfort and private conversations
 - **Virtual Office Services** - Professional business presence with mail handling and registered addresses
 - **Professional Media Studios** - State-of-the-art facilities for podcasts and video production
 
@@ -122,4 +122,4 @@ The color scheme uses a premium executive palette defined in `app/globals.css`:
 
 ## License
 
-All rights reserved © 2026 ExecutiveHub
+All rights reserved © 2026 Visionary House

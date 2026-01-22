@@ -8,7 +8,7 @@ import { Layout } from "@/components/layout/layout";
 export const metadata: Metadata = {
   title: "Services",
   description:
-    "From event hosting to virtual presence, we provide comprehensive solutions designed for executive-level businesses. Explore our event spaces, lounge suites, virtual offices, and media services.",
+    "From event hosting to virtual presence, we provide comprehensive solutions designed for professional businesses. Explore our event spaces, lounge suites, virtual offices, and media services.",
 };
 
 const services = [
@@ -33,10 +33,10 @@ const services = [
   {
     id: "lounge",
     title: "Lounge Suite",
-    subtitle: "Executive Comfort & Privacy",
+    subtitle: "Professional Comfort & Privacy",
     icon: Users,
     image: "/assets/service-lounge.jpg",
-    description: "The Lounge Suite offers an exclusive retreat for executives seeking a refined environment for relaxation, informal meetings, or focused work. Designed with premium materials and thoughtful amenities, it provides the perfect balance of comfort and professionalism.",
+    description: "The Lounge Suite offers an exclusive retreat for professionals seeking a refined environment for relaxation, informal meetings, or focused work. Designed with premium materials and thoughtful amenities, it provides the perfect balance of comfort and professionalism.",
     features: [
       "Private meeting alcoves",
       "Premium leather seating",
@@ -100,7 +100,7 @@ export default function Services() {
           </h1>
           <p className="text-lg text-primary-foreground/80 max-w-2xl mx-auto">
             From event hosting to virtual presence, we provide comprehensive 
-            solutions designed for executive-level businesses.
+            solutions designed for professional businesses.
           </p>
         </div>
       </section>

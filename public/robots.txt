@@ -1,10 +1,10 @@
-# ExecutiveHub - Robots.txt
+# Visionary House - Robots.txt
 
 User-agent: *
 Allow: /
 
 # Sitemap location
-Sitemap: https://executivehub.com/sitemap.xml
+Sitemap: https://visionaryhouse.com/sitemap.xml
 
 # Disallow admin or private pages if any
 # Disallow: /admin/

@@ -20,53 +20,53 @@ const playfair = Playfair_Display({
 
 export const metadata: Metadata = {
   title: {
-    default: "ExecutiveHub - Premium Executive Business Environment",
-    template: "%s | ExecutiveHub",
+    default: "Visionary House - Premium Business Environment",
+    template: "%s | Visionary House",
   },
   description:
-    "A premium executive ecosystem designed for founders, executives, and enterprises seeking excellence. Featuring event spaces, lounge suites, virtual offices, and professional media services.",
+    "A premium business ecosystem designed for visionary founders, executives, and enterprises seeking excellence. Featuring event spaces, lounge suites, virtual offices, and professional media services.",
   keywords: [
-    "executive office space",
     "premium business environment",
     "event space rental",
     "virtual office",
     "media studio",
     "coworking space",
     "boardroom rental",
-    "executive lounge",
     "professional workspace",
+    "business lounge",
+    "visionary entrepreneurs",
   ],
-  authors: [{ name: "ExecutiveHub" }],
-  creator: "ExecutiveHub",
-  publisher: "ExecutiveHub",
+  authors: [{ name: "Visionary House" }],
+  creator: "Visionary House",
+  publisher: "Visionary House",
   formatDetection: {
     email: false,
     address: false,
     telephone: false,
   },
-  metadataBase: new URL("https://executivehub.com"),
+  metadataBase: new URL("https://visionaryhouse.com"),
   openGraph: {
     type: "website",
     locale: "en_US",
-    url: "https://executivehub.com",
-    title: "ExecutiveHub - Premium Executive Business Environment",
+    url: "https://visionaryhouse.com",
+    title: "Visionary House - Premium Business Environment",
     description:
-      "A premium executive ecosystem designed for founders, executives, and enterprises seeking excellence.",
-    siteName: "ExecutiveHub",
+      "A premium business ecosystem designed for visionary founders, executives, and enterprises seeking excellence.",
+    siteName: "Visionary House",
     images: [
       {
         url: "/og-image.jpg",
         width: 1200,
         height: 630,
-        alt: "ExecutiveHub - Premium Business Environment",
+        alt: "Visionary House - Premium Business Environment",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "ExecutiveHub - Premium Executive Business Environment",
+    title: "Visionary House - Premium Business Environment",
     description:
-      "A premium executive ecosystem designed for founders, executives, and enterprises seeking excellence.",
+      "A premium business ecosystem designed for visionary founders, executives, and enterprises seeking excellence.",
     images: ["/og-image.jpg"],
   },
   robots: {

@@ -31,11 +31,11 @@ export function Footer() {
           <div className="lg:col-span-1">
             <Link href="/" className="inline-block mb-6">
               <span className="font-serif text-2xl font-semibold tracking-tight">
-                Executive<span className="text-accent">Hub</span>
+                Visionary <span className="text-accent">House</span>
               </span>
             </Link>
             <p className="text-primary-foreground/70 text-sm leading-relaxed mb-6">
-              A premium executive ecosystem designed for founders, executives, and enterprises seeking excellence.
+              A premium business ecosystem designed for visionary founders, executives, and enterprises seeking excellence.
             </p>
             <div className="flex gap-4">
               <a
@@ -100,7 +100,7 @@ export function Footer() {
               <li className="flex items-start gap-3">
                 <MapPin size={18} className="text-accent mt-0.5 shrink-0" />
                 <span className="text-sm text-primary-foreground/70">
-                  123 Executive Boulevard,<br />
+                  123 Visionary Boulevard,<br />
                   Business District, City 10001
                 </span>
               </li>
@@ -116,10 +116,10 @@ export function Footer() {
               <li className="flex items-center gap-3">
                 <Mail size={18} className="text-accent shrink-0" />
                 <a
-                  href="mailto:info@executivehub.com"
+                  href="mailto:info@visionaryhouse.com"
                   className="text-sm text-primary-foreground/70 hover:text-accent transition-colors"
                 >
-                  info@executivehub.com
+                  info@visionaryhouse.com
                 </a>
               </li>
             </ul>
@@ -129,7 +129,7 @@ export function Footer() {
         {/* Bottom Bar */}
         <div className="mt-16 pt-8 border-t border-primary-foreground/10 flex flex-col md:flex-row justify-between items-center gap-4">
           <p className="text-sm text-primary-foreground/50">
-            © {new Date().getFullYear()} ExecutiveHub. All rights reserved.
+            © {new Date().getFullYear()} Visionary House. All rights reserved.
           </p>
           <div className="flex gap-6">
             {footerLinks.legal.slice(0, 2).map((link) => (

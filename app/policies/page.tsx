@@ -70,7 +70,7 @@ const policies = [
       },
       {
         heading: "Your Rights",
-        text: "You have the right to access, correct, or delete your personal information. To exercise these rights, please contact us at privacy@executivehub.com.",
+        text: "You have the right to access, correct, or delete your personal information. To exercise these rights, please contact us at privacy@visionaryhouse.com.",
       },
       {
         heading: "Cookies",
@@ -88,7 +88,7 @@ const policies = [
       },
       {
         heading: "Social Media Usage",
-        text: "We encourage guests to share their experience on social media. Please tag @ExecutiveHub and use #ExecutiveHub when posting.",
+        text: "We encourage guests to share their experience on social media. Please tag @VisionaryHouse and use #VisionaryHouse when posting.",
       },
       {
         heading: "Privacy of Other Guests",
@@ -96,7 +96,7 @@ const policies = [
       },
       {
         heading: "Marketing Permissions",
-        text: "By using our facilities, you may be asked to provide consent for ExecutiveHub to use photographs or videos featuring you for marketing purposes. Participation is entirely voluntary.",
+        text: "By using our facilities, you may be asked to provide consent for Visionary House to use photographs or videos featuring you for marketing purposes. Participation is entirely voluntary.",
       },
       {
         heading: "Media Studio Usage",
@@ -183,8 +183,8 @@ export default function Policies() {
           </h3>
           <p className="text-muted-foreground mb-6">
             Our team is happy to clarify any points. Contact us at{" "}
-            <a href="mailto:legal@executivehub.com" className="text-accent hover:underline">
-              legal@executivehub.com
+            <a href="mailto:legal@visionaryhouse.com" className="text-accent hover:underline">
+              legal@visionaryhouse.com
             </a>
           </p>
           <p className="text-sm text-muted-foreground">

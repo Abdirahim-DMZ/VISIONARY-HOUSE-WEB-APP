@@ -1,7 +1,7 @@
 {
-  "name": "ExecutiveHub",
-  "short_name": "ExecutiveHub",
-  "description": "Premium executive business environment",
+  "name": "Visionary House",
+  "short_name": "Visionary House",
+  "description": "Premium business environment for visionary leaders",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#1A1E2E",

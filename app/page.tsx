@@ -8,7 +8,7 @@ import { Layout } from "@/components/layout/layout";
 export const metadata: Metadata = {
   title: "Home",
   description:
-    "A complete executive ecosystem designed for founders, executives, and enterprises seeking an environment that reflects their standard of excellence.",
+    "A complete business ecosystem designed for visionary founders, leaders, and enterprises seeking an environment that reflects their standard of excellence.",
 };
 
 const services = [
@@ -21,7 +21,7 @@ const services = [
   },
   {
     title: "Lounge Suite",
-    description: "Premium relaxation spaces designed for executive comfort and private conversations.",
+    description: "Premium relaxation spaces designed for professional comfort and private conversations.",
     icon: Users,
     image: "/assets/service-lounge.jpg",
     href: "/services#lounge",
@@ -43,7 +43,7 @@ const services = [
 ];
 
 const differentiators = [
-  "Premium, executive-grade experience",
+  "Premium, professional-grade experience",
   "Flexible booking with transparent pricing",
   "Professional and reliable service",
   "Prime business district location",
@@ -53,7 +53,7 @@ const differentiators = [
 
 const testimonials = [
   {
-    quote: "ExecutiveHub has transformed how we conduct business meetings. The facilities are impeccable, and the service is consistently exceptional.",
+    quote: "Visionary House has transformed how we conduct business meetings. The facilities are impeccable, and the service is consistently exceptional.",
     author: "Victoria Chen",
     title: "CEO, Meridian Capital",
   },
@@ -86,7 +86,7 @@ export default function Home() {
         <div className="relative z-10 container-premium text-center text-primary-foreground py-20">
           <div className="max-w-4xl mx-auto">
             <p className="text-accent font-medium tracking-widest uppercase text-sm mb-6 animate-fade-in">
-              Welcome to ExecutiveHub
+              Welcome to Visionary House
             </p>
             <h1 className="heading-display text-primary-foreground mb-6 animate-fade-in-delay-1">
               Where Business
@@ -96,7 +96,7 @@ export default function Home() {
               Premium Experience
             </h1>
             <p className="text-lg md:text-xl text-primary-foreground/80 max-w-2xl mx-auto mb-10 animate-fade-in-delay-2">
-              A complete executive ecosystem designed for founders, executives, and enterprises 
+              A complete business ecosystem designed for visionary founders, leaders, and enterprises 
               seeking an environment that reflects their standard of excellence.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center animate-fade-in-delay-3">
@@ -116,11 +116,11 @@ export default function Home() {
         </div>
 
         {/* Scroll Indicator */}
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce">
-          <div className="w-6 h-10 border-2 border-primary-foreground/30 rounded-full flex items-start justify-center p-2">
-            <div className="w-1.5 h-3 bg-accent rounded-full" />
-          </div>
-        </div>
+        {/*<div className="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce">*/}
+        {/*  <div className="w-6 h-10 border-2 border-primary-foreground/30 rounded-full flex items-start justify-center p-2">*/}
+        {/*    <div className="w-1.5 h-3 bg-accent rounded-full" />*/}
+        {/*  </div>*/}
+        {/*</div>*/}
       </section>
 
       {/* Services Preview Section */}
@@ -131,7 +131,7 @@ export default function Home() {
               Our Services
             </p>
             <h2 className="heading-section text-foreground mb-6">
-              A Complete Executive Ecosystem
+              A Complete Business Ecosystem
             </h2>
             <p className="text-body max-w-2xl mx-auto">
               From prestigious event spaces to professional virtual offices, we provide 
@@ -194,10 +194,10 @@ export default function Home() {
               <h2 className="heading-section text-foreground mb-6">
                 Trusted by Industry Leaders
               </h2>
-              <p className="text-body mb-8">
-                We understand that your business environment reflects your professional 
-                standards. ExecutiveHub provides the premium experience your reputation demands.
-              </p>
+            <p className="text-body mb-8">
+              We understand that your business environment reflects your professional 
+              standards. Visionary House provides the premium experience your reputation demands.
+            </p>
               <div className="grid sm:grid-cols-2 gap-4">
                 {differentiators.map((item, index) => (
                   <div key={index} className="flex items-center gap-3">
@@ -213,7 +213,7 @@ export default function Home() {
               <div className="aspect-square rounded-lg overflow-hidden shadow-elevated relative">
                 <Image
                   src="/assets/service-lounge.jpg"
-                  alt="Premium executive lounge"
+                  alt="Premium professional lounge"
                   fill
                   sizes="(max-width: 1024px) 100vw, 50vw"
                   className="object-cover"
@@ -221,7 +221,7 @@ export default function Home() {
               </div>
               <div className="absolute -bottom-8 -left-8 bg-primary text-primary-foreground p-8 rounded-lg shadow-elevated hidden md:block">
                 <p className="font-serif text-4xl font-semibold text-accent mb-1">500+</p>
-                <p className="text-sm text-primary-foreground/70">Executive clients trust us</p>
+                <p className="text-sm text-primary-foreground/70">Visionary clients trust us</p>
               </div>
             </div>
           </div>
@@ -268,7 +268,7 @@ export default function Home() {
             Ready to Elevate Your Business?
           </h2>
           <p className="text-primary-foreground/70 text-lg max-w-2xl mx-auto mb-10">
-            Experience the premium environment your business deserves. 
+            Experience the premium environment your business deserves.
             Schedule a visit or book your space today.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">

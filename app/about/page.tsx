@@ -8,7 +8,7 @@ import { Layout } from "@/components/layout/layout";
 export const metadata: Metadata = {
   title: "About Us",
   description:
-    "ExecutiveHub is where ambition meets sophistication—a premium business environment designed for those who demand excellence.",
+    "Visionary House is where ambition meets sophistication—a premium business environment designed for those who demand excellence.",
 };
 
 const values = [
@@ -36,7 +36,7 @@ const values = [
 
 const stats = [
   { value: "10+", label: "Years of Excellence" },
-  { value: "500+", label: "Executive Clients" },
+  { value: "500+", label: "Visionary Clients" },
   { value: "2,000+", label: "Events Hosted" },
   { value: "98%", label: "Client Satisfaction" },
 ];
@@ -57,10 +57,10 @@ export default function About() {
             About Us
           </p>
           <h1 className="heading-display text-primary-foreground mb-6">
-            The Complete Executive Ecosystem
+            The Complete Business Ecosystem
           </h1>
           <p className="text-lg text-primary-foreground/80 max-w-2xl mx-auto">
-            ExecutiveHub is where ambition meets sophistication—a premium business 
+            Visionary House is where ambition meets sophistication—a premium business 
             environment designed for those who demand excellence.
           </p>
         </div>
@@ -79,14 +79,14 @@ export default function About() {
               </h2>
               <div className="space-y-4 text-body">
                 <p>
-                  ExecutiveHub was founded with a singular vision: to create a business 
+                  Visionary House was founded with a singular vision: to create a business 
                   environment that matches the caliber of the professionals who use it. 
-                  We recognized that executives, founders, and enterprises deserve more 
+                  We recognized that visionary founders, leaders, and enterprises deserve more 
                   than generic office spaces—they deserve an ecosystem that elevates 
                   their work.
                 </p>
                 <p>
-                  Today, ExecutiveHub stands as a testament to that vision. Our facilities 
+                  Today, Visionary House stands as a testament to that vision. Our facilities 
                   combine architectural elegance with practical functionality, creating 
                   spaces where important decisions are made, relationships are forged, 
                   and businesses thrive.
@@ -110,7 +110,7 @@ export default function About() {
               <div className="aspect-[4/5] rounded-lg overflow-hidden shadow-elevated relative">
                 <Image
                   src="/assets/hero-bg.jpg"
-                  alt="Executive boardroom"
+                  alt="Professional boardroom"
                   fill
                   sizes="(max-width: 1024px) 100vw, 50vw"
                   className="object-cover"
@@ -149,7 +149,7 @@ export default function About() {
               The Principles That Guide Us
             </h2>
             <p className="text-body max-w-2xl mx-auto">
-              Every interaction, every space, and every service at ExecutiveHub 
+              Every interaction, every space, and every service at Visionary House 
               is shaped by our unwavering commitment to these core values.
             </p>
           </div>
@@ -176,7 +176,7 @@ export default function About() {
               Our Mission
             </p>
             <h2 className="heading-section text-primary-foreground mb-8">
-              &quot;To provide an unparalleled executive experience that empowers 
+              &quot;To provide an unparalleled professional experience that empowers 
               business leaders to focus on what matters most—their success.&quot;
             </h2>
             <div className="divider-gold mx-auto" />
@@ -188,7 +188,7 @@ export default function About() {
       <section className="section-padding bg-background">
         <div className="container-premium text-center">
           <h2 className="heading-section text-foreground mb-6">
-            Experience ExecutiveHub
+            Experience Visionary House
           </h2>
           <p className="text-body max-w-2xl mx-auto mb-10">
             We invite you to discover the difference a premium business environment 

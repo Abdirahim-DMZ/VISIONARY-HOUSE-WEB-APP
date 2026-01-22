@@ -223,7 +223,7 @@ export default function Contact() {
               allowFullScreen
               loading="lazy"
               referrerPolicy="no-referrer-when-downgrade"
-              title="ExecutiveHub Location"
+              title="Visionary House Location"
             />
           </div>
         </div>

@@ -1,8 +1,8 @@
 {
-  "name": "executivehub",
+  "name": "visionaryhouse",
   "version": "1.0.0",
   "private": true,
-  "description": "Premium executive ecosystem designed for founders, executives, and enterprises seeking excellence",
+  "description": "Premium business ecosystem designed for visionary founders, executives, and enterprises seeking excellence",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
