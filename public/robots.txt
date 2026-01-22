@@ -1,14 +1,11 @@
-User-agent: Googlebot
-Allow: /
-
-User-agent: Bingbot
-Allow: /
-
-User-agent: Twitterbot
-Allow: /
-
-User-agent: facebookexternalhit
-Allow: /
+# ExecutiveHub - Robots.txt
 
 User-agent: *
 Allow: /
+
+# Sitemap location
+Sitemap: https://executivehub.com/sitemap.xml
+
+# Disallow admin or private pages if any
+# Disallow: /admin/
+# Disallow: /private/

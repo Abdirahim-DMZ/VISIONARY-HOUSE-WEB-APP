@@ -1,0 +1,17 @@
+{
+  "name": "ExecutiveHub",
+  "short_name": "ExecutiveHub",
+  "description": "Premium executive business environment",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1A1E2E",
+  "theme_color": "#C9A054",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
+

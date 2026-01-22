@@ -1,73 +1,125 @@
-# Welcome to your Lovable project
+# ExecutiveHub - Premium Executive Business Environment
 
-## Project info
+A modern, production-ready Next.js website for ExecutiveHub, a premium executive ecosystem designed for founders, executives, and enterprises seeking excellence.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+## Features
 
-## How can I edit this code?
+- **Premium Event Spaces** - Sophisticated venues for conferences, board meetings, and corporate gatherings
+- **Executive Lounge Suite** - Premium relaxation spaces for executive comfort and private conversations
+- **Virtual Office Services** - Professional business presence with mail handling and registered addresses
+- **Professional Media Studios** - State-of-the-art facilities for podcasts and video production
 
-There are several ways of editing your application.
+## Tech Stack
 
-**Use Lovable**
+- **Framework**: Next.js 15 (App Router)
+- **Language**: TypeScript
+- **Styling**: Tailwind CSS
+- **UI Components**: Radix UI + ShadCN
+- **Icons**: Lucide React
+- **Fonts**: Inter (Sans) + Playfair Display (Serif)
+- **Forms**: React Hook Form + Zod
+- **State Management**: TanStack Query
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+## Getting Started
 
-Changes made via Lovable will be committed automatically to this repo.
+### Prerequisites
 
-**Use your preferred IDE**
+- Node.js 18+ or compatible runtime
+- npm, yarn, pnpm, or bun
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+### Installation
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+1. Clone the repository
+```bash
+git clone <repository-url>
+cd ecosystem-premier-hub
 ```
 
-**Edit a file directly in GitHub**
+2. Install dependencies
+```bash
+npm install
+# or
+yarn install
+# or
+pnpm install
+```
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+3. Run the development server
+```bash
+npm run dev
+# or
+yarn dev
+# or
+pnpm dev
+```
 
-**Use GitHub Codespaces**
+4. Open [http://localhost:3000](http://localhost:3000) in your browser
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+### Build for Production
 
-## What technologies are used for this project?
+```bash
+npm run build
+npm run start
+```
 
-This project is built with:
+## Project Structure
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+```
+├── app/                   # Next.js App Router pages
+│   ├── about/            # About page
+│   ├── book/             # Booking page
+│   ├── contact/          # Contact page
+│   ├── gallery/          # Gallery page
+│   ├── policies/         # Policies page
+│   ├── services/         # Services page
+│   ├── layout.tsx        # Root layout with metadata
+│   ├── page.tsx          # Home page
+│   ├── not-found.tsx     # 404 page
+│   └── globals.css       # Global styles
+├── components/           
+│   ├── layout/           # Layout components (Header, Footer)
+│   ├── providers/        # React providers
+│   └── ui/               # Reusable UI components (ShadCN)
+├── hooks/                # Custom React hooks
+├── lib/                  # Utility functions
+├── public/               # Static assets
+│   └── assets/           # Images and media
+└── next.config.ts        # Next.js configuration
+```
 
-## How can I deploy this project?
+## Key Pages
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
+- **Home** (`/`) - Hero section, services overview, testimonials
+- **About** (`/about`) - Company story, values, mission
+- **Services** (`/services`) - Detailed service offerings
+- **Gallery** (`/gallery`) - Visual showcase of facilities
+- **Book** (`/book`) - Booking form for reservations
+- **Contact** (`/contact`) - Contact information and inquiry form
+- **Policies** (`/policies`) - Legal policies and terms
 
-## Can I connect a custom domain to my Lovable project?
+## SEO & Performance
 
-Yes, you can!
+- Proper metadata and Open Graph tags on all pages
+- Optimized images with Next.js Image component
+- Semantic HTML structure
+- Mobile-responsive design
+- Fast page loads with Next.js optimizations
+- Security headers configured
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+## Customization
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+### Colors
+
+The color scheme uses a premium executive palette defined in `app/globals.css`:
+- **Primary**: Deep charcoal navy (#1A1E2E)
+- **Accent**: Warm champagne gold (#C9A054)
+- **Background**: Soft cream (#FAF8F5)
+
+### Fonts
+
+- **Headings**: Playfair Display (Serif)
+- **Body**: Inter (Sans-serif)
+
+## License
+
+All rights reserved © 2026 ExecutiveHub
