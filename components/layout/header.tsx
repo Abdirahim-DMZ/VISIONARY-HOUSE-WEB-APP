@@ -7,6 +7,15 @@ import { Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
+// const navLinks = [
+//   { href: "/", label: "Home" },
+//   { href: "/about", label: "About" },
+//   { href: "/services", label: "Services" },
+//   { href: "/gallery", label: "Gallery" },
+//   { href: "/bookings", label: "My Bookings" },
+//   { href: "/contact", label: "Contact" },
+// ];
+
 const navLinks = [
   { href: "/", label: "Home" },
   { href: "/about", label: "About" },
@@ -38,7 +47,7 @@ export function Header() {
             {navLinks.map((link) => (
               <Link
                 key={link.href}
-                href={link.href}
+                href={'/'}
                 className={cn(
                   "text-sm font-medium transition-colors duration-200 relative py-1",
                   isActive(link.href)
@@ -56,17 +65,29 @@ export function Header() {
 
           {/* CTA Buttons */}
           <div className="hidden lg:flex items-center gap-4">
-            <Link href="/policies">
+            <Link href="/">
               <Button variant="ghost" size="sm">
                 Policies
               </Button>
             </Link>
-            <Link href="/book">
+            <Link href="/">
               <Button variant="gold" size="default">
                 Book Now
               </Button>
             </Link>
           </div>
+          {/*<div className="hidden lg:flex items-center gap-4">*/}
+          {/*  <Link href="/policies">*/}
+          {/*    <Button variant="ghost" size="sm">*/}
+          {/*      Policies*/}
+          {/*    </Button>*/}
+          {/*  </Link>*/}
+          {/*  <Link href="/book">*/}
+          {/*    <Button variant="gold" size="default">*/}
+          {/*      Book Now*/}
+          {/*    </Button>*/}
+          {/*  </Link>*/}
+          {/*</div>*/}
 
           {/* Mobile Menu Button */}
           <button
@@ -86,7 +107,7 @@ export function Header() {
             {navLinks.map((link) => (
               <Link
                 key={link.href}
-                href={link.href}
+                href={'/'}
                 onClick={() => setIsOpen(false)}
                 className={cn(
                   "text-base font-medium py-2 transition-colors",
@@ -98,16 +119,26 @@ export function Header() {
                 {link.label}
               </Link>
             ))}
-            <Link href="/policies" onClick={() => setIsOpen(false)}>
+            <Link href="/" onClick={() => setIsOpen(false)}>
               <Button variant="ghost" className="w-full justify-start px-0">
                 Policies
               </Button>
             </Link>
-            <Link href="/book" onClick={() => setIsOpen(false)}>
+            <Link href="/" onClick={() => setIsOpen(false)}>
               <Button variant="gold" className="w-full mt-2">
                 Book Now
               </Button>
             </Link>
+            {/*<Link href="/policies" onClick={() => setIsOpen(false)}>*/}
+            {/*  <Button variant="ghost" className="w-full justify-start px-0">*/}
+            {/*    Policies*/}
+            {/*  </Button>*/}
+            {/*</Link>*/}
+            {/*<Link href="/book" onClick={() => setIsOpen(false)}>*/}
+            {/*  <Button variant="gold" className="w-full mt-2">*/}
+            {/*    Book Now*/}
+            {/*  </Button>*/}
+            {/*</Link>*/}
           </nav>
         </div>
       )}

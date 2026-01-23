@@ -44,17 +44,26 @@ export default function Bookings() {
 
   return (
     <Layout>
-    <main className="min-h-screen pb-20">
+    <main className="min-h-screen">
       {/* Hero Section */}
-      <section className="bg-gradient-hero text-white py-16">
-        <div className="container-premium">
-          <div className="max-w-3xl">
-            <h1 className="heading-display mb-6">Manage Your Booking</h1>
-            <p className="text-xl text-gray-200 leading-relaxed">
-              View, modify, or cancel your booking. Enter your reference number
-              and email address below.
-            </p>
-          </div>
+      <section className="relative py-32 md:py-40">
+        <div 
+          className="absolute inset-0 bg-cover bg-center"
+          style={{ backgroundImage: 'url(/assets/hero-bg.jpg)' }}
+        >
+          <div className="absolute inset-0 bg-gradient-hero opacity-90" />
+        </div>
+        <div className="relative z-10 container-premium text-center">
+          <p className="text-accent font-medium tracking-widest uppercase text-sm mb-4">
+            My Bookings
+          </p>
+          <h1 className="heading-display text-primary-foreground mb-6">
+            Manage Your Booking
+          </h1>
+          <p className="text-lg text-primary-foreground/80 max-w-2xl mx-auto">
+            View, modify, or cancel your booking. Enter your reference number
+            and email address below.
+          </p>
         </div>
       </section>
 

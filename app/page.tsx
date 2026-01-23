@@ -100,18 +100,31 @@ export default function Home() {
               seeking an environment that reflects their standard of excellence.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center animate-fade-in-delay-3">
-              <Link href="/book">
+              <Link href="/">
                 <Button variant="hero" size="xl">
                   Book Your Experience
                   <ArrowRight className="ml-2 h-5 w-5" />
                 </Button>
               </Link>
-              <Link href="/services">
+              <Link href="/">
                 <Button variant="hero-outline" size="xl">
                   Explore Services
                 </Button>
               </Link>
             </div>
+            {/*<div className="flex flex-col sm:flex-row gap-4 justify-center animate-fade-in-delay-3">*/}
+            {/*  <Link href="/book">*/}
+            {/*    <Button variant="hero" size="xl">*/}
+            {/*      Book Your Experience*/}
+            {/*      <ArrowRight className="ml-2 h-5 w-5" />*/}
+            {/*    </Button>*/}
+            {/*  </Link>*/}
+            {/*  <Link href="/services">*/}
+            {/*    <Button variant="hero-outline" size="xl">*/}
+            {/*      Explore Services*/}
+            {/*    </Button>*/}
+            {/*  </Link>*/}
+            {/*</div>*/}
           </div>
         </div>
 
@@ -143,7 +156,8 @@ export default function Home() {
             {services.map((service) => (
               <Link 
                 key={service.title} 
-                href={service.href}
+                href={'/'}
+                // href={service.href}
                 className="group card-premium overflow-hidden"
               >
                 <div className="aspect-[16/10] overflow-hidden rounded-md mb-6 relative">
@@ -173,13 +187,21 @@ export default function Home() {
           </div>
 
           <div className="text-center mt-12">
-            <Link href="/services">
+            <Link href="/">
               <Button variant="premium-outline" size="lg">
                 View All Services
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </Link>
           </div>
+          {/*<div className="text-center mt-12">*/}
+          {/*  <Link href="/services">*/}
+          {/*    <Button variant="premium-outline" size="lg">*/}
+          {/*      View All Services*/}
+          {/*      <ArrowRight className="ml-2 h-4 w-4" />*/}
+          {/*    </Button>*/}
+          {/*  </Link>*/}
+          {/*</div>*/}
         </div>
       </section>
 
@@ -272,17 +294,29 @@ export default function Home() {
             Schedule a visit or book your space today.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link href="/book">
+            <Link href="/">
               <Button variant="hero" size="xl">
                 Book Now
               </Button>
             </Link>
-            <Link href="/contact">
+            <Link href="/">
               <Button variant="hero-outline" size="xl">
                 Schedule a Visit
               </Button>
             </Link>
           </div>
+          {/*<div className="flex flex-col sm:flex-row gap-4 justify-center">*/}
+          {/*  <Link href="/book">*/}
+          {/*    <Button variant="hero" size="xl">*/}
+          {/*      Book Now*/}
+          {/*    </Button>*/}
+          {/*  </Link>*/}
+          {/*  <Link href="/contact">*/}
+          {/*    <Button variant="hero-outline" size="xl">*/}
+          {/*      Schedule a Visit*/}
+          {/*    </Button>*/}
+          {/*  </Link>*/}
+          {/*</div>*/}
         </div>
       </section>
     </Layout>
