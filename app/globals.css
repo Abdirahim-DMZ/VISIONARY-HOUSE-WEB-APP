@@ -257,5 +257,32 @@
   .shadow-gold {
     box-shadow: var(--shadow-gold);
   }
+
+  /* Custom Scrollbar */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    @apply bg-cream rounded-full;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    @apply bg-accent/30 rounded-full;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    @apply bg-accent/50;
+  }
+
+  /* Time input styling */
+  input[type="time"]::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+    filter: opacity(0.6);
+  }
+
+  input[type="time"]:hover::-webkit-calendar-picker-indicator {
+    filter: opacity(1);
+  }
 }
 
