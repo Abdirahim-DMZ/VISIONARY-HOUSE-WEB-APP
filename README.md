@@ -1,125 +1,73 @@
-# Visionary House - Premium Business Environment
+# Welcome to your Lovable project
 
-A modern, production-ready Next.js website for Visionary House, a premium business ecosystem designed for visionary founders, executives, and enterprises seeking excellence.
+## Project info
 
-## Features
+**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
 
-- **Premium Event Spaces** - Sophisticated venues for conferences, board meetings, and corporate gatherings
-- **Professional Lounge Suite** - Premium relaxation spaces for comfort and private conversations
-- **Virtual Office Services** - Professional business presence with mail handling and registered addresses
-- **Professional Media Studios** - State-of-the-art facilities for podcasts and video production
+## How can I edit this code?
 
-## Tech Stack
+There are several ways of editing your application.
 
-- **Framework**: Next.js 15 (App Router)
-- **Language**: TypeScript
-- **Styling**: Tailwind CSS
-- **UI Components**: Radix UI + ShadCN
-- **Icons**: Lucide React
-- **Fonts**: Inter (Sans) + Lora (Serif)
-- **Forms**: React Hook Form + Zod
-- **State Management**: TanStack Query
+**Use Lovable**
 
-## Getting Started
+Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
 
-### Prerequisites
+Changes made via Lovable will be committed automatically to this repo.
 
-- Node.js 18+ or compatible runtime
-- npm, yarn, pnpm, or bun
+**Use your preferred IDE**
 
-### Installation
+If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
 
-1. Clone the repository
-```bash
-git clone <repository-url>
-cd ecosystem-premier-hub
-```
+The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
 
-2. Install dependencies
-```bash
-npm install
-# or
-yarn install
-# or
-pnpm install
-```
+Follow these steps:
 
-3. Run the development server
-```bash
+```sh
+# Step 1: Clone the repository using the project's Git URL.
+git clone <YOUR_GIT_URL>
+
+# Step 2: Navigate to the project directory.
+cd <YOUR_PROJECT_NAME>
+
+# Step 3: Install the necessary dependencies.
+npm i
+
+# Step 4: Start the development server with auto-reloading and an instant preview.
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
 ```
 
-4. Open [http://localhost:3000](http://localhost:3000) in your browser
+**Edit a file directly in GitHub**
 
-### Build for Production
+- Navigate to the desired file(s).
+- Click the "Edit" button (pencil icon) at the top right of the file view.
+- Make your changes and commit the changes.
 
-```bash
-npm run build
-npm run start
-```
+**Use GitHub Codespaces**
 
-## Project Structure
+- Navigate to the main page of your repository.
+- Click on the "Code" button (green button) near the top right.
+- Select the "Codespaces" tab.
+- Click on "New codespace" to launch a new Codespace environment.
+- Edit files directly within the Codespace and commit and push your changes once you're done.
 
-```
-├── app/                   # Next.js App Router pages
-│   ├── about/            # About page
-│   ├── book/             # Booking page
-│   ├── contact/          # Contact page
-│   ├── gallery/          # Gallery page
-│   ├── policies/         # Policies page
-│   ├── services/         # Services page
-│   ├── layout.tsx        # Root layout with metadata
-│   ├── page.tsx          # Home page
-│   ├── not-found.tsx     # 404 page
-│   └── globals.css       # Global styles
-├── components/           
-│   ├── layout/           # Layout components (Header, Footer)
-│   ├── providers/        # React providers
-│   └── ui/               # Reusable UI components (ShadCN)
-├── hooks/                # Custom React hooks
-├── lib/                  # Utility functions
-├── public/               # Static assets
-│   └── assets/           # Images and media
-└── next.config.ts        # Next.js configuration
-```
+## What technologies are used for this project?
 
-## Key Pages
+This project is built with:
 
-- **Home** (`/`) - Hero section, services overview, testimonials
-- **About** (`/about`) - Company story, values, mission
-- **Services** (`/services`) - Detailed service offerings
-- **Gallery** (`/gallery`) - Visual showcase of facilities
-- **Book** (`/book`) - Booking form for reservations
-- **Contact** (`/contact`) - Contact information and inquiry form
-- **Policies** (`/policies`) - Legal policies and terms
+- Vite
+- TypeScript
+- React
+- shadcn-ui
+- Tailwind CSS
 
-## SEO & Performance
+## How can I deploy this project?
 
-- Proper metadata and Open Graph tags on all pages
-- Optimized images with Next.js Image component
-- Semantic HTML structure
-- Mobile-responsive design
-- Fast page loads with Next.js optimizations
-- Security headers configured
+Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
 
-## Customization
+## Can I connect a custom domain to my Lovable project?
 
-### Colors
+Yes, you can!
 
-The color scheme uses a premium executive palette defined in `app/globals.css`:
-- **Primary**: Deep charcoal navy (#1A1E2E)
-- **Accent**: Warm champagne gold (#C9A054)
-- **Background**: Soft cream (#FAF8F5)
+To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
-### Fonts
-
-- **Headings**: Lora (Serif, Bold)
-- **Body**: Inter (Sans-serif)
-
-## License
-
-All rights reserved © 2026 Visionary House
+Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)

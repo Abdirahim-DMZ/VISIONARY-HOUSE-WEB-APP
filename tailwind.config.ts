@@ -20,7 +20,7 @@ export default {
     extend: {
       fontFamily: {
         serif: ["var(--font-lora)", "Lora", "Georgia", "serif"],
-        sans: ["var(--font-inter)", "Inter", "system-ui", "sans-serif"],
+        sans: ["var(--font-poppins)", "Poppins", "system-ui", "sans-serif"],
         heading: ["var(--font-lora)", "Lora", "Georgia", "serif"],
       },
       colors: {

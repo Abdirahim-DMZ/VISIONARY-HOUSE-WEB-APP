@@ -1,14 +1,15 @@
 import type { Metadata } from "next";
-import { Inter, Lora } from "next/font/google";
+import { Poppins, Lora } from "next/font/google";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryProvider } from "@/components/providers/query-provider";
 import "./globals.css";
 
-const inter = Inter({
+const poppins = Poppins({
   subsets: ["latin"],
-  variable: "--font-inter",
+  weight: ["300", "400", "500", "600"],
+  variable: "--font-poppins",
   display: "swap",
 });
 
@@ -97,7 +98,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} ${lora.variable}`}>
+    <html lang="en" className={`${poppins.variable} ${lora.variable}`}>
       <body className="font-sans">
         <QueryProvider>
           <TooltipProvider>

@@ -36,5 +36,5 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# bun
-bun.lockb
+# booking data
+/data/bookings.json
