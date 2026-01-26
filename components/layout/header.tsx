@@ -47,7 +47,7 @@ export function Header() {
             {navLinks.map((link) => (
               <Link
                 key={link.href}
-                href={'/'}
+                href={link.href}
                 className={cn(
                   "text-sm font-medium transition-colors duration-200 relative py-1",
                   isActive(link.href)
@@ -107,7 +107,7 @@ export function Header() {
             {navLinks.map((link) => (
               <Link
                 key={link.href}
-                href={'/'}
+                href={link.href}
                 onClick={() => setIsOpen(false)}
                 className={cn(
                   "text-base font-medium py-2 transition-colors",
