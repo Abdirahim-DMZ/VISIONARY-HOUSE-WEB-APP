@@ -8,20 +8,35 @@ import { motion } from "framer-motion";
 
 const categories = ["All", "Event Spaces", "Lounge", "Offices", "Media Studio"];
 
-// Updated gallery images using real assets, grouped by category
+// Updated gallery images using all assets, grouped into existing categories
 const galleryItems = [
   // Event spaces
   { src: "/assets/1.jpg", alt: "Executive boardroom with city view", category: "Event Spaces" },
   { src: "/assets/2.jpg", alt: "Premium conference hall setup", category: "Event Spaces" },
+  { src: "/assets/3.jpg", alt: "Modern meeting room with presentation screen", category: "Event Spaces" },
   { src: "/assets/4.jpg", alt: "Large event space with ambient lighting", category: "Event Spaces" },
+  // { src: "/assets/6.jpg", alt: "Elegant conference seating arrangement", category: "Event Spaces" },
+  // { src: "/assets/214b46de-ce52-47d9-b376-dca5f6032a89.png", alt: "Visionary House event graphic", category: "Event Spaces" },
+  { src: "/assets/WhatsApp Image 2025-07-10 at 22.08.21.jpeg", alt: "Event space prepared for guests", category: "Event Spaces" },
+  // { src: "/assets/WhatsApp Image 2025-07-10 at 22.08.21 (1).jpeg", alt: "Alternate angle of premium event space", category: "Event Spaces" },
+  { src: "/assets/WhatsApp Image 2025-07-10 at 22.08.22.jpeg", alt: "Event seating with warm lighting", category: "Event Spaces" },
+  { src: "/assets/WhatsApp Image 2025-07-10 at 22.08.22 (1).jpeg", alt: "Boardroom style event setup", category: "Event Spaces" },
+  { src: "/assets/WhatsApp Image 2025-07-10 at 22.08.23.jpeg", alt: "Conference room with presentation ready", category: "Event Spaces" },
+  { src: "/assets/WhatsApp Image 2025-07-10 at 22.08.23 (1).jpeg", alt: "Event space with projector and screen", category: "Event Spaces" },
+  // { src: "/assets/WhatsApp Image 2025-07-10 at 22.08.23 (2).jpeg", alt: "Conference table with comfortable seating", category: "Event Spaces" },
+  { src: "/assets/WhatsApp Image 2025-07-10 at 22.08.23 (3).jpeg", alt: "Event space detail shot", category: "Event Spaces" },
+  { src: "/assets/WhatsApp Image 2025-07-10 at 22.08.23 (4).jpeg", alt: "Evening event ambience", category: "Event Spaces" },
 
   // Lounge
   { src: "/assets/5.jpg", alt: "Professional lounge area with seating", category: "Lounge" },
   { src: "/assets/q3.jpg", alt: "Private lounge corner for informal meetings", category: "Lounge" },
+  { src: "/assets/WhatsApp Image 2025-07-10 at 22.07.36.jpeg", alt: "Relaxed lounge seating area", category: "Lounge" },
+  // { src: "/assets/WhatsApp Image 2025-07-10 at 22.07.36 (1).jpeg", alt: "Lounge space with warm lighting", category: "Lounge" },
+  { src: "/assets/WhatsApp Image 2025-07-10 at 22.08.07.jpeg", alt: "Lounge space with decor details", category: "Lounge" },
 
   // Offices / virtual offices
-  { src: "/assets/3.jpg", alt: "Modern virtual office workstation", category: "Offices" },
   { src: "/assets/q4.jpg", alt: "Focused work zone with clean design", category: "Offices" },
+  { src: "/assets/q6.tiff", alt: "Quiet corner for focused work", category: "Offices" },
 
   // Media studio
   { src: "/assets/q1.jpg", alt: "Professional media studio with lighting", category: "Media Studio" },
@@ -32,21 +47,6 @@ const galleryItems = [
 export default function Gallery() {
   const [activeCategory, setActiveCategory] = useState("All");
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
-
-  // Animation variants consistent with Home / About / Services
-  const fadeInUp = {
-    initial: { opacity: 0, y: 20 },
-    animate: { opacity: 1, y: 0 },
-    transition: { duration: 0.6 },
-  };
-
-  const staggerContainer = {
-    animate: {
-      transition: {
-        staggerChildren: 0.1,
-      },
-    },
-  };
 
   const filteredItems =
     activeCategory === "All"
@@ -118,20 +118,15 @@ export default function Gallery() {
           </motion.div>
 
           {/* Gallery Grid */}
-          <motion.div
-            key={activeCategory}
-            className="grid md:grid-cols-2 lg:grid-cols-3 gap-6"
-            variants={staggerContainer}
-            initial="initial"
-            whileInView="animate"
-            viewport={{ once: false, amount: 0.2 }}
-          >
-            {filteredItems.map((item) => (
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredItems.map((item, index) => (
               <motion.div
                 key={item.src}
-                variants={fadeInUp}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: false, amount: 0.25 }}
                 whileHover={{ y: -4 }}
-                transition={{ duration: 0.3 }}
+                transition={{ duration: 0.4, delay: index * 0.03 }}
                 onClick={() => setSelectedImage(item.src)}
                 className="group relative aspect-[4/3] overflow-hidden rounded-lg cursor-pointer shadow-elevated"
               >
@@ -153,7 +148,7 @@ export default function Gallery() {
                 </div>
               </motion.div>
             ))}
-          </motion.div>
+          </div>
         </div>
       </section>
 
