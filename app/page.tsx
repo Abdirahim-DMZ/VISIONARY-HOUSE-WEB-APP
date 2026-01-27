@@ -212,13 +212,13 @@ export default function Home() {
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.5, duration: 0.6 }}
                       >
-                        <Link href="/">
+                        <Link href="/book">
                           <Button variant="hero" size="xl">
                             Book Your Experience
                             <ArrowRight className="ml-2 h-5 w-5" />
                           </Button>
                         </Link>
-                        <Link href="/">
+                        <Link href="/services">
                           <Button variant="hero-outline" size="xl">
                             Explore Services
                           </Button>
@@ -270,7 +270,7 @@ export default function Home() {
                 transition={{ duration: 0.3 }}
               >
                 <Link 
-                  href={'/'}
+                  href={service.href}
                   className="group card-premium overflow-hidden block"
                 >
                   <div className="aspect-[16/10] overflow-hidden rounded-md mb-6 relative">
@@ -307,7 +307,7 @@ export default function Home() {
             viewport={{ once: false, amount: 0.3 }}
             transition={{ delay: 0.4, duration: 0.6 }}
           >
-            <Link href="/">
+            <Link href="/services">
               <Button variant="premium-outline" size="lg">
                 View All Services
                 <ArrowRight className="ml-2 h-4 w-4" />
@@ -485,7 +485,7 @@ export default function Home() {
       </section>
 
       {/* CTA Section */}
-      <section className="py-24 bg-primary">
+      <section className="py-24">
         <motion.div 
           className="container-premium text-center"
           initial={{ opacity: 0, y: 20 }}
@@ -493,10 +493,10 @@ export default function Home() {
           viewport={{ once: false, amount: 0.3 }}
           transition={{ duration: 0.6 }}
         >
-          <h2 className="heading-section text-primary-foreground mb-6">
+          <h2 className="heading-section text-foreground mb-6">
             Ready to Elevate Your Business?
           </h2>
-          <p className="text-primary-foreground/70 text-lg max-w-2xl mx-auto mb-10">
+          <p className="text-body max-w-2xl mx-auto mb-10">
             Experience the premium environment your business deserves.
             Schedule a visit or book your space today.
           </p>
@@ -507,13 +507,13 @@ export default function Home() {
             viewport={{ once: false, amount: 0.3 }}
             transition={{ delay: 0.2, duration: 0.6 }}
           >
-            <Link href="/">
-              <Button variant="hero" size="xl">
+            <Link href="/book">
+              <Button variant="gold" size="xl">
                 Book Now
               </Button>
             </Link>
-            <Link href="/">
-              <Button variant="hero-outline" size="xl">
+            <Link href="/contact">
+              <Button variant="premium-outline" size="xl">
                 Schedule a Visit
               </Button>
             </Link>

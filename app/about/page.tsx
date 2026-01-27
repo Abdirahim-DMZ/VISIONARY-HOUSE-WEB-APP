@@ -208,129 +208,129 @@ export default function About() {
             </section>
 
             {/* Our Values Section */}
-            {/*<section className="section-padding bg-background">*/}
-            {/*    <div className="container-premium">*/}
-            {/*        <motion.div*/}
-            {/*            className="text-center mb-16"*/}
-            {/*            initial={{ opacity: 0, y: 20 }}*/}
-            {/*            whileInView={{ opacity: 1, y: 0 }}*/}
-            {/*            viewport={{ once: false, amount: 0.3 }}*/}
-            {/*            transition={{ duration: 0.6 }}*/}
-            {/*        >*/}
-            {/*            <p className="text-accent font-medium tracking-widest uppercase text-sm mb-4">*/}
-            {/*                Our Values*/}
-            {/*            </p>*/}
-            {/*            <h2 className="heading-section text-foreground mb-6">*/}
-            {/*                The Principles That Guide Us*/}
-            {/*            </h2>*/}
-            {/*            <p className="text-body max-w-2xl mx-auto">*/}
-            {/*                Every interaction, every space, and every service at Visionary House*/}
-            {/*                is shaped by our unwavering commitment to these core values.*/}
-            {/*            </p>*/}
-            {/*        </motion.div>*/}
+            <section className="section-padding bg-background">
+                <div className="container-premium">
+                    <motion.div
+                        className="text-center mb-16"
+                        initial={{ opacity: 0, y: 20 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        viewport={{ once: false, amount: 0.3 }}
+                        transition={{ duration: 0.6 }}
+                    >
+                        <p className="text-accent font-medium tracking-widest uppercase text-sm mb-4">
+                            Our Values
+                        </p>
+                        <h2 className="heading-section text-foreground mb-6">
+                            The Principles That Guide Us
+                        </h2>
+                        <p className="text-body max-w-2xl mx-auto">
+                            Every interaction, every space, and every service at Visionary House
+                            is shaped by our unwavering commitment to these core values.
+                        </p>
+                    </motion.div>
 
-            {/*        <motion.div*/}
-            {/*            className="grid md:grid-cols-2 lg:grid-cols-4 gap-8"*/}
-            {/*            variants={staggerContainer}*/}
-            {/*            initial="initial"*/}
-            {/*            whileInView="animate"*/}
-            {/*            viewport={{ once: false, amount: 0.2 }}*/}
-            {/*        >*/}
-            {/*            {values.map((value, index) => (*/}
-            {/*                <motion.div*/}
-            {/*                    key={index}*/}
-            {/*                    className="card-premium text-center"*/}
-            {/*                    variants={fadeInUp}*/}
-            {/*                    whileHover={{ y: -5 }}*/}
-            {/*                    transition={{ duration: 0.3 }}*/}
-            {/*                >*/}
-            {/*                    <div className="inline-flex p-4 bg-secondary rounded-full mb-6">*/}
-            {/*                        <value.icon className="h-8 w-8 text-accent" />*/}
-            {/*                    </div>*/}
-            {/*                    <h3 className="heading-card text-foreground mb-3">{value.title}</h3>*/}
-            {/*                    <p className="text-muted-foreground text-sm">{value.description}</p>*/}
-            {/*                </motion.div>*/}
-            {/*            ))}*/}
-            {/*        </motion.div>*/}
-            {/*    </div>*/}
-            {/*</section>*/}
+                    <motion.div
+                        className="grid md:grid-cols-2 lg:grid-cols-4 gap-8"
+                        variants={staggerContainer}
+                        initial="initial"
+                        whileInView="animate"
+                        viewport={{ once: false, amount: 0.2 }}
+                    >
+                        {values.map((value, index) => (
+                            <motion.div
+                                key={index}
+                                className="card-premium text-center"
+                                variants={fadeInUp}
+                                whileHover={{ y: -5 }}
+                                transition={{ duration: 0.3 }}
+                            >
+                                <div className="inline-flex p-4 bg-secondary rounded-full mb-6">
+                                    <value.icon className="h-8 w-8 text-accent" />
+                                </div>
+                                <h3 className="heading-card text-foreground mb-3">{value.title}</h3>
+                                <p className="text-muted-foreground text-sm">{value.description}</p>
+                            </motion.div>
+                        ))}
+                    </motion.div>
+                </div>
+            </section>
 
-            {/*/!* Mission Section *!/*/}
-            {/*<section className="section-padding bg-primary">*/}
-            {/*    <div className="container-premium">*/}
-            {/*        <motion.div*/}
-            {/*            className="max-w-3xl mx-auto text-center"*/}
-            {/*            initial={{ opacity: 0, y: 20 }}*/}
-            {/*            whileInView={{ opacity: 1, y: 0 }}*/}
-            {/*            viewport={{ once: false, amount: 0.3 }}*/}
-            {/*            transition={{ duration: 0.6 }}*/}
-            {/*        >*/}
-            {/*            <motion.p*/}
-            {/*                className="text-accent font-medium tracking-widest uppercase text-sm mb-4"*/}
-            {/*                initial={{ opacity: 0 }}*/}
-            {/*                whileInView={{ opacity: 1 }}*/}
-            {/*                viewport={{ once: false, amount: 0.3 }}*/}
-            {/*                transition={{ delay: 0.2, duration: 0.6 }}*/}
-            {/*            >*/}
-            {/*                Our Mission*/}
-            {/*            </motion.p>*/}
-            {/*            <motion.h2*/}
-            {/*                className="heading-section text-primary-foreground mb-8"*/}
-            {/*                initial={{ opacity: 0, y: 20 }}*/}
-            {/*                whileInView={{ opacity: 1, y: 0 }}*/}
-            {/*                viewport={{ once: false, amount: 0.3 }}*/}
-            {/*                transition={{ delay: 0.3, duration: 0.6 }}*/}
-            {/*            >*/}
-            {/*                &quot;To provide an unparalleled professional experience that empowers*/}
-            {/*                business leaders to focus on what matters most—their success.&quot;*/}
-            {/*            </motion.h2>*/}
-            {/*            <motion.div*/}
-            {/*                className="divider-gold mx-auto"*/}
-            {/*                initial={{ opacity: 0, scaleX: 0 }}*/}
-            {/*                whileInView={{ opacity: 1, scaleX: 1 }}*/}
-            {/*                viewport={{ once: false, amount: 0.3 }}*/}
-            {/*                transition={{ delay: 0.4, duration: 0.6 }}*/}
-            {/*            />*/}
-            {/*        </motion.div>*/}
-            {/*    </div>*/}
-            {/*</section>*/}
+            {/* Mission Section */}
+            <section className="section-padding bg-primary">
+                <div className="container-premium">
+                    <motion.div
+                        className="max-w-3xl mx-auto text-center"
+                        initial={{ opacity: 0, y: 20 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        viewport={{ once: false, amount: 0.3 }}
+                        transition={{ duration: 0.6 }}
+                    >
+                        <motion.p
+                            className="text-accent font-medium tracking-widest uppercase text-sm mb-4"
+                            initial={{ opacity: 0 }}
+                            whileInView={{ opacity: 1 }}
+                            viewport={{ once: false, amount: 0.3 }}
+                            transition={{ delay: 0.2, duration: 0.6 }}
+                        >
+                            Our Mission
+                        </motion.p>
+                        <motion.h2
+                            className="heading-section text-primary-foreground mb-8"
+                            initial={{ opacity: 0, y: 20 }}
+                            whileInView={{ opacity: 1, y: 0 }}
+                            viewport={{ once: false, amount: 0.3 }}
+                            transition={{ delay: 0.3, duration: 0.6 }}
+                        >
+                            &quot;To provide an unparalleled professional experience that empowers
+                            business leaders to focus on what matters most—their success.&quot;
+                        </motion.h2>
+                        <motion.div
+                            className="divider-gold mx-auto"
+                            initial={{ opacity: 0, scaleX: 0 }}
+                            whileInView={{ opacity: 1, scaleX: 1 }}
+                            viewport={{ once: false, amount: 0.3 }}
+                            transition={{ delay: 0.4, duration: 0.6 }}
+                        />
+                    </motion.div>
+                </div>
+            </section>
 
-            {/*/!* CTA Section *!/*/}
-            {/*<section className="section-padding bg-background">*/}
-            {/*    <motion.div*/}
-            {/*        className="container-premium text-center"*/}
-            {/*        initial={{ opacity: 0, y: 20 }}*/}
-            {/*        whileInView={{ opacity: 1, y: 0 }}*/}
-            {/*        viewport={{ once: false, amount: 0.3 }}*/}
-            {/*        transition={{ duration: 0.6 }}*/}
-            {/*    >*/}
-            {/*        <h2 className="heading-section text-foreground mb-6">*/}
-            {/*            Experience Visionary House*/}
-            {/*        </h2>*/}
-            {/*        <p className="text-body max-w-2xl mx-auto mb-10">*/}
-            {/*            We invite you to discover the difference a premium business environment*/}
-            {/*            can make. Schedule a private tour of our facilities today.*/}
-            {/*        </p>*/}
-            {/*        <motion.div*/}
-            {/*            className="flex flex-col sm:flex-row gap-4 justify-center"*/}
-            {/*            initial={{ opacity: 0 }}*/}
-            {/*            whileInView={{ opacity: 1 }}*/}
-            {/*            viewport={{ once: false, amount: 0.3 }}*/}
-            {/*            transition={{ delay: 0.2, duration: 0.6 }}*/}
-            {/*        >*/}
-            {/*            <Link href="/contact">*/}
-            {/*                <Button variant="gold" size="xl">*/}
-            {/*                    Schedule a Tour*/}
-            {/*                </Button>*/}
-            {/*            </Link>*/}
-            {/*            <Link href="/book">*/}
-            {/*                <Button variant="premium-outline" size="xl">*/}
-            {/*                    Book Now*/}
-            {/*                </Button>*/}
-            {/*            </Link>*/}
-            {/*        </motion.div>*/}
-            {/*    </motion.div>*/}
-            {/*</section>*/}
+            {/* CTA Section */}
+            <section className="section-padding bg-background">
+                <motion.div
+                    className="container-premium text-center"
+                    initial={{ opacity: 0, y: 20 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: false, amount: 0.3 }}
+                    transition={{ duration: 0.6 }}
+                >
+                    <h2 className="heading-section text-foreground mb-6">
+                        Experience Visionary House
+                    </h2>
+                    <p className="text-body max-w-2xl mx-auto mb-10">
+                        We invite you to discover the difference a premium business environment
+                        can make. Schedule a private tour of our facilities today.
+                    </p>
+                    <motion.div
+                        className="flex flex-col sm:flex-row gap-4 justify-center"
+                        initial={{ opacity: 0 }}
+                        whileInView={{ opacity: 1 }}
+                        viewport={{ once: false, amount: 0.3 }}
+                        transition={{ delay: 0.2, duration: 0.6 }}
+                    >
+                        <Link href="/contact">
+                            <Button variant="gold" size="xl">
+                                Schedule a Tour
+                            </Button>
+                        </Link>
+                        <Link href="/book">
+                            <Button variant="premium-outline" size="xl">
+                                Book Now
+                            </Button>
+                        </Link>
+                    </motion.div>
+                </motion.div>
+            </section>
         </Layout>
     );
 }

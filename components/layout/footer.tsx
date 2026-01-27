@@ -66,8 +66,7 @@ export function Footer() {
               {footerLinks.services.map((link) => (
                 <li key={link.href}>
                   <Link
-                    href={'/'}
-                    // href={link.href}
+                    href={link.href}
                     className="text-sm text-primary-foreground/70 hover:text-accent transition-colors"
                   >
                     {link.label}
@@ -84,8 +83,7 @@ export function Footer() {
               {footerLinks.company.map((link) => (
                 <li key={link.href}>
                   <Link
-                    href={'/'}
-                    // href={link.href}
+                    href={link.href}
                     className="text-sm text-primary-foreground/70 hover:text-accent transition-colors"
                   >
                     {link.label}
@@ -137,8 +135,7 @@ export function Footer() {
             {footerLinks.legal.slice(0, 2).map((link) => (
               <Link
                 key={link.href}
-                href={'/'}
-                // href={link.href}
+                href={link.href}
                 className="text-sm text-primary-foreground/50 hover:text-accent transition-colors"
               >
                 {link.label}
