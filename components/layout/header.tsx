@@ -6,6 +6,8 @@ import { usePathname } from "next/navigation";
 import { Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import logo from "../../public/assets/logo.png";
+import Image from "next/image";
 
 const navLinks = [
   { href: "/", label: "Home" },
@@ -25,12 +27,21 @@ export function Header() {
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-md border-b border-border/50">
       <div className="container-premium">
-        <div className="flex items-center justify-between h-18 md:h-20">
+        <div className="flex items-center justify-between h-16 md:h-20">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2">
-            <span className="font-heading text-xl md:text-2xl font-bold text-foreground tracking-tight">
-              Visionary <span className="text-accent">House</span>
-            </span>
+          <Link
+            href="/"
+            className="flex items-center gap-2"
+            aria-label="Visionary House home"
+          >
+            <div className="relative h-12 md:h-16 flex items-center">
+              <Image
+                src={logo}
+                alt="Visionary House logo"
+                className="h-full w-auto object-cover"
+                priority
+              />
+            </div>
           </Link>
 
           {/* Desktop Navigation */}
@@ -56,13 +67,13 @@ export function Header() {
 
           {/* CTA Buttons */}
           <div className="hidden lg:flex items-center gap-4">
+            {/*<Link href="/">*/}
+            {/*  <Button variant="ghost" size="sm">*/}
+            {/*    Policies*/}
+            {/*  </Button>*/}
+            {/*</Link>*/}
             <Link href="/">
-              <Button variant="ghost" size="sm">
-                Policies
-              </Button>
-            </Link>
-            <Link href="/">
-              <Button variant="gold" size="default">
+              <Button variant="gold" size="default" className="bg-[#B08D39] text-[#FFF]">
                 Book Now
               </Button>
             </Link>
@@ -110,11 +121,11 @@ export function Header() {
                 {link.label}
               </Link>
             ))}
-            <Link href="/" onClick={() => setIsOpen(false)}>
-              <Button variant="ghost" className="w-full justify-start px-0">
-                Policies
-              </Button>
-            </Link>
+            {/*<Link href="/" onClick={() => setIsOpen(false)}>*/}
+            {/*  <Button variant="ghost" className="w-full justify-start px-0">*/}
+            {/*    Policies*/}
+            {/*  </Button>*/}
+            {/*</Link>*/}
             <Link href="/" onClick={() => setIsOpen(false)}>
               <Button variant="gold" className="w-full mt-2">
                 Book Now

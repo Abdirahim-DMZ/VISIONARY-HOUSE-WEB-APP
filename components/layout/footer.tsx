@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { Mail, Phone, MapPin, Linkedin, Instagram } from "lucide-react";
+import logo from "../../public/assets/logo.png";
+import Image from "next/image";
 
 const footerLinks = {
   services: [
@@ -30,12 +32,18 @@ export function Footer() {
           {/* Brand Column */}
           <div className="lg:col-span-1">
             <Link href="/" className="inline-block mb-6">
-              <span className="font-heading text-2xl font-bold tracking-tight">
-                Visionary <span className="text-accent">House</span>
-              </span>
+              <div className="relative h-full flex items-center">
+                <Image
+                    src={logo}
+                    alt="Visionary House logo"
+                    className="h-full w-32 object-cover"
+                    priority
+                />
+              </div>
             </Link>
             <p className="text-primary-foreground/70 text-sm leading-relaxed mb-6">
-              A premium business ecosystem designed for visionary founders, executives, and enterprises seeking excellence.
+              A premium business ecosystem designed for visionary founders, executives, and enterprises seeking
+              excellence.
             </p>
             <div className="flex gap-4">
               <a

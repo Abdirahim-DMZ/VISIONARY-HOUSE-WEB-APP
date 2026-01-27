@@ -319,7 +319,7 @@ export default function About() {
                         transition={{ delay: 0.2, duration: 0.6 }}
                     >
                         <Link href="/contact">
-                            <Button variant="gold" size="xl">
+                            <Button variant="gold" size="xl" className="bg-[#B08D39] text-[#FFF]">
                                 Schedule a Tour
                             </Button>
                         </Link>

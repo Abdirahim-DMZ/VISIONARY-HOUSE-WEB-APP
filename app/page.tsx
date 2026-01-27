@@ -213,7 +213,7 @@ export default function Home() {
                         transition={{ delay: 0.5, duration: 0.6 }}
                       >
                         <Link href="/book">
-                          <Button variant="hero" size="xl">
+                          <Button variant="hero" size="xl" className="bg-[#B08D39] text-[#FFF]">
                             Book Your Experience
                             <ArrowRight className="ml-2 h-5 w-5" />
                           </Button>
@@ -508,7 +508,7 @@ export default function Home() {
             transition={{ delay: 0.2, duration: 0.6 }}
           >
             <Link href="/book">
-              <Button variant="gold" size="xl">
+              <Button variant="gold" size="xl" className="bg-[#B08D39] text-[#FFF]">
                 Book Now
               </Button>
             </Link>
