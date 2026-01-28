@@ -72,8 +72,8 @@ export function Header() {
             {/*    Policies*/}
             {/*  </Button>*/}
             {/*</Link>*/}
-            <Link href="/">
-              <Button variant="gold" size="default" className="bg-[#B08D39] text-[#FFF]">
+            <Link href="/book">
+              <Button variant="gold" size="default">
                 Book Now
               </Button>
             </Link>
@@ -126,7 +126,7 @@ export function Header() {
             {/*    Policies*/}
             {/*  </Button>*/}
             {/*</Link>*/}
-            <Link href="/" onClick={() => setIsOpen(false)}>
+            <Link href="/book" onClick={() => setIsOpen(false)}>
               <Button variant="gold" className="w-full mt-2">
                 Book Now
               </Button>

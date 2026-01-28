@@ -275,14 +275,62 @@
     @apply bg-accent/50;
   }
 
-  /* Time input styling */
+  /* Hide scrollbar but keep scroll behavior */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Time input styling - red highlight for picker and focus */
+  input[type="time"] {
+    accent-color: hsl(var(--destructive)) !important;
+    color-scheme: light;
+  }
+
   input[type="time"]::-webkit-calendar-picker-indicator {
     cursor: pointer;
-    filter: opacity(0.6);
+    opacity: 0.7;
   }
 
   input[type="time"]:hover::-webkit-calendar-picker-indicator {
-    filter: opacity(1);
+    opacity: 1;
+  }
+
+  input[type="time"]:focus::-webkit-calendar-picker-indicator {
+    opacity: 1;
+  }
+
+  input[type="time"]::-webkit-datetime-edit-hour-field:focus,
+  input[type="time"]::-webkit-datetime-edit-minute-field:focus,
+  input[type="time"]::-webkit-datetime-edit-ampm-field:focus {
+    background-color: hsl(var(--destructive) / 0.15) !important;
+    color: hsl(var(--charcoal)) !important;
+    outline: 2px solid hsl(var(--destructive)) !important;
+    outline-offset: -2px;
+  }
+
+  /* Swiper smooth transitions - prevent white flash */
+  .swiper {
+    background-color: hsl(var(--charcoal)) !important;
+  }
+
+  .swiper-slide {
+    background-color: hsl(var(--charcoal)) !important;
+    opacity: 0 !important;
+  }
+
+  .swiper-slide-active,
+  .swiper-slide-duplicate-active,
+  .swiper-slide-prev,
+  .swiper-slide-next {
+    opacity: 1 !important;
+  }
+
+  .swiper-wrapper {
+    transition-timing-function: ease-in-out !important;
   }
 }
 

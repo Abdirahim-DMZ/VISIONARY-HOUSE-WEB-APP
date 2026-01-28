@@ -1,7 +1,6 @@
 "use client";
 
 import { Layout } from "@/components/layout/layout";
-import { motion } from "framer-motion";
 
 const policies = [
   {
@@ -102,76 +101,28 @@ const policies = [
   },
 ];
 
-const fadeInUp = {
-  initial: { opacity: 0, y: 20 },
-  animate: { opacity: 1, y: 0 },
-  transition: { duration: 0.6 },
-};
-
-const staggerContainer = {
-  animate: {
-    transition: {
-      staggerChildren: 0.1,
-    },
-  },
-};
-
-const innerStagger = {
-  animate: {
-    transition: {
-      staggerChildren: 0.08,
-    },
-  },
-};
-
 export function PoliciesContent() {
   return (
     <Layout>
       {/* Hero Section */}
       <section className="section-padding bg-gradient-hero">
-        <motion.div
-          className="container-premium text-center"
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8 }}
-        >
-          <motion.p
-            className="text-accent font-medium tracking-widest uppercase text-sm mb-4"
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2, duration: 0.6 }}
-          >
+        <div className="container-premium text-center">
+          <p className="text-accent font-medium tracking-widest uppercase text-sm mb-4">
             Legal
-          </motion.p>
-          <motion.h1
-            className="heading-display text-primary-foreground mb-6"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3, duration: 0.6 }}
-          >
+          </p>
+          <h1 className="heading-display text-primary-foreground mb-6">
             Policies & Terms
-          </motion.h1>
-          <motion.p
-            className="text-lg text-primary-foreground/80 max-w-2xl mx-auto"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4, duration: 0.6 }}
-          >
+          </h1>
+          <p className="text-lg text-primary-foreground/80 max-w-2xl mx-auto">
             Transparency is fundamental to trust. Review our policies to
             understand how we operate and protect your interests.
-          </motion.p>
-        </motion.div>
+          </p>
+        </div>
       </section>
 
       {/* Quick Navigation */}
       <section className="py-8 bg-secondary border-b border-border">
-        <motion.div
-          className="container-premium"
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: false, amount: 0.3 }}
-          transition={{ duration: 0.6 }}
-        >
+        <div className="container-premium">
           <div className="flex flex-wrap justify-center gap-4">
             {policies.map((policy) => (
               <a
@@ -183,25 +134,18 @@ export function PoliciesContent() {
               </a>
             ))}
           </div>
-        </motion.div>
+        </div>
       </section>
 
       {/* Policies Content */}
       <section className="section-padding bg-background">
         <div className="container-premium">
-          <motion.div
-            className="max-w-4xl mx-auto space-y-16"
-            variants={staggerContainer}
-            initial="initial"
-            whileInView="animate"
-            viewport={{ once: false, amount: 0.2 }}
-          >
+          <div className="max-w-4xl mx-auto space-y-16">
             {policies.map((policy, index) => (
-              <motion.div
+              <div
                 key={policy.id}
                 id={policy.id}
                 className="scroll-mt-32"
-                variants={fadeInUp}
               >
                 <div className="flex items-center gap-4 mb-8">
                   <span className="shrink-0 w-10 h-10 rounded-full bg-accent/20 flex items-center justify-center text-accent font-heading font-bold">
@@ -209,42 +153,30 @@ export function PoliciesContent() {
                   </span>
                   <h2 className="heading-section text-foreground">{policy.title}</h2>
                 </div>
-                <motion.div
-                  className="space-y-8 pl-14"
-                  variants={innerStagger}
-                  initial="initial"
-                  whileInView="animate"
-                  viewport={{ once: false, amount: 0.2 }}
-                >
+                <div className="space-y-8 pl-14">
                   {policy.content.map((section, sectionIndex) => (
-                    <motion.div key={sectionIndex} variants={fadeInUp}>
+                    <div key={sectionIndex}>
                       <h3 className="font-medium text-foreground mb-3">
                         {section.heading}
                       </h3>
                       <p className="text-muted-foreground leading-relaxed">
                         {section.text}
                       </p>
-                    </motion.div>
+                    </div>
                   ))}
-                </motion.div>
+                </div>
                 {index < policies.length - 1 && (
                   <div className="divider-gold mt-16 ml-14" />
                 )}
-              </motion.div>
+              </div>
             ))}
-          </motion.div>
+          </div>
         </div>
       </section>
 
       {/* Contact for Questions */}
       <section className="py-16 bg-secondary">
-        <motion.div
-          className="container-premium text-center"
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: false, amount: 0.3 }}
-          transition={{ duration: 0.6 }}
-        >
+        <div className="container-premium text-center">
           <h3 className="heading-card text-foreground mb-4">
             Questions About Our Policies?
           </h3>
@@ -257,7 +189,7 @@ export function PoliciesContent() {
           <p className="text-sm text-muted-foreground">
             Last updated: January 2026
           </p>
-        </motion.div>
+        </div>
       </section>
     </Layout>
   );

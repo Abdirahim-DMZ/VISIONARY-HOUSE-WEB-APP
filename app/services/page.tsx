@@ -101,9 +101,15 @@ export default function Services() {
   return (
     <Layout>
       {/* Hero Section */}
-      <section className="section-padding bg-gradient-hero">
+      <section className="relative section-padding">
+        <div 
+          className="absolute inset-0 bg-cover bg-center"
+          style={{ backgroundImage: 'url(/assets/1.jpg)' }}
+        >
+          <div className="absolute inset-0 bg-gradient-hero opacity-90" />
+        </div>
         <motion.div 
-          className="container-premium text-center"
+          className="relative z-10 container-premium text-center"
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8 }}

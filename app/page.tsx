@@ -5,11 +5,17 @@ import Image from "next/image";
 import { ArrowRight, Building2, Users, Video, Briefcase, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Layout } from "@/components/layout/layout";
-import { Carousel, CarouselContent, CarouselItem } from "@/components/ui/carousel";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import Autoplay from "embla-carousel-autoplay";
-import { motion } from "framer-motion";
-import { useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { useState, useEffect } from "react";
+import { Swiper, SwiperSlide } from 'swiper/react';
+import { Autoplay, EffectFade } from 'swiper/modules';
+import type { Swiper as SwiperType } from 'swiper';
+
+// Import Swiper styles
+import 'swiper/css';
+import 'swiper/css/effect-fade';
+import 'swiper/css/autoplay';
 
 // Hero carousel slides (using existing assets)
 const heroSlides = [
@@ -123,9 +129,8 @@ const faqs = [
 ];
 
 export default function Home() {
-  const autoplayPlugin = useRef(
-    Autoplay({ delay: 5000, stopOnInteraction: false })
-  );
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const [swiperInstance, setSwiperInstance] = useState<SwiperType | null>(null);
 
   // Animation variants
   const fadeInUp = {
@@ -145,52 +150,95 @@ export default function Home() {
   return (
     <Layout>
       {/* Hero Carousel Section */}
-      <section className="relative h-screen flex items-center justify-center overflow-hidden">
-        <Carousel 
-          className="w-full h-full absolute inset-0"
-          opts={{
-            loop: true,
+      <section className="relative md:h-[calc(100vh-80px)] h-[calc(100vh-64px)] flex items-center justify-center overflow-hidden bg-charcoal">
+        {/* Permanent Dark Background Layer */}
+        <div className="absolute inset-0 bg-gradient-hero opacity-90 z-0" />
+        
+        <Swiper
+          modules={[Autoplay, EffectFade]}
+          effect="fade"
+          fadeEffect={{
+            crossFade: true
           }}
-          plugins={[autoplayPlugin.current]}
+          autoplay={{
+            delay: 5000,
+            disableOnInteraction: false,
+          }}
+          loop={true}
+          speed={800}
+          allowTouchMove={true}
+          onSwiper={(swiper) => setSwiperInstance(swiper)}
+          onSlideChange={(swiper) => setCurrentSlide(swiper.realIndex)}
+          className="w-full h-full absolute inset-0 z-10"
+          style={{ 
+            '--swiper-wrapper-transition-timing-function': 'ease-in-out'
+          } as React.CSSProperties}
         >
-          <CarouselContent className="h-full">
-            {heroSlides.map((slide, index) => (
-              <CarouselItem key={index} className="h-full">
-                <div className="relative h-full w-full flex items-center justify-center">
-                  {/* Background Image */}
+          {heroSlides.map((slide, index) => (
+            <SwiperSlide key={index} className="h-full">
+                <div className="relative h-full w-full flex items-center justify-center bg-charcoal">
+                  {/* Background Image - Smooth scale animation without conditional logic */}
                   <div className="absolute inset-0">
-                    <Image
-                      src={slide.image}
-                      alt=""
-                      fill
-                      priority={index === 0}
-                      sizes="100vw"
-                      className="object-cover object-center"
-                    />
-                    <div className="absolute inset-0 bg-gradient-hero opacity-80" />
+                    <div
+                      className="absolute inset-0 transition-transform duration-[6000ms] ease-out"
+                      style={{
+                        transform: currentSlide === index ? 'scale(1.05)' : 'scale(1)',
+                        willChange: 'transform'
+                      }}
+                    >
+                      <Image
+                        src={slide.image}
+                        alt=""
+                        fill
+                        priority={index === 0}
+                        sizes="100vw"
+                        className="object-cover object-center"
+                      />
+                      <div className="absolute inset-0 bg-gradient-hero opacity-80" />
+                    </div>
                   </div>
 
-                  {/* Content */}
-                  <motion.div 
-                    className="relative z-10 container-premium text-center text-primary-foreground py-20"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ duration: 1 }}
-                  >
+                  {/* Animated Overlay Accent Line */}
+                  <motion.div
+                    key={`line-${index}-${currentSlide}`}
+                    className="absolute top-0 left-0 h-1 bg-gradient-to-r from-transparent via-accent to-transparent z-10"
+                    initial={{ width: "0%", opacity: 0 }}
+                    animate={currentSlide === index ? { width: "100%", opacity: 1 } : { width: "0%", opacity: 0 }}
+                    transition={{ duration: 1, delay: 0.4, ease: [0.25, 0.46, 0.45, 0.94] }}
+                    style={{ willChange: 'width, opacity' }}
+                  />
+
+                  {/* Content Container with Layered Animation */}
+                  <div className="relative z-20 container-premium text-center text-primary-foreground py-20">
                     <div className="max-w-4xl mx-auto">
+                      {/* Top Tag with Elegant Entrance */}
                       <motion.p 
-                        className="text-accent font-medium tracking-widest uppercase text-sm mb-6"
+                        key={`welcome-${index}-${currentSlide}`}
+                        className="text-accent font-medium tracking-widest uppercase text-sm mb-6 inline-block"
                         initial={{ opacity: 0, y: -20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.2, duration: 0.6 }}
+                        animate={currentSlide === index ? { opacity: 1, y: 0 } : { opacity: 0, y: -20 }}
+                        transition={{ 
+                          delay: 0.3, 
+                          duration: 0.6,
+                          ease: [0.25, 0.46, 0.45, 0.94]
+                        }}
+                        style={{ willChange: 'transform, opacity' }}
                       >
                         Welcome to Visionary House
                       </motion.p>
-                      <motion.h1 
+
+                      {/* Main Heading with Smooth Entrance */}
+                      <motion.h1
+                        key={`heading-${index}-${currentSlide}`}
                         className="heading-display text-primary-foreground mb-6"
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.3, duration: 0.6 }}
+                        initial={{ opacity: 0, y: 40 }}
+                        animate={currentSlide === index ? { opacity: 1, y: 0 } : { opacity: 0, y: 40 }}
+                        transition={{ 
+                          delay: 0.5, 
+                          duration: 0.8,
+                          ease: [0.25, 0.46, 0.45, 0.94]
+                        }}
+                        style={{ willChange: 'transform, opacity' }}
                       >
                         {slide.title}
                         <br />
@@ -198,39 +246,97 @@ export default function Home() {
                         <br />
                         {slide.subtitle}
                       </motion.h1>
+
+                      {/* Description with Fade and Slide */}
                       <motion.p 
+                        key={`description-${index}-${currentSlide}`}
                         className="text-lg md:text-xl text-primary-foreground/80 max-w-2xl mx-auto mb-10"
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.4, duration: 0.6 }}
+                        initial={{ opacity: 0, y: 25 }}
+                        animate={currentSlide === index ? { opacity: 1, y: 0 } : { opacity: 0, y: 25 }}
+                        transition={{ 
+                          delay: 0.8, 
+                          duration: 0.7,
+                          ease: [0.25, 0.46, 0.45, 0.94]
+                        }}
+                        style={{ willChange: 'transform, opacity' }}
                       >
                         {slide.description}
                       </motion.p>
+
+                      {/* CTA Buttons with Scale and Reveal */}
                       <motion.div 
+                        key={`buttons-${index}-${currentSlide}`}
                         className="flex flex-col sm:flex-row gap-4 justify-center"
                         initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.5, duration: 0.6 }}
+                        animate={currentSlide === index ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
+                        transition={{ 
+                          delay: 1.1, 
+                          duration: 0.6,
+                          ease: [0.25, 0.46, 0.45, 0.94]
+                        }}
+                        style={{ willChange: 'transform, opacity' }}
                       >
-                        <Link href="/book">
-                          <Button variant="hero" size="xl" className="bg-[#B08D39] text-[#FFF]">
-                            Book Your Experience
-                            <ArrowRight className="ml-2 h-5 w-5" />
-                          </Button>
-                        </Link>
-                        <Link href="/services">
-                          <Button variant="hero-outline" size="xl">
-                            Explore Services
-                          </Button>
-                        </Link>
+                        <motion.div
+                          whileHover={{ 
+                            scale: 1.05,
+                            transition: { duration: 0.2 }
+                          }}
+                          whileTap={{ scale: 0.95 }}
+                        >
+                          <Link href="/book">
+                            <Button variant="hero" size="xl" className="bg-[#B08D39] text-[#FFF] shadow-gold">
+                              Book Your Experience
+                              <ArrowRight className="ml-2 h-5 w-5" />
+                            </Button>
+                          </Link>
+                        </motion.div>
+                        <motion.div
+                          whileHover={{ 
+                            scale: 1.05,
+                            transition: { duration: 0.2 }
+                          }}
+                          whileTap={{ scale: 0.95 }}
+                        >
+                          <Link href="/services">
+                            <Button variant="hero-outline" size="xl">
+                              Explore Services
+                            </Button>
+                          </Link>
+                        </motion.div>
                       </motion.div>
                     </div>
-                  </motion.div>
+                  </div>
+
+                  {/* Decorative Animated Elements */}
+                  {/* <motion.div
+                    key={`scroll-${index}-${currentSlide}`}
+                    className="absolute bottom-20 left-1/2 transform -translate-x-1/2 z-20"
+                    initial={{ opacity: 0, y: -20 }}
+                    animate={currentSlide === index ? { opacity: 0.6, y: 0 } : { opacity: 0, y: -20 }}
+                    transition={{ 
+                      delay: 2,
+                      duration: 0.8,
+                      repeat: currentSlide === index ? Infinity : 0,
+                      repeatType: "reverse",
+                      repeatDelay: 0.5
+                    }}
+                  >
+                    <div className="w-6 h-10 border-2 border-accent/40 rounded-full flex items-start justify-center p-2">
+                      <motion.div
+                        className="w-1.5 h-2 bg-accent rounded-full"
+                        animate={{ y: [0, 12, 0] }}
+                        transition={{
+                          duration: 1.5,
+                          repeat: Infinity,
+                          ease: "easeInOut"
+                        }}
+                      />
+                    </div>
+                  </motion.div> */}
                 </div>
-              </CarouselItem>
-            ))}
-          </CarouselContent>
-        </Carousel>
+            </SwiperSlide>
+          ))}
+        </Swiper>
       </section>
 
       {/* Services Preview Section */}
