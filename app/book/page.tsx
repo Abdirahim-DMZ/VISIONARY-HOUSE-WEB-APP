@@ -720,12 +720,20 @@ export default function Book() {
                               >
                                 <SelectValue placeholder="Choose your event type (small or large)" />
                               </SelectTrigger>
-                              <SelectContent className="shadow-elevated">
+                              <SelectContent className="shadow-elevated max-h-[65vh] overflow-y-auto w-[var(--radix-select-trigger-width)] sm:w-auto">
                                 {eventTypes.map((event) => (
                                   <SelectItem key={event.id} value={event.id} className="text-base py-3">
-                                    <div className="flex items-center gap-3">
-                                      <MapPin className="h-5 w-5 text-accent" />
-                                      <span className="font-medium">{event.label}</span>
+                                    <div className="flex items-center justify-between gap-3">
+                                      <div className="flex items-center gap-3">
+                                        <MapPin className="h-5 w-5 text-accent" />
+                                        <span className="font-medium">{event.label}</span>
+                                      </div>
+                                      <Badge
+                                        variant="outline"
+                                        className="hidden xs:inline-flex text-[11px] px-2 py-0.5 rounded-full border-accent/40 text-accent bg-accent/5"
+                                      >
+                                        {event.isMultiDay ? "Multi Day" : "Single Day"}
+                                      </Badge>
                                     </div>
                                   </SelectItem>
                                 ))}

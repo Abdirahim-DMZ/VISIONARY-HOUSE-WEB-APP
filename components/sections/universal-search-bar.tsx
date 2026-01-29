@@ -108,8 +108,8 @@ export function UniversalSearchBar({
       <div className="relative">
         <Search
           className={cn(
-            "absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 pointer-events-none",
-            variant === "dark" ? "text-primary-foreground/70" : "text-muted-foreground",
+            "absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 pointer-events-none text-accent",
+            variant === "dark" ? "text-primary-foreground/70" : "text-accent",
             iconClassName
           )}
         />
