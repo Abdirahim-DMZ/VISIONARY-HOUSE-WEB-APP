@@ -4,17 +4,17 @@ import logo from "../../public/assets/logo.png";
 import Image from "next/image";
 
 const footerLinks = {
-  services: [
-    { label: "Event Space", href: "/services#event-space" },
-    { label: "Lounge Suite", href: "/services#lounge" },
-    { label: "Virtual Offices", href: "/services#virtual-offices" },
-    { label: "Media Services", href: "/services#media" },
-  ],
   company: [
     { label: "About Us", href: "/about" },
     { label: "Gallery", href: "/gallery" },
     { label: "Contact", href: "/contact" },
     { label: "Book Now", href: "/book" },
+  ],
+  services: [
+    { label: "Event Space", href: "/services#event-space" },
+    { label: "Lounge Suite", href: "/services#lounge" },
+    { label: "Virtual Offices", href: "/services#virtual-offices" },
+    { label: "Media Services", href: "/services#media" },
   ],
   legal: [
     { label: "Privacy Policy", href: "/policies#privacy" },
@@ -67,26 +67,11 @@ export function Footer() {
             </div>
           </div>
 
-          {/* Services */}
-          <div>
-            <h4 className="font-heading text-lg font-bold mb-6">Services</h4>
-            <ul className="space-y-3">
-              {footerLinks.services.map((link) => (
-                <li key={link.href}>
-                  <Link
-                    href={link.href}
-                    className="text-sm text-primary-foreground/70 hover:text-accent transition-colors"
-                  >
-                    {link.label}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
+
 
           {/* Company */}
           <div>
-            <h4 className="font-heading text-lg font-bold mb-6">Company</h4>
+            <h4 className="heading-card mb-6">Company</h4>
             <ul className="space-y-3">
               {footerLinks.company.map((link) => (
                 <li key={link.href}>
@@ -101,9 +86,26 @@ export function Footer() {
             </ul>
           </div>
 
+          {/* Services */}
+          <div>
+            <h4 className="heading-card mb-6">Services</h4>
+            <ul className="space-y-3">
+              {footerLinks.services.map((link) => (
+                  <li key={link.href}>
+                    <Link
+                        href={link.href}
+                        className="text-sm text-primary-foreground/70 hover:text-accent transition-colors"
+                    >
+                      {link.label}
+                    </Link>
+                  </li>
+              ))}
+            </ul>
+          </div>
+
           {/* Contact */}
           <div>
-            <h4 className="font-heading text-lg font-bold mb-6">Contact</h4>
+            <h4 className="heading-card mb-6">Contact</h4>
             <ul className="space-y-4">
               <li className="flex items-start gap-3">
                 <MapPin size={18} className="text-accent mt-0.5 shrink-0" />

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { UniversalSearchBar } from "@/components/sections";
 import { cn } from "@/lib/utils";
 import logo from "../../public/assets/logo.png";
 import Image from "next/image";
@@ -44,34 +45,36 @@ export function Header() {
             </div>
           </Link>
 
-          {/* Desktop Navigation */}
-          <nav className="hidden lg:flex items-center gap-8">
-            {navLinks.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className={cn(
-                  "text-sm font-medium transition-colors duration-200 relative py-1",
-                  isActive(link.href)
-                    ? "text-foreground"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                {link.label}
-                {isActive(link.href) && (
-                  <span className="absolute -bottom-0.5 left-0 w-full h-0.5 bg-accent" />
-                )}
-              </Link>
-            ))}
-          </nav>
+          {/* Desktop Navigation + Search + CTA */}
+          <div className="hidden lg:flex items-center gap-6 flex-1 justify-end">
+            <nav className="flex items-center gap-8">
+              {navLinks.map((link) => (
+                  <Link
+                      key={link.href}
+                      href={link.href}
+                      className={cn(
+                          "text-sm font-medium transition-colors duration-200 relative py-1",
+                          isActive(link.href)
+                              ? "text-foreground"
+                              : "text-muted-foreground hover:text-foreground"
+                      )}
+                  >
+                    {link.label}
+                    {isActive(link.href) && (
+                        <span className="absolute -bottom-0.5 left-0 w-full h-0.5 bg-accent"/>
+                    )}
+                  </Link>
+              ))}
+            </nav>
 
-          {/* CTA Buttons */}
-          <div className="hidden lg:flex items-center gap-4">
-            {/*<Link href="/">*/}
-            {/*  <Button variant="ghost" size="sm">*/}
-            {/*    Policies*/}
-            {/*  </Button>*/}
-            {/*</Link>*/}
+            <div className="w-[260px] xl:w-[320px]">
+              <UniversalSearchBar
+                  variant="light"
+                  className="max-w-none mx-0"
+                  inputClassName="h-10"
+              />
+            </div>
+
             <Link href="/book">
               <Button variant="gold" size="default">
                 Book Now
@@ -106,6 +109,13 @@ export function Header() {
       {isOpen && (
         <div className="lg:hidden bg-background border-t border-border animate-fade-in">
           <nav className="container-premium py-6 flex flex-col gap-4">
+            <div className="pb-2">
+              <UniversalSearchBar
+                variant="light"
+                className="max-w-none mx-0"
+                onNavigate={() => setIsOpen(false)}
+              />
+            </div>
             {navLinks.map((link) => (
               <Link
                 key={link.href}

@@ -5,7 +5,9 @@ import Image from "next/image";
 import { ArrowRight, Award, Shield, Users, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Layout } from "@/components/layout/layout";
+import { PageHero, CtaSection } from "@/components/sections";
 import { motion } from "framer-motion";
+import { fadeInUp, staggerContainer } from "@/lib/constants/animations";
 
 const values = [
     {
@@ -38,69 +40,17 @@ const stats = [
 ];
 
 export default function About() {
-    // Animation variants
-    const fadeInUp = {
-        initial: { opacity: 0, y: 20 },
-        animate: { opacity: 1, y: 0 },
-        transition: { duration: 0.6 }
-    };
-
-    const staggerContainer = {
-        animate: {
-            transition: {
-                staggerChildren: 0.1
-            }
-        }
-    };
-
     return (
         <Layout>
-            {/* Hero Section */}
-            <section className="relative py-32 md:py-40 overflow-hidden">
-                <div className="absolute inset-0">
-                    <Image
-                        src="/assets/1.jpg"
-                        alt=""
-                        fill
-                        priority
-                        sizes="100vw"
-                        className="object-cover object-center"
-                    />
-                    <div className="absolute inset-0 bg-gradient-hero opacity-90" />
-                </div>
-                <motion.div 
-                    className="relative z-10 container-premium text-center"
-                    initial={{ opacity: 0, y: 30 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.8 }}
-                >
-                    <motion.p 
-                        className="text-accent font-medium tracking-widest uppercase text-sm mb-4"
-                        initial={{ opacity: 0, y: -20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.2, duration: 0.6 }}
-                    >
-                        About Us
-                    </motion.p>
-                    <motion.h1 
-                        className="heading-display text-primary-foreground mb-6"
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.3, duration: 0.6 }}
-                    >
-                        The Complete Business Ecosystem
-                    </motion.h1>
-                    <motion.p 
-                        className="text-lg text-primary-foreground/80 max-w-2xl mx-auto"
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.4, duration: 0.6 }}
-                    >
-                        Visionary House is where ambition meets sophistication—a premium business
-                        environment designed for those who demand excellence.
-                    </motion.p>
-                </motion.div>
-            </section>
+            <PageHero
+                eyebrow="About Us"
+                title="The Complete Business Ecosystem"
+                description="Visionary House is where ambition meets sophistication—a premium business environment designed for those who demand excellence."
+                imageSrc="/assets/1.jpg"
+                imageAlt=""
+                sectionClassName="py-32 md:py-40 overflow-hidden"
+                titleClassName="text-[#B7974B]"
+            />
 
             {/* Our Story Section */}
             <section className="section-padding bg-background">
@@ -295,42 +245,22 @@ export default function About() {
                 </div>
             </section>
 
-            {/* CTA Section */}
-            <section className="section-padding bg-background">
-                <motion.div
-                    className="container-premium text-center"
-                    initial={{ opacity: 0, y: 20 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: false, amount: 0.3 }}
-                    transition={{ duration: 0.6 }}
-                >
-                    <h2 className="heading-section text-foreground mb-6">
-                        Experience Visionary House
-                    </h2>
-                    <p className="text-body max-w-2xl mx-auto mb-10">
-                        We invite you to discover the difference a premium business environment
-                        can make. Schedule a private tour of our facilities today.
-                    </p>
-                    <motion.div
-                        className="flex flex-col sm:flex-row gap-4 justify-center"
-                        initial={{ opacity: 0 }}
-                        whileInView={{ opacity: 1 }}
-                        viewport={{ once: false, amount: 0.3 }}
-                        transition={{ delay: 0.2, duration: 0.6 }}
-                    >
-                        <Link href="/contact">
-                            <Button variant="gold" size="xl" className="bg-[#B08D39] text-[#FFF]">
-                                Schedule a Tour
-                            </Button>
-                        </Link>
-                        <Link href="/book">
-                            <Button variant="premium-outline" size="xl">
-                                Book Now
-                            </Button>
-                        </Link>
-                    </motion.div>
-                </motion.div>
-            </section>
+            <CtaSection
+                title="Experience Visionary House"
+                description="We invite you to discover the difference a premium business environment can make. Schedule a private tour of our facilities today."
+                sectionClassName="section-padding bg-background"
+            >
+                <Link href="/contact">
+                    <Button variant="gold" size="xl" className="bg-[#B08D39] text-[#FFF]">
+                        Schedule a Tour
+                    </Button>
+                </Link>
+                <Link href="/book">
+                    <Button variant="premium-outline" size="xl">
+                        Book Now
+                    </Button>
+                </Link>
+            </CtaSection>
         </Layout>
     );
 }

@@ -1,5 +1,24 @@
 import { BookingConfig, ServiceLayout, BookingAddOn } from '@/lib/types/booking';
 
+// Event types: map to serviceType and control single-day vs multi-day date/time UI
+export type EventTypeKind = {
+  id: string;
+  label: string;
+  serviceType: string; // key of serviceTypeNames / serviceLayouts
+  isMultiDay: boolean;
+};
+
+export const eventTypes: EventTypeKind[] = [
+  { id: 'meeting', label: 'Meeting / Small Event (single day)', serviceType: 'event-space', isMultiDay: false },
+  { id: 'conference', label: 'Conference / Large Event (multi-day)', serviceType: 'event-space', isMultiDay: true },
+  { id: 'board-meeting', label: 'Board Meeting', serviceType: 'event-space', isMultiDay: false },
+  { id: 'training', label: 'Training / Workshop', serviceType: 'event-space', isMultiDay: false },
+  { id: 'reception', label: 'Networking / Reception', serviceType: 'event-space', isMultiDay: false },
+  { id: 'media-recording', label: 'Media Recording', serviceType: 'media-studio', isMultiDay: false },
+  { id: 'lounge-meeting', label: 'Lounge / Casual Meeting', serviceType: 'lounge', isMultiDay: false },
+  { id: 'virtual-office', label: 'Virtual Office', serviceType: 'virtual-office', isMultiDay: false },
+];
+
 // System Configuration
 export const bookingConfig: BookingConfig = {
   bufferMinutes: 30, // 30 minutes buffer between bookings
@@ -13,7 +32,7 @@ export const bookingConfig: BookingConfig = {
   blockedDates: [], // Add holiday dates here
 };
 
-// Service Layouts
+// Service Layouts (with optional image for layout gallery modal)
 export const serviceLayouts: Record<string, ServiceLayout[]> = {
   'event-space': [
     {
@@ -21,24 +40,84 @@ export const serviceLayouts: Record<string, ServiceLayout[]> = {
       name: 'Boardroom Setup',
       capacity: 20,
       description: 'Traditional boardroom layout with conference table',
+      image: '/assets/1.jpg',
     },
     {
       id: 'theater',
       name: 'Theater Style',
       capacity: 100,
       description: 'Auditorium-style seating for presentations',
+      image: '/assets/2.jpg',
     },
     {
       id: 'classroom',
       name: 'Classroom Setup',
       capacity: 50,
       description: 'Tables and chairs in rows for training sessions',
+      image: '/assets/3.jpg',
     },
     {
       id: 'cocktail',
       name: 'Cocktail Setup',
       capacity: 80,
       description: 'Standing reception with high tables',
+      image: '/assets/4.jpg',
+    },
+    {
+      id: 'u-shape',
+      name: 'U-Shape Setup',
+      capacity: 30,
+      description: 'U-shaped arrangement for interactive discussions',
+      image: '/assets/5.jpg',
+    },
+    {
+      id: 'banquet',
+      name: 'Banquet Style',
+      capacity: 60,
+      description: 'Round tables for formal dining and networking',
+      image: '/assets/6.jpg',
+    },
+    {
+      id: 'hollow-square',
+      name: 'Hollow Square',
+      capacity: 24,
+      description: 'Square arrangement for board meetings',
+      image: '/assets/q4.jpg',
+    },
+    {
+      id: 'cabaret',
+      name: 'Cabaret Style',
+      capacity: 45,
+      description: 'Round tables with chairs facing presentation area',
+      image: '/assets/q5.jpg',
+    },
+    {
+      id: 'reception',
+      name: 'Reception Setup',
+      capacity: 120,
+      description: 'Open space for networking and mingling',
+      image: '/assets/q1.jpg',
+    },
+    {
+      id: 'workshop',
+      name: 'Workshop Layout',
+      capacity: 40,
+      description: 'Flexible setup for hands-on activities',
+      image: '/assets/q2.jpg',
+    },
+    {
+      id: 'conference',
+      name: 'Conference Style',
+      capacity: 70,
+      description: 'Formal conference setup with podium',
+      image: '/assets/q3.jpg',
+    },
+    {
+      id: 'exhibition',
+      name: 'Exhibition Space',
+      capacity: 150,
+      description: 'Open floor plan for displays and booths',
+      image: '/assets/1.jpg',
     },
   ],
   'lounge': [
@@ -47,12 +126,14 @@ export const serviceLayouts: Record<string, ServiceLayout[]> = {
       name: 'Private Alcove',
       capacity: 4,
       description: 'Intimate seating for small meetings',
+      image: '/assets/5.jpg',
     },
     {
       id: 'open-lounge',
       name: 'Open Lounge Access',
       capacity: 12,
       description: 'Full access to lounge facilities',
+      image: '/assets/q3.jpg',
     },
   ],
   'media-studio': [
@@ -61,12 +142,14 @@ export const serviceLayouts: Record<string, ServiceLayout[]> = {
       name: 'Podcast Setup',
       capacity: 4,
       description: 'Audio recording with professional equipment',
+      image: '/assets/q1.jpg',
     },
     {
       id: 'video',
       name: 'Video Production',
       capacity: 6,
       description: '4K video recording with green screen',
+      image: '/assets/q2.jpg',
     },
   ],
   'virtual-office': [],

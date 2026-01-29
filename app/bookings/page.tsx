@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Layout } from "@/components/layout/layout";
+import { PageHero } from "@/components/sections";
 import { useToast } from "@/hooks/use-toast";
 import { Search, Calendar, Clock, MapPin, Mail, Phone } from "lucide-react";
 import { motion } from "framer-motion";
@@ -46,47 +47,14 @@ export default function Bookings() {
   return (
     <Layout>
     <main className="min-h-screen">
-      {/* Hero Section */}
-      <section className="relative py-32 md:py-40">
-        <div 
-          className="absolute inset-0 bg-cover bg-center"
-          style={{ backgroundImage: 'url(/assets/3.jpg)' }}
-        >
-          <div className="absolute inset-0 bg-gradient-hero opacity-90" />
-        </div>
-        <motion.div 
-          className="relative z-10 container-premium text-center"
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8 }}
-        >
-          <motion.p 
-            className="text-accent font-medium tracking-widest uppercase text-sm mb-4"
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2, duration: 0.6 }}
-          >
-            My Bookings
-          </motion.p>
-          <motion.h1 
-            className="heading-display text-primary-foreground mb-6"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3, duration: 0.6 }}
-          >
-            Manage Your Booking
-          </motion.h1>
-          <motion.p 
-            className="text-lg text-primary-foreground/80 max-w-2xl mx-auto"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4, duration: 0.6 }}
-          >
-            View, modify, or cancel your booking. Enter your reference number
-            and email address below.
-          </motion.p>
-        </motion.div>
-      </section>
+      <PageHero
+        eyebrow="My Bookings"
+        title="Manage Your Booking"
+        description="View, modify, or cancel your booking. Enter your reference number and email address below."
+        backgroundImage="/assets/3.jpg"
+        sectionClassName="py-32 md:py-40"
+        titleClassName="text-[#B7974B]"
+      />
 
       {/* Search Section */}
       <section className="section-padding">
@@ -100,8 +68,8 @@ export default function Bookings() {
             >
               <Card>
                 <CardHeader>
-                  <CardTitle>Find Your Booking</CardTitle>
-                  <CardDescription>
+                  <CardTitle className="heading-card">Find Your Booking</CardTitle>
+                  <CardDescription className="text-body">
                     Enter your booking reference number and email address to view
                     your booking details.
                   </CardDescription>
@@ -148,12 +116,12 @@ export default function Bookings() {
                 <Card className="mt-8">
                   <CardHeader>
                     <div className="flex items-center justify-between">
-                      <CardTitle>Booking Details</CardTitle>
+                      <CardTitle className="heading-card">Booking Details</CardTitle>
                       <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
                         Confirmed
                       </Badge>
                     </div>
-                    <CardDescription>Reference: {booking.referenceNumber}</CardDescription>
+                    <CardDescription className="text-body">Reference: {booking.referenceNumber}</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-6">
                     <div className="grid md:grid-cols-2 gap-6">
@@ -222,7 +190,7 @@ export default function Bookings() {
             transition={{ duration: 0.6 }}
           >
             <motion.h2 
-              className="text-2xl font-heading font-bold mb-4"
+              className="heading-section mb-4"
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: false, amount: 0.3 }}
@@ -231,7 +199,7 @@ export default function Bookings() {
               Need Help?
             </motion.h2>
             <motion.p 
-              className="text-muted-foreground mb-6"
+              className="text-body mb-6"
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: false, amount: 0.3 }}

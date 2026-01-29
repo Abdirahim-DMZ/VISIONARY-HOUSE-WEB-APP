@@ -4,6 +4,7 @@ import { useState } from "react";
 import Image from "next/image";
 import { X } from "lucide-react";
 import { Layout } from "@/components/layout/layout";
+import { PageHero } from "@/components/sections";
 import { motion } from "framer-motion";
 
 const categories = ["All", "Event Spaces", "Lounge", "Offices", "Media Studio"];
@@ -55,47 +56,13 @@ export default function Gallery() {
 
   return (
     <Layout>
-      {/* Hero Section */}
-      <section className="relative section-padding">
-        <div 
-          className="absolute inset-0 bg-cover bg-center"
-          style={{ backgroundImage: 'url(/assets/2.jpg)' }}
-        >
-          <div className="absolute inset-0 bg-gradient-hero opacity-90" />
-        </div>
-        <motion.div
-          className="relative z-10 container-premium text-center"
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8 }}
-        >
-          <motion.p
-            className="text-accent font-medium tracking-widest uppercase text-sm mb-4"
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2, duration: 0.6 }}
-          >
-            Gallery
-          </motion.p>
-          <motion.h1
-            className="heading-display text-primary-foreground mb-6"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3, duration: 0.6 }}
-          >
-            Experience Our Spaces
-          </motion.h1>
-          <motion.p
-            className="text-lg text-primary-foreground/80 max-w-2xl mx-auto"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4, duration: 0.6 }}
-          >
-            Take a visual tour of our premium facilities and discover the
-            environments where business excellence thrives.
-          </motion.p>
-        </motion.div>
-      </section>
+      <PageHero
+        eyebrow="Gallery"
+        title="Experience Our Spaces"
+        description="Take a visual tour of our premium facilities and discover the environments where business excellence thrives."
+        backgroundImage="/assets/2.jpg"
+        titleClassName="text-[#B7974B]"
+      />
 
       {/* Gallery Section */}
       <section className="section-padding bg-background">

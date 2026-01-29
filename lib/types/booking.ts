@@ -58,8 +58,10 @@ export interface BookingFormData {
   email: string;
   phone: string;
   company?: string;
+  eventType?: string; // id from eventTypes (drives serviceType + isMultiDay)
   serviceType: string;
   date: string;
+  endDate?: string; // for multi-day events; same as date when single-day
   startTime: string;
   endTime: string;
   attendees?: string;

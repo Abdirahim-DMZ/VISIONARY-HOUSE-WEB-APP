@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import Image from "next/image";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,6 +33,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Layout } from "@/components/layout/layout";
+import { PageHero } from "@/components/sections";
 import { useToast } from "@/hooks/use-toast";
 import { 
   ArrowRight, 
@@ -41,7 +43,8 @@ import {
   DollarSign,
   CheckCircle2,
   Info,
-  MapPin
+  MapPin,
+  Search
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -49,15 +52,15 @@ import {
   serviceTypeNames, 
   bookingAddOns, 
   serviceLayouts,
-  bookingConfig 
+  bookingConfig,
+  eventTypes 
 } from "@/lib/data/booking-config";
 import {
   calculateBookingPrice,
   formatTime,
   timeToMinutes,
-  isWithinBusinessHours,
-  isValidDuration,
-  generateBookingReference
+  generateBookingReference,
+  getTotalDurationMinutes
 } from "@/lib/utils/booking-utils";
 import type { BookingFormData } from "@/lib/types/booking";
 
@@ -75,6 +78,7 @@ export default function Book() {
   // Refs for form fields to enable scrolling
   const serviceTypeRef = useRef<HTMLButtonElement>(null);
   const dateRef = useRef<HTMLButtonElement>(null);
+  const endDateRef = useRef<HTMLButtonElement>(null);
   const startTimeRef = useRef<HTMLButtonElement>(null);
   const endTimeRef = useRef<HTMLButtonElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
@@ -86,8 +90,10 @@ export default function Book() {
     email: "",
     phone: "",
     company: "",
+    eventType: "",
     serviceType: "",
     date: "",
+    endDate: "",
     startTime: "",
     endTime: "",
     attendees: "",
@@ -96,38 +102,64 @@ export default function Book() {
     message: "",
   });
 
-  // Calculate price whenever relevant fields change
+  const selectedEventType = eventTypes.find((e) => e.id === formData.eventType);
+  const isMultiDay = selectedEventType?.isMultiDay ?? false;
+
+  // Sync endDate (Date) from formData.endDate for calendar display
   useEffect(() => {
-    if (formData.serviceType && formData.startTime && formData.endTime) {
-      const duration = timeToMinutes(formData.endTime) - timeToMinutes(formData.startTime);
-      if (duration > 0) {
+    if (formData.endDate) {
+      const d = new Date(formData.endDate);
+      if (!isNaN(d.getTime())) setEndDate(d);
+    } else {
+      setEndDate(undefined);
+    }
+  }, [formData.endDate]);
+
+  // Calculate price whenever relevant fields change (supports multi-day via getTotalDurationMinutes)
+  useEffect(() => {
+    if (formData.serviceType && formData.date && formData.startTime && formData.endTime) {
+      const totalMinutes = isMultiDay && formData.endDate
+        ? getTotalDurationMinutes(formData.date, formData.startTime, formData.endDate, formData.endTime)
+        : timeToMinutes(formData.endTime) - timeToMinutes(formData.startTime);
+      if (totalMinutes > 0) {
         const price = calculateBookingPrice(
           formData.serviceType,
-          duration,
+          totalMinutes,
           formData.addOns,
           bookingAddOns
         );
         setTotalPrice(price);
       }
     }
-  }, [formData.serviceType, formData.startTime, formData.endTime, formData.addOns]);
+  }, [formData.serviceType, formData.date, formData.endDate, formData.startTime, formData.endTime, formData.addOns, isMultiDay]);
 
-  // Validate time slot
+  // Validate time slot: only require end after start (no min/max duration restriction)
   useEffect(() => {
-    if (formData.startTime && formData.endTime) {
-      const errors: string[] = [];
-      
-      const durationCheck = isValidDuration(formData.startTime, formData.endTime);
-      if (!durationCheck.valid) {
-        errors.push(durationCheck.message || "Invalid duration");
+    if (!formData.startTime || !formData.endTime) {
+      setValidationErrors([]);
+      return;
+    }
+    const errors: string[] = [];
+    if (isMultiDay && formData.endDate) {
+      const total = getTotalDurationMinutes(formData.date, formData.startTime, formData.endDate, formData.endTime);
+      if (total <= 0) {
+        errors.push("End date & time must be after start date & time");
         setIsAvailable(false);
       } else {
         setIsAvailable(true);
       }
-      
-      setValidationErrors(errors);
+    } else {
+      const startM = timeToMinutes(formData.startTime);
+      const endM = timeToMinutes(formData.endTime);
+      if (endM <= startM) {
+        errors.push("End time must be after start time");
+        setIsAvailable(false);
+      } else {
+        setIsAvailable(true);
+      }
     }
-  }, [formData.startTime, formData.endTime]);
+    setValidationErrors(errors);
+  }, [formData.date, formData.endDate, formData.startTime, formData.endTime, isMultiDay]);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
@@ -146,18 +178,18 @@ export default function Book() {
     }
   };
 
-  const handleServiceTypeChange = (value: string) => {
+  const handleEventTypeChange = (value: string) => {
+    const event = eventTypes.find((e) => e.id === value);
+    if (!event) return;
     setFormData({
       ...formData,
-      serviceType: value,
+      eventType: value,
+      serviceType: event.serviceType,
       layoutId: "",
+      ...(event.isMultiDay ? {} : { endDate: "" }),
     });
-    // Clear error for service type when user selects
     if (fieldErrors.serviceType) {
-      setFieldErrors({
-        ...fieldErrors,
-        serviceType: false,
-      });
+      setFieldErrors({ ...fieldErrors, serviceType: false });
     }
   };
 
@@ -178,27 +210,37 @@ export default function Book() {
   };
 
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
+  const [isEndDatePickerOpen, setIsEndDatePickerOpen] = useState(false);
+  const [endDate, setEndDate] = useState<Date>();
   const [isStartTimeOpen, setIsStartTimeOpen] = useState(false);
   const [isEndTimeOpen, setIsEndTimeOpen] = useState(false);
+  const [isLayoutDialogOpen, setIsLayoutDialogOpen] = useState(false);
+  const [layoutSearchQuery, setLayoutSearchQuery] = useState("");
 
-  // Parse "HH:mm" to { hour12, minute, ampm } for display (hour12 is 1-12)
+  // Minutes restricted to 00, 15, 30, 45 only
+  const MINUTES_QUARTER = [0, 15, 30, 45];
+  const snapToQuarter = (m: number) => MINUTES_QUARTER.reduce((prev, curr) =>
+    Math.abs(curr - m) < Math.abs(prev - m) ? curr : prev
+  );
+
+  // Parse "HH:mm" to { hour12, minute, ampm } for display (hour12 is 1-12); minute snapped to quarter
   const parseTime = (time: string): { hour12: number; minute: number; ampm: "AM" | "PM" } => {
     if (!time || !/^\d{2}:\d{2}$/.test(time)) return { hour12: 12, minute: 0, ampm: "AM" };
     const [h, m] = time.split(":").map(Number);
     const hour24 = h;
-    const minute = m;
+    const minute = snapToQuarter(m);
     const ampm: "AM" | "PM" = hour24 >= 12 ? "PM" : "AM";
     const hour12 = hour24 % 12 || 12;
     return { hour12, minute, ampm };
   };
-  // Build "HH:mm" from hour12 (1-12), minute, ampm
+  // Build "HH:mm" from hour12 (1-12), minute (0|15|30|45), ampm
   const buildTime = (hour12: number, minute: number, ampm: "AM" | "PM") => {
+    const m = MINUTES_QUARTER.includes(minute) ? minute : snapToQuarter(minute);
     let hour24 = hour12 === 12 ? (ampm === "AM" ? 0 : 12) : (ampm === "PM" ? hour12 + 12 : hour12);
-    return `${String(hour24).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+    return `${String(hour24).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
   };
 
   const HOURS_12 = [12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
-  const MINUTES = Array.from({ length: 60 }, (_, i) => i);
   const AMPM = ["AM", "PM"] as const;
 
   const handleDateSelect = (selectedDate: Date | undefined) => {
@@ -208,14 +250,23 @@ export default function Book() {
         ...formData,
         date: format(selectedDate, "yyyy-MM-dd"),
       });
-      // Auto-close the date picker
       setIsDatePickerOpen(false);
-      // Clear error for date when user selects
       if (fieldErrors.date) {
-        setFieldErrors({
-          ...fieldErrors,
-          date: false,
-        });
+        setFieldErrors({ ...fieldErrors, date: false });
+      }
+    }
+  };
+
+  const handleEndDateSelect = (selectedDate: Date | undefined) => {
+    setEndDate(selectedDate);
+    if (selectedDate) {
+      setFormData({
+        ...formData,
+        endDate: format(selectedDate, "yyyy-MM-dd"),
+      });
+      setIsEndDatePickerOpen(false);
+      if (fieldErrors.endDate) {
+        setFieldErrors({ ...fieldErrors, endDate: false });
       }
     }
   };
@@ -240,13 +291,21 @@ export default function Book() {
       const errors: Record<string, boolean> = {};
       let firstInvalidField: React.RefObject<HTMLElement> | null = null;
       
-      if (!formData.serviceType) {
+      if (!formData.eventType || !formData.serviceType) {
         errors.serviceType = true;
         if (!firstInvalidField) firstInvalidField = serviceTypeRef;
       }
       if (!formData.date) {
         errors.date = true;
         if (!firstInvalidField) firstInvalidField = dateRef;
+      }
+      if (isMultiDay && !formData.endDate) {
+        errors.endDate = true;
+        if (!firstInvalidField) firstInvalidField = endDateRef;
+      }
+      if (formData.endDate && formData.date && formData.endDate < formData.date) {
+        errors.endDate = true;
+        if (!firstInvalidField) firstInvalidField = endDateRef;
       }
       if (!formData.startTime) {
         errors.startTime = true;
@@ -344,16 +403,16 @@ export default function Book() {
 
   const handleCloseConfirmation = () => {
     setShowConfirmation(false);
-    
-    // Reset form after modal closes
     setTimeout(() => {
       setFormData({
         name: "",
         email: "",
         phone: "",
         company: "",
+        eventType: "",
         serviceType: "",
         date: "",
+        endDate: "",
         startTime: "",
         endTime: "",
         attendees: "",
@@ -362,6 +421,7 @@ export default function Book() {
         message: "",
       });
       setDate(undefined);
+      setEndDate(undefined);
       setCurrentStep(1);
       setTotalPrice(0);
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -380,54 +440,24 @@ export default function Book() {
   
   const selectedAddOns = bookingAddOns.filter(a => formData.addOns.includes(a.id));
 
-  const duration = formData.startTime && formData.endTime
-    ? (timeToMinutes(formData.endTime) - timeToMinutes(formData.startTime)) / 60
+  const totalDurationMinutes = formData.date && formData.startTime && formData.endTime
+    ? (isMultiDay && formData.endDate
+        ? getTotalDurationMinutes(formData.date, formData.startTime, formData.endDate, formData.endTime)
+        : timeToMinutes(formData.endTime) - timeToMinutes(formData.startTime))
     : 0;
+  const duration = totalDurationMinutes / 60;
 
   return (
     <Layout>
     <main className="min-h-screen pb-20">
-      {/* Hero Section */}
-      <section className="relative py-32 md:py-40">
-        <div 
-          className="absolute inset-0 bg-cover bg-center"
-          style={{ backgroundImage: 'url(/assets/4.jpg)' }}
-        >
-          <div className="absolute inset-0 bg-gradient-hero opacity-90" />
-        </div>
-        <motion.div 
-          className="relative z-10 container-premium text-center"
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8 }}
-        >
-          <motion.p 
-            className="text-accent font-medium tracking-widest uppercase text-sm mb-4"
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2, duration: 0.6 }}
-          >
-            Reserve Your Space
-          </motion.p>
-          <motion.h1 
-            className="heading-display text-primary-foreground mb-6"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3, duration: 0.6 }}
-          >
-            Book Your Premium Environment
-          </motion.h1>
-          <motion.p 
-            className="text-lg text-primary-foreground/80 max-w-2xl mx-auto"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4, duration: 0.6 }}
-          >
-            Reserve your ideal business environment in just a few steps. 
-            Professional spaces designed for visionary minds.
-          </motion.p>
-        </motion.div>
-      </section>
+      <PageHero
+        eyebrow="Reserve Your Space"
+        title="Book Your Premium Environment"
+        description="Reserve your ideal business environment in just a few steps. Professional spaces designed for visionary minds."
+        backgroundImage="/assets/4.jpg"
+        sectionClassName="py-32 md:py-28"
+        titleClassName="text-[#B7974B]"
+      />
 
       {/* Booking Confirmation Modal */}
       <Dialog open={showConfirmation} onOpenChange={setShowConfirmation}>
@@ -436,10 +466,10 @@ export default function Book() {
             <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
               <CheckCircle2 className="h-10 w-10 text-green-600" />
             </div>
-            <DialogTitle className="text-2xl font-heading font-bold">
+            <DialogTitle className="heading-card">
               Booking Confirmed!
             </DialogTitle>
-            <DialogDescription className="text-base">
+            <DialogDescription className="text-body">
               Your booking has been successfully confirmed. We&apos;ve sent a confirmation email to {formData.email}
             </DialogDescription>
           </DialogHeader>
@@ -493,8 +523,113 @@ export default function Book() {
         </DialogContent>
       </Dialog>
 
-      {/* Progress Steps */}
-      <section className="bg-white border-b sticky top-20 z-10 shadow-md">
+      {/* Layout / Setup Image Gallery Modal */}
+      <Dialog 
+        open={isLayoutDialogOpen} 
+        onOpenChange={(open) => {
+          setIsLayoutDialogOpen(open);
+          if (!open) {
+            setLayoutSearchQuery("");
+          }
+        }}
+      >
+        <DialogContent className="max-w-6xl w-[95vw] max-h-[90vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Choose a Layout</DialogTitle>
+            <DialogDescription>
+              Select a layout to see capacity and setup details. Click an image to select.
+            </DialogDescription>
+          </DialogHeader>
+          
+          {/* Search Bar */}
+          <div className="mb-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+              <Input
+                type="text"
+                placeholder="Search layouts by name, capacity, or description..."
+                value={layoutSearchQuery}
+                onChange={(e) => setLayoutSearchQuery(e.target.value)}
+                className="pl-10 h-12 text-base border-2 focus:border-accent"
+              />
+            </div>
+          </div>
+
+          {/* Filtered Layouts Grid with Scroll - Show only 2 rows */}
+          <div className="overflow-y-auto pr-2 max-h-[420px] scrollbar-hide">
+            {(() => {
+              const filteredLayouts = availableLayouts.filter((layout) => {
+                if (!layoutSearchQuery.trim()) return true;
+                const query = layoutSearchQuery.toLowerCase();
+                return (
+                  layout.name.toLowerCase().includes(query) ||
+                  layout.description.toLowerCase().includes(query) ||
+                  layout.capacity.toString().includes(query)
+                );
+              });
+
+              if (filteredLayouts.length === 0) {
+                return (
+                  <div className="flex flex-col items-center justify-center py-12 text-center">
+                    <Search className="h-12 w-12 text-muted-foreground mb-4 opacity-50" />
+                    <p className="text-lg font-medium text-muted-foreground">No layouts found</p>
+                    <p className="text-sm text-muted-foreground mt-2">
+                      Try adjusting your search terms
+                    </p>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 pb-4">
+                  {filteredLayouts.map((layout) => (
+                    <button
+                      key={layout.id}
+                      type="button"
+                      onClick={() => {
+                        handleLayoutChange(layout.id);
+                        setIsLayoutDialogOpen(false);
+                        setLayoutSearchQuery("");
+                      }}
+                      className={cn(
+                        "group relative w-full aspect-[4/3] overflow-hidden rounded-lg border-2 text-left transition-colors duration-200",
+                        formData.layoutId === layout.id ? "border-accent ring-2 ring-accent/30" : "border-border hover:border-accent/50"
+                      )}
+                    >
+                      <div className="absolute inset-0 overflow-hidden rounded-lg">
+                        {layout.image ? (
+                          <Image
+                            src={layout.image}
+                            alt={layout.name}
+                            fill
+                            sizes="(max-width: 640px) 50vw, 20vw"
+                            className="object-cover"
+                          />
+                        ) : (
+                          <div className="absolute inset-0 bg-muted flex items-center justify-center">
+                            <span className="text-xl font-heading text-muted-foreground">{layout.name.charAt(0)}</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="absolute inset-0 rounded-lg bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex flex-col justify-end pt-4 pb-11 px-3">
+                        <p className="text-white font-semibold text-xs sm:text-sm">{layout.name}</p>
+                        <p className="text-white/90 text-xs mt-1">Capacity: {layout.capacity}</p>
+                        <p className="text-white/80 text-xs mt-0.5 line-clamp-2">{layout.description}</p>
+                      </div>
+                      <div className="absolute bottom-0 left-0 right-0 p-2 bg-background/95 border-t border-border rounded-b-lg">
+                        <p className="text-foreground font-medium text-xs sm:text-sm truncate">{layout.name}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              );
+            })()}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Progress Steps - on mobile scrolls with content (no sticky) to avoid layering/bleed; on desktop stays sticky */}
+      <section className="bg-white border-b shadow-md md:sticky md:top-20 md:z-30 md:isolate">
         <div className="container-premium py-6">
           <motion.div 
             className="flex items-center justify-center gap-2 sm:gap-4"
@@ -539,7 +674,7 @@ export default function Book() {
       </section>
 
       {/* Form Section */}
-      <section className="section-padding bg-cream">
+      <section className="py-16 md:py-12 2xl:py-28 bg-cream">
         <div className="container-premium">
           <div className="grid lg:grid-cols-3 gap-8">
             {/* Main Form */}
@@ -557,39 +692,40 @@ export default function Book() {
                     {currentStep === 1 && (
                       <div className="space-y-8 animate-fade-in">
                         <div>
-                          <h2 className="text-2xl font-heading font-bold mb-2">
-                            Select Your Service
+                          <h2 className="heading-card mb-2">
+                            Booking Details
                           </h2>
-                          <p className="text-muted-foreground mb-6">
-                            Choose the service type and specify your requirements
+                          <p className="text-body mb-6">
+                            Choose your event type, date & time, and layout
                           </p>
                         </div>
 
                         <div className="space-y-6">
-                          {/* Service Type */}
+                          {/* Event Type */}
                           <div className="space-y-2">
-                            <Label htmlFor="serviceType" className="text-base font-medium">
-                              Service Type *
+                            <Label htmlFor="eventType" className="text-base font-medium">
+                              Event Type *
                             </Label>
                             <Select
-                              value={formData.serviceType}
-                              onValueChange={handleServiceTypeChange}
+                              value={formData.eventType}
+                              onValueChange={handleEventTypeChange}
                             >
                               <SelectTrigger 
                                 ref={serviceTypeRef}
+                                id="eventType"
                                 className={cn(
                                   "h-14 text-base border-2 hover:border-accent/50 focus:border-accent transition-colors",
                                   fieldErrors.serviceType && "border-red-500 hover:border-red-600 focus:border-red-600"
                                 )}
                               >
-                                <SelectValue placeholder="Choose your preferred service" />
+                                <SelectValue placeholder="Choose your event type (small or large)" />
                               </SelectTrigger>
                               <SelectContent className="shadow-elevated">
-                                {Object.entries(serviceTypeNames).map(([key, name]) => (
-                                  <SelectItem key={key} value={key} className="text-base py-3">
+                                {eventTypes.map((event) => (
+                                  <SelectItem key={event.id} value={event.id} className="text-base py-3">
                                     <div className="flex items-center gap-3">
                                       <MapPin className="h-5 w-5 text-accent" />
-                                      <span className="font-medium">{name}</span>
+                                      <span className="font-medium">{event.label}</span>
                                     </div>
                                   </SelectItem>
                                 ))}
@@ -597,39 +733,10 @@ export default function Book() {
                             </Select>
                           </div>
 
-                          {/* Layout Selection */}
-                          {availableLayouts.length > 0 && (
-                            <div className="space-y-2">
-                              <Label htmlFor="layout" className="text-base font-medium">
-                                Layout/Setup
-                              </Label>
-                              <Select
-                                value={formData.layoutId}
-                                onValueChange={handleLayoutChange}
-                              >
-                                <SelectTrigger className="h-14 text-base border-2 hover:border-accent/50 focus:border-accent transition-colors">
-                                  <SelectValue placeholder="Choose your preferred layout" />
-                                </SelectTrigger>
-                                <SelectContent className="shadow-elevated">
-                                  {availableLayouts.map((layout) => (
-                                    <SelectItem key={layout.id} value={layout.id} className="py-4">
-                                      <div className="space-y-1">
-                                        <div className="font-semibold text-base">{layout.name}</div>
-                                        <div className="text-sm text-muted-foreground">
-                                          <span className="font-medium">Capacity: {layout.capacity}</span> • {layout.description}
-                                        </div>
-                                      </div>
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
-                          )}
-
-                          {/* Date & Time */}
+                          {/* Date & Time - dynamic: multi-day shows Start/End date+time; single-day shows Start date + Start/End time */}
                           <div className="space-y-6">
                             <div className="space-y-2">
-                              <Label className="text-base font-medium">Date *</Label>
+                              <Label className="text-base font-medium">{isMultiDay ? "Start Date *" : "Date *"}</Label>
                               <Popover open={isDatePickerOpen} onOpenChange={setIsDatePickerOpen}>
                                 <PopoverTrigger asChild>
                                   <Button
@@ -662,8 +769,48 @@ export default function Book() {
                                 </PopoverContent>
                               </Popover>
                             </div>
+
+                            {/* End Date - only for multi-day events */}
+                            {isMultiDay && (
+                              <div className="space-y-2">
+                                <Label className="text-base font-medium">End Date *</Label>
+                                <Popover open={isEndDatePickerOpen} onOpenChange={setIsEndDatePickerOpen}>
+                                  <PopoverTrigger asChild>
+                                    <Button
+                                      ref={endDateRef}
+                                      variant="outline"
+                                      className={cn(
+                                        "w-full h-14 justify-start text-left font-normal border-2 hover:border-accent/50 transition-colors",
+                                        !endDate && "text-muted-foreground",
+                                        endDate && "border-accent/30",
+                                        fieldErrors.endDate && "border-red-500 hover:border-red-600"
+                                      )}
+                                    >
+                                      <CalendarIcon className="mr-3 h-5 w-5 text-accent" />
+                                      <span className="text-base">
+                                        {endDate ? format(endDate, "EEEE, MMMM dd, yyyy") : "Select end date"}
+                                      </span>
+                                    </Button>
+                                  </PopoverTrigger>
+                                  <PopoverContent className="w-auto p-0 shadow-elevated" align="start">
+                                    <Calendar
+                                      mode="single"
+                                      selected={endDate}
+                                      onSelect={handleEndDateSelect}
+                                      disabled={(d) => {
+                                        if (!formData.date) return d < new Date();
+                                        const start = new Date(formData.date);
+                                        return d < start || d < new Date();
+                                      }}
+                                      initialFocus
+                                      className="rounded-lg border-0"
+                                    />
+                                  </PopoverContent>
+                                </Popover>
+                              </div>
+                            )}
                             
-                            <div className="grid sm:grid-cols-2 gap-4">
+                            <div className={cn("grid gap-4", isMultiDay ? "sm:grid-cols-2" : "sm:grid-cols-2")}>
                               <div className="space-y-2">
                                 <Label htmlFor="startTime" className="text-base font-medium flex items-center gap-2">
                                   <Clock className="h-4 w-4 text-accent" />
@@ -712,7 +859,7 @@ export default function Book() {
                                         })}
                                       </div>
                                       <div className="flex flex-col max-h-[220px] overflow-y-auto scrollbar-hide w-14 border-r border-border">
-                                        {MINUTES.map((m) => {
+                                        {MINUTES_QUARTER.map((m) => {
                                           const current = parseTime(formData.startTime);
                                           const isSelected = current.minute === m;
                                           return (
@@ -758,7 +905,7 @@ export default function Book() {
                                         })}
                                       </div>
                                     </div>
-                                    <p className="text-xs text-muted-foreground px-3 py-2 border-t border-border">Select hour, minute, and AM/PM</p>
+                                    <p className="text-xs text-muted-foreground px-3 py-2 border-t border-border">Select hour, minute (00/15/30/45), and AM/PM</p>
                                   </PopoverContent>
                                 </Popover>
                               </div>
@@ -811,7 +958,7 @@ export default function Book() {
                                         })}
                                       </div>
                                       <div className="flex flex-col max-h-[220px] overflow-y-auto scrollbar-hide w-14 border-r border-border">
-                                        {MINUTES.map((m) => {
+                                        {MINUTES_QUARTER.map((m) => {
                                           const current = parseTime(formData.endTime);
                                           const isSelected = current.minute === m;
                                           return (
@@ -857,11 +1004,31 @@ export default function Book() {
                                         })}
                                       </div>
                                     </div>
-                                    <p className="text-xs text-muted-foreground px-3 py-2 border-t border-border">Select hour, minute, and AM/PM</p>
+                                    <p className="text-xs text-muted-foreground px-3 py-2 border-t border-border">Select hour, minute (00/15/30/45), and AM/PM</p>
                                   </PopoverContent>
                                 </Popover>
                               </div>
                             </div>
+
+                            {/* Layout / Setup - click opens dialog (no dropdown) */}
+                            {availableLayouts.length > 0 && (
+                              <div className="space-y-2">
+                                <Label className="text-base font-medium">Layout / Setup</Label>
+                                <button
+                                  type="button"
+                                  onClick={() => setIsLayoutDialogOpen(true)}
+                                  className={cn(
+                                    "flex h-14 w-full items-center justify-between rounded-md border-2 bg-background px-4 text-left text-base transition-colors hover:border-accent/50 focus:border-accent focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 cursor-pointer",
+                                    formData.layoutId && "border-accent/30"
+                                  )}
+                                >
+                                  <span className={selectedLayout ? "text-foreground" : "text-muted-foreground"}>
+                                    {selectedLayout ? selectedLayout.name : "Choose your preferred layout"}
+                                  </span>
+                                  <MapPin className="h-5 w-5 shrink-0 text-accent" />
+                                </button>
+                              </div>
+                            )}
 
                             <div className="space-y-2">
                               <Label htmlFor="attendees" className="text-base font-medium flex items-center gap-2">
@@ -899,17 +1066,6 @@ export default function Book() {
                               </AlertDescription>
                             </Alert>
                           )}
-
-                          {/* Booking Duration Info */}
-                          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                            <div className="flex gap-3">
-                              <Info className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                              <div className="text-sm text-blue-900">
-                                <p className="font-medium mb-1">Booking Duration</p>
-                                <p>Minimum booking: {bookingConfig.minBookingDuration / 60}h | Maximum: {bookingConfig.maxBookingDuration / 60}h</p>
-                              </div>
-                            </div>
-                          </div>
                         </div>
 
                         <div className="flex justify-end pt-6">
@@ -931,10 +1087,10 @@ export default function Book() {
                     {currentStep === 2 && (
                       <div className="space-y-8 animate-fade-in">
                         <div>
-                          <h2 className="text-2xl font-heading font-bold mb-2">
+                          <h2 className="heading-card mb-2">
                             Your Information
                           </h2>
-                          <p className="text-muted-foreground mb-6">
+                          <p className="text-body mb-6">
                             How should we contact you about this booking?
                           </p>
                         </div>
@@ -1123,10 +1279,10 @@ export default function Book() {
                     {currentStep === 3 && (
                       <div className="space-y-8 animate-fade-in">
                         <div>
-                          <h2 className="text-2xl font-heading font-bold mb-2">
+                          <h2 className="heading-card mb-2">
                             Review Your Booking
                           </h2>
-                          <p className="text-muted-foreground mb-6">
+                          <p className="text-body mb-6">
                             Please review all details before confirming
                           </p>
                         </div>
@@ -1134,14 +1290,14 @@ export default function Book() {
                         <div className="space-y-6">
                           {/* Service Details */}
                           <div className="bg-cream rounded-lg p-6 space-y-4">
-                            <h3 className="font-heading font-semibold text-lg flex items-center gap-2">
+                            <h3 className="heading-card flex items-center gap-2">
                               <MapPin className="h-5 w-5 text-accent" />
                               Service Details
                             </h3>
                             <div className="grid sm:grid-cols-2 gap-4 text-sm">
                               <div>
-                                <p className="text-muted-foreground mb-1">Service Type</p>
-                                <p className="font-medium">{selectedService}</p>
+                                <p className="text-muted-foreground mb-1">Event Type</p>
+                                <p className="font-medium">{selectedEventType?.label ?? selectedService}</p>
                               </div>
                               {selectedLayout && (
                                 <div>
@@ -1150,14 +1306,20 @@ export default function Book() {
                                 </div>
                               )}
                               <div>
-                                <p className="text-muted-foreground mb-1">Date</p>
+                                <p className="text-muted-foreground mb-1">{isMultiDay ? "Start Date" : "Date"}</p>
                                 <p className="font-medium">{date ? format(date, "PPPP") : ""}</p>
                               </div>
+                              {isMultiDay && formData.endDate && (
+                                <div>
+                                  <p className="text-muted-foreground mb-1">End Date</p>
+                                  <p className="font-medium">{format(new Date(formData.endDate), "PPPP")}</p>
+                                </div>
+                              )}
                               <div>
                                 <p className="text-muted-foreground mb-1">Time</p>
                                 <p className="font-medium">
                                   {formatTime(formData.startTime)} - {formatTime(formData.endTime)}
-                                  {duration > 0 && <span className="text-muted-foreground ml-2">({duration}h)</span>}
+                                  {duration > 0 && <span className="text-muted-foreground ml-2">({duration.toFixed(1)}h)</span>}
                                 </p>
                               </div>
                               {formData.attendees && (
@@ -1171,7 +1333,7 @@ export default function Book() {
 
                           {/* Contact Details */}
                           <div className="bg-cream rounded-lg p-6 space-y-4">
-                            <h3 className="font-heading font-semibold text-lg">Contact Information</h3>
+                            <h3 className="heading-card">Contact Information</h3>
                             <div className="grid sm:grid-cols-2 gap-4 text-sm">
                               <div>
                                 <p className="text-muted-foreground mb-1">Name</p>
@@ -1197,7 +1359,7 @@ export default function Book() {
                           {/* Add-ons */}
                           {selectedAddOns.length > 0 && (
                             <div className="bg-cream rounded-lg p-6 space-y-4">
-                              <h3 className="font-heading font-semibold text-lg">Selected Add-ons</h3>
+                              <h3 className="heading-card">Selected Add-ons</h3>
                               <div className="space-y-2">
                                 {selectedAddOns.map((addOn) => (
                                   <div key={addOn.id} className="flex justify-between items-start text-sm">
@@ -1217,8 +1379,8 @@ export default function Book() {
                           {/* Special Requirements */}
                           {formData.message && (
                             <div className="bg-cream rounded-lg p-6 space-y-4">
-                              <h3 className="font-heading font-semibold text-lg">Special Requirements</h3>
-                              <p className="text-sm text-muted-foreground">{formData.message}</p>
+                              <h3 className="heading-card">Special Requirements</h3>
+                              <p className="text-body">{formData.message}</p>
                             </div>
                           )}
                         </div>
@@ -1262,7 +1424,7 @@ export default function Book() {
                 {/* Price Summary */}
                 <Card className="shadow-premium">
                   <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
+                    <CardTitle className="heading-card flex items-center gap-2">
                       <DollarSign className="h-5 w-5 text-accent" />
                       Booking Summary
                     </CardTitle>
@@ -1317,8 +1479,8 @@ export default function Book() {
                 {/* Help Card */}
                 <Card className="bg-gradient-gold text-white border-0">
                   <CardHeader>
-                    <CardTitle className="text-white">Need Assistance?</CardTitle>
-                    <CardDescription className="text-white/90">
+                    <CardTitle className="heading-card text-white">Need Assistance?</CardTitle>
+                    <CardDescription className="text-body text-white/90">
                       Our team is here to help
                     </CardDescription>
                   </CardHeader>
@@ -1362,10 +1524,10 @@ export default function Book() {
               <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-accent/10 text-accent mb-4">
                 <Clock className="h-7 w-7" />
               </div>
-              <h3 className="font-heading font-bold text-lg mb-2">
+              <h3 className="heading-card mb-2">
                 Instant Confirmation
               </h3>
-              <p className="text-muted-foreground text-sm">
+              <p className="text-small">
                 Receive booking confirmation and details immediately via email
               </p>
             </motion.div>
@@ -1379,10 +1541,10 @@ export default function Book() {
               <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-accent/10 text-accent mb-4">
                 <Users className="h-7 w-7" />
               </div>
-              <h3 className="font-heading font-bold text-lg mb-2">
+              <h3 className="heading-card mb-2">
                 Dedicated Support
               </h3>
-              <p className="text-muted-foreground text-sm">
+              <p className="text-small">
                 Personal assistance throughout your booking and event
               </p>
             </motion.div>
@@ -1396,10 +1558,10 @@ export default function Book() {
               <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-accent/10 text-accent mb-4">
                 <CheckCircle2 className="h-7 w-7" />
               </div>
-              <h3 className="font-heading font-bold text-lg mb-2">
+              <h3 className="heading-card mb-2">
                 Flexible Modifications
               </h3>
-              <p className="text-muted-foreground text-sm">
+              <p className="text-small">
                 Easy booking changes up to 48 hours before your event
               </p>
             </motion.div>

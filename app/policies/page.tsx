@@ -2,53 +2,11 @@
 
 import { useRef, useState, useEffect } from "react";
 import { Layout } from "@/components/layout/layout";
+import { PageHero } from "@/components/sections";
 import { motion, useInView } from "framer-motion";
 
 const policies = [
-  {
-    id: "cancellation",
-    title: "Cancellation Policy",
-    content: [
-      {
-        heading: "Standard Cancellations",
-        text: "Cancellations made 48 hours or more before the scheduled booking will receive a full refund. Cancellations made 24-48 hours prior will receive a 50% refund. Cancellations made less than 24 hours before the booking are non-refundable.",
-      },
-      {
-        heading: "Event Space Bookings",
-        text: "For event space reservations, we require 7 days notice for a full refund. Cancellations made 3-7 days prior will receive a 50% refund. Cancellations made less than 3 days before are non-refundable.",
-      },
-      {
-        heading: "Force Majeure",
-        text: "In cases of force majeure (natural disasters, government restrictions, etc.), we will work with you to reschedule or provide store credit for future use.",
-      },
-      {
-        heading: "Rescheduling",
-        text: "Bookings may be rescheduled free of charge up to 24 hours before the original booking time, subject to availability.",
-      },
-    ],
-  },
-  {
-    id: "payment",
-    title: "Payment Terms",
-    content: [
-      {
-        heading: "Accepted Payment Methods",
-        text: "We accept all major credit cards (Visa, MasterCard, American Express), bank transfers, and corporate invoicing for established accounts.",
-      },
-      {
-        heading: "Deposit Requirements",
-        text: "Event space bookings require a 50% deposit at the time of booking. The remaining balance is due 48 hours before the event date.",
-      },
-      {
-        heading: "Corporate Accounts",
-        text: "Approved corporate accounts may request NET 30 payment terms. Please contact our accounts team to apply for corporate billing privileges.",
-      },
-      {
-        heading: "Additional Charges",
-        text: "Any additional services or overtime charges incurred during your booking will be invoiced within 5 business days following your event.",
-      },
-    ],
-  },
+
   {
     id: "privacy",
     title: "Privacy Policy",
@@ -101,6 +59,50 @@ const policies = [
       },
     ],
   },
+  {
+    id: "cancellation",
+    title: "Cancellation Policy",
+    content: [
+      {
+        heading: "Standard Cancellations",
+        text: "Cancellations made 48 hours or more before the scheduled booking will receive a full refund. Cancellations made 24-48 hours prior will receive a 50% refund. Cancellations made less than 24 hours before the booking are non-refundable.",
+      },
+      {
+        heading: "Event Space Bookings",
+        text: "For event space reservations, we require 7 days notice for a full refund. Cancellations made 3-7 days prior will receive a 50% refund. Cancellations made less than 3 days before are non-refundable.",
+      },
+      {
+        heading: "Force Majeure",
+        text: "In cases of force majeure (natural disasters, government restrictions, etc.), we will work with you to reschedule or provide store credit for future use.",
+      },
+      {
+        heading: "Rescheduling",
+        text: "Bookings may be rescheduled free of charge up to 24 hours before the original booking time, subject to availability.",
+      },
+    ],
+  },
+  {
+    id: "payment",
+    title: "Payment Terms",
+    content: [
+      {
+        heading: "Accepted Payment Methods",
+        text: "We accept all major credit cards (Visa, MasterCard, American Express), bank transfers, and corporate invoicing for established accounts.",
+      },
+      {
+        heading: "Deposit Requirements",
+        text: "Event space bookings require a 50% deposit at the time of booking. The remaining balance is due 48 hours before the event date.",
+      },
+      {
+        heading: "Corporate Accounts",
+        text: "Approved corporate accounts may request NET 30 payment terms. Please contact our accounts team to apply for corporate billing privileges.",
+      },
+      {
+        heading: "Additional Charges",
+        text: "Any additional services or overtime charges incurred during your booking will be invoiced within 5 business days following your event.",
+      },
+    ],
+  },
 ];
 
 export default function Policies() {
@@ -149,47 +151,15 @@ export default function Policies() {
 
   return (
     <Layout>
-      {/* Hero Section */}
-      <section className="relative py-32 md:py-40 overflow-hidden">
-        <div
-          className="absolute inset-0 bg-cover bg-center"
-          style={{ backgroundImage: "url(/assets/4.jpg)" }}
-        >
-          <div className="absolute inset-0 bg-gradient-hero opacity-90" />
-        </div>
-        <motion.div
-          className="relative z-10 container-premium text-center"
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8 }}
-        >
-          <motion.p
-            className="text-accent font-medium tracking-widest uppercase text-sm mb-4"
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2, duration: 0.6 }}
-          >
-            Legal
-          </motion.p>
-          <motion.h1
-            className="heading-display text-primary-foreground mb-6"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3, duration: 0.6 }}
-          >
-            Policies & Terms
-          </motion.h1>
-          <motion.p
-            className="text-lg text-primary-foreground/80 max-w-2xl mx-auto"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4, duration: 0.6 }}
-          >
-            Transparency is fundamental to trust. Review our policies to
-            understand how we operate and protect your interests.
-          </motion.p>
-        </motion.div>
-      </section>
+      <PageHero
+        eyebrow="Legal"
+        title="Policies & Terms"
+        description="Transparency is fundamental to trust. Review our policies to understand how we operate and protect your interests."
+        backgroundImage="/assets/4.jpg"
+        sectionClassName="py-32 md:py-40 overflow-hidden"
+        titleClassName="text-primary-foreground"
+        eyebrowClassName="text-accent font-medium tracking-widest uppercase text-sm mb-4"
+      />
 
       {/* Quick Navigation */}
       <section ref={navSectionRef} className="py-8 bg-secondary border-b border-border">
@@ -245,10 +215,10 @@ export default function Policies() {
                 >
                   {policy.content.map((section, sectionIndex) => (
                     <motion.div key={sectionIndex} variants={fadeInUp}>
-                      <h3 className="font-medium text-foreground mb-3">
+                      <h3 className="text-xl font-heading font-semibold text-foreground mb-3">
                         {section.heading}
                       </h3>
-                      <p className="text-muted-foreground leading-relaxed">
+                      <p className="text-body">
                         {section.text}
                       </p>
                     </motion.div>
@@ -273,10 +243,10 @@ export default function Policies() {
           viewport={{ once: false, amount: 0.15, margin: "50px 0px 50px 0px" }}
           transition={{ duration: 0.6 }}
         >
-          <h3 className="heading-card text-foreground mb-4">
+          <h3 className="heading-section mb-4">
             Questions About Our Policies?
           </h3>
-          <p className="text-muted-foreground mb-6">
+          <p className="text-body mb-6">
             Our team is happy to clarify any points. Contact us at{" "}
             <a
               href="mailto:legal@visionaryhouse.com"
@@ -285,7 +255,7 @@ export default function Policies() {
               legal@visionaryhouse.com
             </a>
           </p>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-small">
             Last updated: January 2026
           </p>
         </motion.div>

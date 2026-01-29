@@ -107,6 +107,23 @@ export function isValidDuration(
 }
 
 /**
+ * Total duration in minutes from start date+time to end date+time (supports multi-day).
+ * If endDate is omitted or same as start date, uses startTime and endTime only.
+ */
+export function getTotalDurationMinutes(
+  startDate: string,
+  startTime: string,
+  endDate: string | undefined,
+  endTime: string
+): number {
+  const start = new Date(`${startDate}T${startTime}:00`);
+  const end = endDate
+    ? new Date(`${endDate}T${endTime}:00`)
+    : new Date(`${startDate}T${endTime}:00`);
+  return Math.max(0, Math.round((end.getTime() - start.getTime()) / 60000));
+}
+
+/**
  * Check if date is blocked
  */
 export function isDateBlocked(

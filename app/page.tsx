@@ -5,8 +5,10 @@ import Image from "next/image";
 import { ArrowRight, Building2, Users, Video, Briefcase, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Layout } from "@/components/layout/layout";
+import { SectionHeader, CtaSection } from "@/components/sections";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { motion, AnimatePresence } from "framer-motion";
+import { fadeInUp, staggerContainer } from "@/lib/constants/animations";
 import { useState, useEffect } from "react";
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { Autoplay, EffectFade } from 'swiper/modules';
@@ -132,21 +134,6 @@ export default function Home() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [swiperInstance, setSwiperInstance] = useState<SwiperType | null>(null);
 
-  // Animation variants
-  const fadeInUp = {
-    initial: { opacity: 0, y: 20 },
-    animate: { opacity: 1, y: 0 },
-    transition: { duration: 0.6 }
-  };
-
-  const staggerContainer = {
-    animate: {
-      transition: {
-        staggerChildren: 0.1
-      }
-    }
-  };
-
   return (
     <Layout>
       {/* Hero Carousel Section */}
@@ -161,28 +148,32 @@ export default function Home() {
             crossFade: true
           }}
           autoplay={{
-            delay: 5000,
+            delay: 6000,
             disableOnInteraction: false,
           }}
           loop={true}
-          speed={800}
+          speed={1600}
           allowTouchMove={true}
           onSwiper={(swiper) => setSwiperInstance(swiper)}
           onSlideChange={(swiper) => setCurrentSlide(swiper.realIndex)}
-          className="w-full h-full absolute inset-0 z-10"
+          className="w-full h-full absolute inset-0 z-10 hero-swiper"
           style={{ 
-            '--swiper-wrapper-transition-timing-function': 'ease-in-out'
+            '--swiper-wrapper-transition-timing-function': 'cubic-bezier(0.65, 0, 0.35, 1)'
           } as React.CSSProperties}
         >
           {heroSlides.map((slide, index) => (
             <SwiperSlide key={index} className="h-full">
                 <div className="relative h-full w-full flex items-center justify-center bg-charcoal">
-                  {/* Background Image - Smooth scale animation without conditional logic */}
-                  <div className="absolute inset-0">
+                  {/* Image layer: premium crossfade + subtle Ken Burns zoom (fashion-theme style) */}
+                  <div
+                    className="hero-slide-image-layer"
+                    style={{ opacity: currentSlide === index ? 1 : 0 }}
+                    aria-hidden
+                  >
                     <div
-                      className="absolute inset-0 transition-transform duration-[6000ms] ease-out"
+                      className="hero-slide-ken-burns"
                       style={{
-                        transform: currentSlide === index ? 'scale(1.05)' : 'scale(1)',
+                        transform: currentSlide === index ? 'scale(1.08)' : 'scale(1)',
                         willChange: 'transform'
                       }}
                     >
@@ -204,7 +195,7 @@ export default function Home() {
                     className="absolute top-0 left-0 h-1 bg-gradient-to-r from-transparent via-accent to-transparent z-10"
                     initial={{ width: "0%", opacity: 0 }}
                     animate={currentSlide === index ? { width: "100%", opacity: 1 } : { width: "0%", opacity: 0 }}
-                    transition={{ duration: 1, delay: 0.4, ease: [0.25, 0.46, 0.45, 0.94] }}
+                    transition={{ duration: 1.2, delay: 0.5, ease: [0.65, 0, 0.35, 1] }}
                     style={{ willChange: 'width, opacity' }}
                   />
 
@@ -218,9 +209,9 @@ export default function Home() {
                         initial={{ opacity: 0, y: -20 }}
                         animate={currentSlide === index ? { opacity: 1, y: 0 } : { opacity: 0, y: -20 }}
                         transition={{ 
-                          delay: 0.3, 
-                          duration: 0.6,
-                          ease: [0.25, 0.46, 0.45, 0.94]
+                          delay: 0.4, 
+                          duration: 0.9,
+                          ease: [0.65, 0, 0.35, 1]
                         }}
                         style={{ willChange: 'transform, opacity' }}
                       >
@@ -234,9 +225,9 @@ export default function Home() {
                         initial={{ opacity: 0, y: 40 }}
                         animate={currentSlide === index ? { opacity: 1, y: 0 } : { opacity: 0, y: 40 }}
                         transition={{ 
-                          delay: 0.5, 
-                          duration: 0.8,
-                          ease: [0.25, 0.46, 0.45, 0.94]
+                          delay: 0.6, 
+                          duration: 1,
+                          ease: [0.65, 0, 0.35, 1]
                         }}
                         style={{ willChange: 'transform, opacity' }}
                       >
@@ -250,13 +241,13 @@ export default function Home() {
                       {/* Description with Fade and Slide */}
                       <motion.p 
                         key={`description-${index}-${currentSlide}`}
-                        className="text-lg md:text-xl text-primary-foreground/80 max-w-2xl mx-auto mb-10"
+                        className="text-lg text-primary-foreground/80 max-w-2xl mx-auto mb-10"
                         initial={{ opacity: 0, y: 25 }}
                         animate={currentSlide === index ? { opacity: 1, y: 0 } : { opacity: 0, y: 25 }}
                         transition={{ 
-                          delay: 0.8, 
-                          duration: 0.7,
-                          ease: [0.25, 0.46, 0.45, 0.94]
+                          delay: 0.9, 
+                          duration: 0.9,
+                          ease: [0.65, 0, 0.35, 1]
                         }}
                         style={{ willChange: 'transform, opacity' }}
                       >
@@ -270,9 +261,9 @@ export default function Home() {
                         initial={{ opacity: 0, y: 20 }}
                         animate={currentSlide === index ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
                         transition={{ 
-                          delay: 1.1, 
-                          duration: 0.6,
-                          ease: [0.25, 0.46, 0.45, 0.94]
+                          delay: 1.2, 
+                          duration: 0.8,
+                          ease: [0.65, 0, 0.35, 1]
                         }}
                         style={{ willChange: 'transform, opacity' }}
                       >
@@ -342,24 +333,11 @@ export default function Home() {
       {/* Services Preview Section */}
       <section className="section-padding bg-background">
         <div className="container-premium">
-          <motion.div 
-            className="text-center mb-16"
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: false, amount: 0.3 }}
-            transition={{ duration: 0.6 }}
-          >
-            <p className="text-accent font-medium tracking-widest uppercase text-sm mb-4">
-              Our Services
-            </p>
-            <h2 className="heading-section text-foreground mb-6">
-              A Complete Business Ecosystem
-            </h2>
-            <p className="text-body max-w-2xl mx-auto">
-              From prestigious event spaces to professional virtual offices, we provide 
-              everything your business needs to project confidence and success.
-            </p>
-          </motion.div>
+          <SectionHeader
+            eyebrow="Our Services"
+            title="A Complete Business Ecosystem"
+            description="From prestigious event spaces to professional virtual offices, we provide everything your business needs to project confidence and success."
+          />
 
           <motion.div 
             className="grid md:grid-cols-2 gap-8"
@@ -396,7 +374,7 @@ export default function Home() {
                       <h3 className="heading-card text-foreground mb-2 group-hover:text-accent transition-colors">
                         {service.title}
                       </h3>
-                      <p className="text-muted-foreground">
+                      <p className="text-small">
                         {service.description}
                       </p>
                     </div>
@@ -487,7 +465,7 @@ export default function Home() {
                 viewport={{ once: false, amount: 0.5 }}
                 transition={{ delay: 0.3, duration: 0.5 }}
               >
-                <p className="font-heading text-4xl font-bold text-accent mb-1">500+</p>
+                <p className="font-heading text-4xl md:text-5xl font-bold text-accent mb-1">500+</p>
                 <p className="text-sm text-primary-foreground/70">Visionary clients trust us</p>
               </motion.div>
             </motion.div>
@@ -498,20 +476,11 @@ export default function Home() {
       {/* Testimonials Section */}
       <section className="section-padding bg-background">
         <div className="container-premium">
-          <motion.div 
-            className="text-center mb-16"
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: false, amount: 0.3 }}
-            transition={{ duration: 0.6 }}
-          >
-            <p className="text-accent font-medium tracking-widest uppercase text-sm mb-4">
-              Testimonials
-            </p>
-            <h2 className="heading-section text-foreground">
-              What Our Clients Say
-            </h2>
-          </motion.div>
+          <SectionHeader
+            eyebrow="Testimonials"
+            title="What Our Clients Say"
+            titleClassName="text-foreground"
+          />
 
           <motion.div 
             className="grid md:grid-cols-3 gap-8"
@@ -533,7 +502,7 @@ export default function Home() {
                     <path d="M14.017 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151c-2.432.917-3.995 3.638-3.995 5.849h4v10h-9.983zm-14.017 0v-7.391c0-5.704 3.748-9.57 9-10.609l.996 2.151c-2.433.917-3.996 3.638-3.996 5.849h3.983v10h-9.983z" />
                   </svg>
                 </div>
-                <p className="text-foreground mb-6 leading-relaxed">
+                <p className="text-body mb-6">
                   &quot;{testimonial.quote}&quot;
                 </p>
                 <div className="border-t border-border pt-6">
@@ -549,23 +518,11 @@ export default function Home() {
       {/* FAQ Section */}
       <section className="section-padding bg-secondary">
         <div className="container-premium">
-          <motion.div 
-            className="text-center mb-16"
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: false, amount: 0.3 }}
-            transition={{ duration: 0.6 }}
-          >
-            <p className="text-accent font-medium tracking-widest uppercase text-sm mb-4">
-              FAQ
-            </p>
-            <h2 className="heading-section text-foreground mb-6">
-              Frequently Asked Questions
-            </h2>
-            <p className="text-body max-w-2xl mx-auto">
-              Find answers to common questions about our services and facilities.
-            </p>
-          </motion.div>
+          <SectionHeader
+            eyebrow="FAQ"
+            title="Frequently Asked Questions"
+            description="Find answers to common questions about our services and facilities."
+          />
 
           <motion.div 
             className="max-w-3xl mx-auto"
@@ -577,10 +534,10 @@ export default function Home() {
             <Accordion type="single" collapsible className="w-full">
               {faqs.map((faq, index) => (
                 <AccordionItem key={index} value={`item-${index}`} className="border-border">
-                  <AccordionTrigger className="text-left hover:text-accent text-foreground font-medium">
+                  <AccordionTrigger className="font-sans text-left hover:text-accent text-foreground font-medium">
                     {faq.question}
                   </AccordionTrigger>
-                  <AccordionContent className="text-muted-foreground leading-relaxed">
+                  <AccordionContent className="text-body">
                     {faq.answer}
                   </AccordionContent>
                 </AccordionItem>
@@ -590,42 +547,22 @@ export default function Home() {
         </div>
       </section>
 
-      {/* CTA Section */}
-      <section className="py-24">
-        <motion.div 
-          className="container-premium text-center"
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: false, amount: 0.3 }}
-          transition={{ duration: 0.6 }}
-        >
-          <h2 className="heading-section text-foreground mb-6">
-            Ready to Elevate Your Business?
-          </h2>
-          <p className="text-body max-w-2xl mx-auto mb-10">
-            Experience the premium environment your business deserves.
-            Schedule a visit or book your space today.
-          </p>
-          <motion.div 
-            className="flex flex-col sm:flex-row gap-4 justify-center"
-            initial={{ opacity: 0 }}
-            whileInView={{ opacity: 1 }}
-            viewport={{ once: false, amount: 0.3 }}
-            transition={{ delay: 0.2, duration: 0.6 }}
-          >
-            <Link href="/book">
-              <Button variant="gold" size="xl" className="bg-[#B08D39] text-[#FFF]">
-                Book Now
-              </Button>
-            </Link>
-            <Link href="/contact">
-              <Button variant="premium-outline" size="xl">
-                Schedule a Visit
-              </Button>
-            </Link>
-          </motion.div>
-        </motion.div>
-      </section>
+      <CtaSection
+        title="Ready to Elevate Your Business?"
+        description="Experience the premium environment your business deserves. Schedule a visit or book your space today."
+        sectionClassName="py-24"
+      >
+        <Link href="/book">
+          <Button variant="gold" size="xl" className="bg-[#B08D39] text-[#FFF]">
+            Book Now
+          </Button>
+        </Link>
+        <Link href="/contact">
+          <Button variant="premium-outline" size="xl">
+            Schedule a Visit
+          </Button>
+        </Link>
+      </CtaSection>
     </Layout>
   );
 }

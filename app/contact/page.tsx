@@ -8,8 +8,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Layout } from "@/components/layout/layout";
+import { PageHero, CtaSection } from "@/components/sections";
 import { toast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
+import { fadeInUp, staggerContainer } from "@/lib/constants/animations";
 
 const contactInfo = [
   {
@@ -64,64 +66,15 @@ export default function Contact() {
     });
   };
 
-  // Animation variants
-  const fadeInUp = {
-    initial: { opacity: 0, y: 20 },
-    animate: { opacity: 1, y: 0 },
-    transition: { duration: 0.6 }
-  };
-
-  const staggerContainer = {
-    animate: {
-      transition: {
-        staggerChildren: 0.1
-      }
-    }
-  };
-
   return (
     <Layout>
-      {/* Hero Section */}
-      <section className="relative section-padding">
-        <div 
-          className="absolute inset-0 bg-cover bg-center"
-          style={{ backgroundImage: 'url(/assets/5.jpg)' }}
-        >
-          <div className="absolute inset-0 bg-gradient-hero opacity-90" />
-        </div>
-        <motion.div 
-          className="relative z-10 container-premium text-center"
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8 }}
-        >
-          <motion.p 
-            className="text-accent font-medium tracking-widest uppercase text-sm mb-4"
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2, duration: 0.6 }}
-          >
-            Contact Us
-          </motion.p>
-          <motion.h1 
-            className="heading-display text-primary-foreground mb-6"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3, duration: 0.6 }}
-          >
-            Get in Touch
-          </motion.h1>
-          <motion.p 
-            className="text-lg text-primary-foreground/80 max-w-2xl mx-auto"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4, duration: 0.6 }}
-          >
-            Have questions or need assistance? Our team is here to help. 
-            Reach out through any of the channels below.
-          </motion.p>
-        </motion.div>
-      </section>
+      <PageHero
+        eyebrow="Contact Us"
+        title="Get in Touch"
+        description="Have questions or need assistance? Our team is here to help. Reach out through any of the channels below."
+        backgroundImage="/assets/5.jpg"
+        titleClassName="text-[#B7974B]"
+      />
 
       {/* Contact Content */}
       <section className="section-padding bg-background">
@@ -305,48 +258,18 @@ export default function Contact() {
         </div>
       </section>
 
-      {/* CTA Section */}
-      <section className="section-padding bg-background">
-        <motion.div 
-          className="container-premium text-center"
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: false, amount: 0.3 }}
-          transition={{ duration: 0.6 }}
-        >
-          <motion.h2 
-            className="heading-section text-foreground mb-6"
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: false, amount: 0.3 }}
-            transition={{ delay: 0.2, duration: 0.6 }}
-          >
-            Ready to Book Your Space?
-          </motion.h2>
-          <motion.p 
-            className="text-body max-w-2xl mx-auto mb-10"
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: false, amount: 0.3 }}
-            transition={{ delay: 0.3, duration: 0.6 }}
-          >
-            Skip the inquiry and book your space directly through our reservation system.
-          </motion.p>
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: false, amount: 0.3 }}
-            transition={{ delay: 0.4, duration: 0.6 }}
-          >
-            <Link href="/book">
-              <Button variant="gold" size="xl">
-                Book Now
-                <ArrowRight className="ml-2 h-5 w-5" />
-              </Button>
-            </Link>
-          </motion.div>
-        </motion.div>
-      </section>
+      <CtaSection
+        title="Ready to Book Your Space?"
+        description="Skip the inquiry and book your space directly through our reservation system."
+        sectionClassName="section-padding bg-background"
+      >
+        <Link href="/book">
+          <Button variant="gold" size="xl">
+            Book Now
+            <ArrowRight className="ml-2 h-5 w-5" />
+          </Button>
+        </Link>
+      </CtaSection>
     </Layout>
   );
 }
