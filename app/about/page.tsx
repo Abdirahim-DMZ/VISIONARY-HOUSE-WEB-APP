@@ -105,7 +105,7 @@ export default function About() {
                         </motion.div>
                         <motion.div 
                             className="relative"
-                            initial={{ opacity: 0, x: 30 }}
+                            initial={{ opacity: 0, x: 20 }}
                             whileInView={{ opacity: 1, x: 0 }}
                             viewport={{ once: false, amount: 0.3 }}
                             transition={{ duration: 0.6 }}

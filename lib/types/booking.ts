@@ -6,6 +6,7 @@ export interface BookingAddOn {
   description: string;
   price: number;
   category: 'catering' | 'equipment' | 'services';
+  img? : string;
 }
 
 export interface ServiceLayout {

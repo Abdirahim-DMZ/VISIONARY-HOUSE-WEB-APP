@@ -105,7 +105,7 @@ export default function Services() {
           <div className="container-premium">
             <div className={`grid lg:grid-cols-2 gap-16 items-center ${index % 2 !== 0 ? 'lg:flex-row-reverse' : ''}`}>
               <motion.div
-                initial={{ opacity: 0, x: index % 2 === 0 ? -30 : 30 }}
+                initial={{ opacity: 0, x: index % 2 === 0 ? -20 : 20 }}
                 whileInView={{ opacity: 1, x: 0 }}
                 viewport={{ once: false, amount: 0.3 }}
                 transition={{ duration: 0.6 }}
@@ -155,7 +155,7 @@ export default function Services() {
                 </Link>
               </motion.div>
               <motion.div 
-                initial={{ opacity: 0, x: index % 2 === 0 ? 30 : -30 }}
+                initial={{ opacity: 0, x: index % 2 === 0 ? 20 : -20 }}
                 whileInView={{ opacity: 1, x: 0 }}
                 viewport={{ once: false, amount: 0.3 }}
                 transition={{ duration: 0.6 }}

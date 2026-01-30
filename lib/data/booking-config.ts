@@ -1,4 +1,6 @@
 import { BookingConfig, ServiceLayout, BookingAddOn } from '@/lib/types/booking';
+import coffee from '../../public/assets/coffee.jpg'
+
 
 // Event types: map to serviceType and control single-day vs multi-day date/time UI
 export type EventTypeKind = {
@@ -11,12 +13,12 @@ export type EventTypeKind = {
 export const eventTypes: EventTypeKind[] = [
   { id: 'meeting', label: 'Meeting / Small Event (single day)', serviceType: 'event-space', isMultiDay: false },
   { id: 'conference', label: 'Conference / Large Event (multi-day)', serviceType: 'event-space', isMultiDay: true },
-  { id: 'board-meeting', label: 'Board Meeting', serviceType: 'event-space', isMultiDay: false },
-  { id: 'training', label: 'Training / Workshop', serviceType: 'event-space', isMultiDay: false },
-  { id: 'reception', label: 'Networking / Reception', serviceType: 'event-space', isMultiDay: false },
-  { id: 'media-recording', label: 'Media Recording', serviceType: 'media-studio', isMultiDay: false },
-  { id: 'lounge-meeting', label: 'Lounge / Casual Meeting', serviceType: 'lounge', isMultiDay: false },
-  { id: 'virtual-office', label: 'Virtual Office', serviceType: 'virtual-office', isMultiDay: false },
+  { id: 'board-meeting', label: 'Board Meeting (single day)', serviceType: 'event-space', isMultiDay: false },
+  { id: 'training', label: 'Training / Workshop (multi-day)', serviceType: 'event-space', isMultiDay: true },
+  { id: 'reception', label: 'Networking / Reception (single day)', serviceType: 'event-space', isMultiDay: false },
+  { id: 'media-recording', label: 'Media Recording (multi-day)', serviceType: 'media-studio', isMultiDay: true },
+  { id: 'lounge-meeting', label: 'Lounge / Casual Meeting (single day)', serviceType: 'lounge', isMultiDay: false },
+  { id: 'virtual-office', label: 'Virtual Office (single day)', serviceType: 'virtual-office', isMultiDay: false },
 ];
 
 // System Configuration
@@ -164,6 +166,7 @@ export const bookingAddOns: BookingAddOn[] = [
     description: 'Continuous coffee and tea service throughout the event',
     price: 150,
     category: 'catering',
+    img: "/assets/coffee.jpg",
   },
   {
     id: 'breakfast',
@@ -171,6 +174,7 @@ export const bookingAddOns: BookingAddOn[] = [
     description: 'Pastries, fruits, yogurt, and beverages',
     price: 350,
     category: 'catering',
+    img: "/assets/breakfast.jpg",
   },
   {
     id: 'lunch',
@@ -178,6 +182,7 @@ export const bookingAddOns: BookingAddOn[] = [
     description: 'Full lunch service with choice of menu',
     price: 650,
     category: 'catering',
+    img: "/assets/catered-lunch.jpg",
   },
   {
     id: 'snacks',
@@ -185,6 +190,7 @@ export const bookingAddOns: BookingAddOn[] = [
     description: 'Selection of healthy snacks and refreshments',
     price: 200,
     category: 'catering',
+    img: "/assets/Premium-snacks.jpg",
   },
   
   // Equipment
@@ -194,6 +200,7 @@ export const bookingAddOns: BookingAddOn[] = [
     description: 'HD projector with large screen',
     price: 100,
     category: 'equipment',
+    img: "/assets/Projector-Screen.png",
   },
   {
     id: 'video-conf',
@@ -201,6 +208,7 @@ export const bookingAddOns: BookingAddOn[] = [
     description: 'Professional video conferencing setup',
     price: 200,
     category: 'equipment',
+    img: "/assets/Video-conferencing.png",
   },
   {
     id: 'sound-system',
@@ -208,6 +216,7 @@ export const bookingAddOns: BookingAddOn[] = [
     description: 'Professional audio system with microphones',
     price: 250,
     category: 'equipment',
+    img: "/assets/Premium-sound-system.png",
   },
   {
     id: 'recording',
@@ -215,6 +224,7 @@ export const bookingAddOns: BookingAddOn[] = [
     description: 'Professional recording of your event',
     price: 300,
     category: 'equipment',
+    img: "/assets/Session-recording.png",
   },
   
   // Services
@@ -224,6 +234,7 @@ export const bookingAddOns: BookingAddOn[] = [
     description: 'On-site technical assistance throughout event',
     price: 200,
     category: 'services',
+    img: "/assets/Technical-support.png",
   },
   {
     id: 'event-coordinator',
@@ -231,6 +242,7 @@ export const bookingAddOns: BookingAddOn[] = [
     description: 'Dedicated event coordinator for seamless execution',
     price: 400,
     category: 'services',
+    img: "/assets/event-coordinator.png",
   },
   {
     id: 'photography',
@@ -238,6 +250,7 @@ export const bookingAddOns: BookingAddOn[] = [
     description: 'Event photography with edited photos',
     price: 500,
     category: 'services',
+    img: "/assets/photography.png",
   },
   {
     id: 'setup-cleanup',
@@ -245,6 +258,7 @@ export const bookingAddOns: BookingAddOn[] = [
     description: 'Complete setup and post-event cleanup',
     price: 150,
     category: 'services',
+    img: "/assets/setup-cleanup.png",
   },
 ];
 

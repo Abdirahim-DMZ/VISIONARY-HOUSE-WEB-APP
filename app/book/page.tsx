@@ -63,6 +63,7 @@ import {
   getTotalDurationMinutes
 } from "@/lib/utils/booking-utils";
 import type { BookingFormData } from "@/lib/types/booking";
+import coffee from '../../public/assets/coffee.jpg'
 
 export default function Book() {
   const { toast } = useToast();
@@ -84,6 +85,7 @@ export default function Book() {
   const nameRef = useRef<HTMLInputElement>(null);
   const emailRef = useRef<HTMLInputElement>(null);
   const phoneRef = useRef<HTMLInputElement>(null);
+  const attendeesRef = useRef<HTMLInputElement>(null);
   
   const [formData, setFormData] = useState<BookingFormData>({
     name: "",
@@ -165,9 +167,48 @@ export default function Book() {
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => {
     const fieldName = e.target.name;
+    const value = e.target.value;
+
+    if (fieldName === "attendees") {
+      if (!value) {
+        setAttendeesError(null);
+      } else {
+        const num = Number(value);
+        const hasSelectedLayouts = selectedLayoutIds.length > 0;
+        const layoutsForCapacity = hasSelectedLayouts
+          ? selectedLayoutIds
+          : formData.layoutId
+            ? [formData.layoutId]
+            : [];
+
+        let totalCapacity: number | undefined;
+        if (layoutsForCapacity.length > 0 && formData.serviceType) {
+          const layouts = serviceLayouts[formData.serviceType] || [];
+          const capacities = layouts
+            .filter((l) => layoutsForCapacity.includes(l.id))
+            .map((l) => l.capacity);
+          if (capacities.length > 0) {
+            totalCapacity = capacities.reduce((sum, c) => sum + c, 0);
+          }
+        }
+
+        if (
+          totalCapacity !== undefined &&
+          !Number.isNaN(num) &&
+          num > totalCapacity
+        ) {
+          setAttendeesError(
+            `Expected attendees cannot exceed the combined capacity of the selected layouts (${totalCapacity} guests).`
+          );
+        } else {
+          setAttendeesError(null);
+        }
+      }
+    }
+
     setFormData({
       ...formData,
-      [fieldName]: e.target.value,
+      [fieldName]: value,
     });
     // Clear error for this field when user starts typing
     if (fieldErrors[fieldName]) {
@@ -181,23 +222,53 @@ export default function Book() {
   const handleEventTypeChange = (value: string) => {
     const event = eventTypes.find((e) => e.id === value);
     if (!event) return;
-    setFormData({
-      ...formData,
+    setFormData((prev) => ({
+      ...prev,
       eventType: value,
       serviceType: event.serviceType,
       layoutId: "",
       ...(event.isMultiDay ? {} : { endDate: "" }),
-    });
+    }));
+    setSelectedLayoutIds([]);
     if (fieldErrors.serviceType) {
       setFieldErrors({ ...fieldErrors, serviceType: false });
     }
   };
 
-  const handleLayoutChange = (value: string) => {
-    setFormData({
-      ...formData,
-      layoutId: value,
+  const handleLayoutToggle = (value: string) => {
+    setSelectedLayoutIds((prev) => {
+      const exists = prev.includes(value);
+      const next = exists ? prev.filter((id) => id !== value) : [...prev, value];
+      // Keep first selected layout in formData.layoutId for compatibility
+      setFormData((current) => ({
+        ...current,
+        layoutId: next[0] ?? "",
+      }));
+      return next;
     });
+  };
+
+  const handleDialogLayoutToggle = (value: string) => {
+    setDialogLayoutIds((prev) => {
+      const exists = prev.includes(value);
+      return exists ? prev.filter((id) => id !== value) : [...prev, value];
+    });
+  };
+
+  const handleLayoutDialogSave = () => {
+    setSelectedLayoutIds(dialogLayoutIds);
+    setFormData((current) => ({
+      ...current,
+      layoutId: dialogLayoutIds[0] ?? "",
+    }));
+    setIsLayoutDialogOpen(false);
+    setLayoutSearchQuery("");
+  };
+
+  const handleLayoutDialogCancel = () => {
+    setDialogLayoutIds(selectedLayoutIds);
+    setIsLayoutDialogOpen(false);
+    setLayoutSearchQuery("");
   };
 
   const handleAddOnToggle = (addOnId: string) => {
@@ -216,6 +287,9 @@ export default function Book() {
   const [isEndTimeOpen, setIsEndTimeOpen] = useState(false);
   const [isLayoutDialogOpen, setIsLayoutDialogOpen] = useState(false);
   const [layoutSearchQuery, setLayoutSearchQuery] = useState("");
+  const [selectedLayoutIds, setSelectedLayoutIds] = useState<string[]>([]);
+  const [dialogLayoutIds, setDialogLayoutIds] = useState<string[]>([]);
+  const [attendeesError, setAttendeesError] = useState<string | null>(null);
 
   // Minutes restricted to 00, 15, 30, 45 only
   const MINUTES_QUARTER = [0, 15, 30, 45];
@@ -315,12 +389,19 @@ export default function Book() {
         errors.endTime = true;
         if (!firstInvalidField) firstInvalidField = endTimeRef;
       }
+      if (attendeesError) {
+        if (!firstInvalidField && attendeesRef) {
+          firstInvalidField = attendeesRef as unknown as React.RefObject<HTMLElement>;
+        }
+      }
       
       if (Object.keys(errors).length > 0) {
         setFieldErrors(errors);
         toast({
           title: "Missing Information",
-          description: "Please fill in all required fields for booking details",
+          description: attendeesError
+            ? attendeesError
+            : "Please fill in all required fields for booking details",
           variant: "destructive",
         });
         if (firstInvalidField) {
@@ -428,23 +509,36 @@ export default function Book() {
     }, 300);
   };
 
-  const availableLayouts = formData.serviceType 
+  const availableLayouts = formData.serviceType
     ? serviceLayouts[formData.serviceType] || []
     : [];
 
-  const selectedService = formData.serviceType 
+  const selectedService = formData.serviceType
     ? serviceTypeNames[formData.serviceType]
     : "";
 
-  const selectedLayout = availableLayouts.find(l => l.id === formData.layoutId);
-  
-  const selectedAddOns = bookingAddOns.filter(a => formData.addOns.includes(a.id));
+  const selectedLayouts = availableLayouts.filter((l) =>
+    selectedLayoutIds.includes(l.id)
+  );
 
-  const totalDurationMinutes = formData.date && formData.startTime && formData.endTime
-    ? (isMultiDay && formData.endDate
-        ? getTotalDurationMinutes(formData.date, formData.startTime, formData.endDate, formData.endTime)
-        : timeToMinutes(formData.endTime) - timeToMinutes(formData.startTime))
-    : 0;
+  const selectedAddOns = bookingAddOns.filter((a) => formData.addOns.includes(a.id));
+
+  const totalAttendeesCapacity =
+    selectedLayouts.length > 0
+      ? selectedLayouts.reduce((sum, layout) => sum + layout.capacity, 0)
+      : undefined;
+
+  const totalDurationMinutes =
+    formData.date && formData.startTime && formData.endTime
+      ? isMultiDay && formData.endDate
+        ? getTotalDurationMinutes(
+            formData.date,
+            formData.startTime,
+            formData.endDate,
+            formData.endTime
+          )
+        : timeToMinutes(formData.endTime) - timeToMinutes(formData.startTime)
+      : 0;
   const duration = totalDurationMinutes / 60;
 
   return (
@@ -524,11 +618,14 @@ export default function Book() {
       </Dialog>
 
       {/* Layout / Setup Image Gallery Modal */}
-      <Dialog 
-        open={isLayoutDialogOpen} 
+      <Dialog
+        open={isLayoutDialogOpen}
         onOpenChange={(open) => {
           setIsLayoutDialogOpen(open);
-          if (!open) {
+          if (open) {
+            // Start dialog with current committed selection
+            setDialogLayoutIds(selectedLayoutIds);
+          } else {
             setLayoutSearchQuery("");
           }
         }}
@@ -556,7 +653,7 @@ export default function Book() {
           </div>
 
           {/* Filtered Layouts Grid with Scroll - Show only 2 rows */}
-          <div className="overflow-y-auto pr-2 max-h-[420px] scrollbar-hide">
+          <div className="overflow-y-auto pr-3 max-h-[420px] custom-scrollbar">
             {(() => {
               const filteredLayouts = availableLayouts.filter((layout) => {
                 if (!layoutSearchQuery.trim()) return true;
@@ -581,49 +678,124 @@ export default function Book() {
               }
 
               return (
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 pb-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 pb-4">
                   {filteredLayouts.map((layout) => (
                     <button
                       key={layout.id}
                       type="button"
                       onClick={() => {
-                        handleLayoutChange(layout.id);
-                        setIsLayoutDialogOpen(false);
-                        setLayoutSearchQuery("");
+                        handleDialogLayoutToggle(layout.id);
                       }}
                       className={cn(
-                        "group relative w-full aspect-[4/3] overflow-hidden rounded-lg border-2 text-left transition-colors duration-200",
-                        formData.layoutId === layout.id ? "border-accent ring-2 ring-accent/30" : "border-border hover:border-accent/50"
+                        "group relative w-full overflow-hidden rounded-lg border-2 text-left transition-colors duration-200",
+                        dialogLayoutIds.includes(layout.id)
+                          ? "border-accent ring-2 ring-accent/30 bg-accent/5"
+                          : "border-border hover:border-accent/50"
                       )}
                     >
-                      <div className="absolute inset-0 overflow-hidden rounded-lg">
-                        {layout.image ? (
-                          <Image
-                            src={layout.image}
-                            alt={layout.name}
-                            fill
-                            sizes="(max-width: 640px) 50vw, 20vw"
-                            className="object-cover"
-                          />
-                        ) : (
-                          <div className="absolute inset-0 bg-muted flex items-center justify-center">
-                            <span className="text-xl font-heading text-muted-foreground">{layout.name.charAt(0)}</span>
+                      {/* Mobile & tablet: horizontal card with image left, details right */}
+                      <div className="flex lg:hidden w-full items-stretch h-full">
+                        <div className="relative h-24 w-24 flex-shrink-0 overflow-hidden">
+                          {layout.image ? (
+                            <Image
+                              src={layout.image}
+                              alt={layout.name}
+                              fill
+                              // sizes="(max-width: 1024px) 40vw"
+                              className="object-cover"
+                            />
+                          ) : (
+                            <div className="absolute inset-0 bg-muted flex items-center justify-center">
+                              <span className="text-xl font-heading text-muted-foreground">
+                                {layout.name.charAt(0)}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex-1 px-3 flex flex-col justify-center gap-1 min-w-0">
+                          <p className="font-semibold text-sm text-foreground line-clamp-1">
+                            {layout.name}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Capacity: {layout.capacity}
+                          </p>
+                          <p className="text-xs text-muted-foreground line-clamp-2">
+                            {layout.description}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Desktop (lg+): original card layout with hover overlay */}
+                      <div className="hidden lg:block w-full">
+                        <div className="relative w-full aspect-[4/3]">
+                          <div className="absolute inset-0 overflow-hidden rounded-lg">
+                            {layout.image ? (
+                              <Image
+                                src={layout.image}
+                                alt={layout.name}
+                                fill
+                                sizes="(max-width: 640px) 50vw, 20vw"
+                                className="object-cover"
+                              />
+                            ) : (
+                              <div className="absolute inset-0 bg-muted flex items-center justify-center">
+                                <span className="text-xl font-heading text-muted-foreground">
+                                  {layout.name.charAt(0)}
+                                </span>
+                              </div>
+                            )}
                           </div>
-                        )}
-                      </div>
-                      <div className="absolute inset-0 rounded-lg bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex flex-col justify-end pt-4 pb-11 px-3">
-                        <p className="text-white font-semibold text-xs sm:text-sm">{layout.name}</p>
-                        <p className="text-white/90 text-xs mt-1">Capacity: {layout.capacity}</p>
-                        <p className="text-white/80 text-xs mt-0.5 line-clamp-2">{layout.description}</p>
-                      </div>
-                      <div className="absolute bottom-0 left-0 right-0 p-2 bg-background/95 border-t border-border rounded-b-lg">
-                        <p className="text-foreground font-medium text-xs sm:text-sm truncate">{layout.name}</p>
+                          <div className="absolute inset-0 rounded-lg bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex flex-col justify-end pt-4 pb-11 px-3">
+                            <p className="text-white font-semibold text-xs sm:text-sm">{layout.name}</p>
+                            <p className="text-white/90 text-xs mt-1">Capacity: {layout.capacity}</p>
+                            <p className="text-white/80 text-xs mt-0.5 line-clamp-2">{layout.description}</p>
+                          </div>
+                          <div className="absolute bottom-0 left-0 right-0 p-2 bg-background/95 border-t border-border rounded-b-lg">
+                            <p className="text-foreground font-medium text-xs sm:text-sm truncate">
+                              {layout.name}
+                            </p>
+                          </div>
+                        </div>
                       </div>
                     </button>
                   ))}
                 </div>
               );
             })()}
+          </div>
+          <div className="mt-4 flex flex-col-reverse gap-3 sm:flex-row sm:justify-between sm:items-center border-t border-border pt-4">
+            <Button
+              type="button"
+              variant="outline"
+              size="lg"
+              className="w-full sm:w-auto h-11"
+              onClick={handleLayoutDialogCancel}
+            >
+              Cancel
+            </Button>
+            <div className="flex-1 sm:text-right">
+              {dialogLayoutIds.length > 0 && (
+                <p className="text-xs text-muted-foreground mb-2 sm:mb-1">
+                  Combined capacity of selected layouts:{" "}
+                  <span className="font-semibold">
+                    {availableLayouts
+                      .filter((l) => dialogLayoutIds.includes(l.id))
+                      .reduce((sum, l) => sum + l.capacity, 0)}{" "}
+                    guests
+                  </span>
+                </p>
+              )}
+              <Button
+                type="button"
+                variant="gold"
+                size="lg"
+                className="w-full sm:w-auto h-11"
+                onClick={handleLayoutDialogSave}
+                disabled={dialogLayoutIds.length === 0}
+              >
+                Save Layout Selection
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
@@ -686,7 +858,7 @@ export default function Book() {
               transition={{ duration: 0.5 }}
             >
               <Card className="shadow-premium">
-                <CardContent className="p-8">
+                <CardContent className="p-6 sm:p-8">
                   <form onSubmit={handleSubmit}>
                     {/* Step 1: Booking Details */}
                     {currentStep === 1 && (
@@ -741,300 +913,561 @@ export default function Book() {
                             </Select>
                           </div>
 
-                          {/* Date & Time - dynamic: multi-day shows Start/End date+time; single-day shows Start date + Start/End time */}
+                          {/* Date & Time - Multi-day: row1 Start Date + Start Time, row2 End Date + End Time; Single-day: Date then Start/End time */}
                           <div className="space-y-6">
-                            <div className="space-y-2">
-                              <Label className="text-base font-medium">{isMultiDay ? "Start Date *" : "Date *"}</Label>
-                              <Popover open={isDatePickerOpen} onOpenChange={setIsDatePickerOpen}>
-                                <PopoverTrigger asChild>
-                                  <Button
-                                    ref={dateRef}
-                                    variant="outline"
-                                    className={cn(
-                                      "w-full h-14 justify-start text-left font-normal border-2 hover:border-accent/50 transition-colors",
-                                      !date && "text-muted-foreground",
-                                      date && "border-accent/30",
-                                      fieldErrors.date && "border-red-500 hover:border-red-600"
-                                    )}
-                                  >
-                                    <CalendarIcon className="mr-3 h-5 w-5 text-accent" />
-                                    <span className="text-base">
-                                      {date ? format(date, "EEEE, MMMM dd, yyyy") : "Select your booking date"}
-                                    </span>
-                                  </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-auto p-0 shadow-elevated" align="start">
-                                  <Calendar
-                                    mode="single"
-                                    selected={date}
-                                    onSelect={handleDateSelect}
-                                    disabled={(date) =>
-                                      date < new Date() || date < new Date("1900-01-01")
-                                    }
-                                    initialFocus
-                                    className="rounded-lg border-0"
-                                  />
-                                </PopoverContent>
-                              </Popover>
-                            </div>
-
-                            {/* End Date - only for multi-day events */}
-                            {isMultiDay && (
-                              <div className="space-y-2">
-                                <Label className="text-base font-medium">End Date *</Label>
-                                <Popover open={isEndDatePickerOpen} onOpenChange={setIsEndDatePickerOpen}>
-                                  <PopoverTrigger asChild>
-                                    <Button
-                                      ref={endDateRef}
-                                      variant="outline"
-                                      className={cn(
-                                        "w-full h-14 justify-start text-left font-normal border-2 hover:border-accent/50 transition-colors",
-                                        !endDate && "text-muted-foreground",
-                                        endDate && "border-accent/30",
-                                        fieldErrors.endDate && "border-red-500 hover:border-red-600"
-                                      )}
-                                    >
-                                      <CalendarIcon className="mr-3 h-5 w-5 text-accent" />
-                                      <span className="text-base">
-                                        {endDate ? format(endDate, "EEEE, MMMM dd, yyyy") : "Select end date"}
-                                      </span>
-                                    </Button>
-                                  </PopoverTrigger>
-                                  <PopoverContent className="w-auto p-0 shadow-elevated" align="start">
-                                    <Calendar
-                                      mode="single"
-                                      selected={endDate}
-                                      onSelect={handleEndDateSelect}
-                                      disabled={(d) => {
-                                        if (!formData.date) return d < new Date();
-                                        const start = new Date(formData.date);
-                                        return d < start || d < new Date();
-                                      }}
-                                      initialFocus
-                                      className="rounded-lg border-0"
-                                    />
-                                  </PopoverContent>
-                                </Popover>
-                              </div>
+                            {isMultiDay ? (
+                              <>
+                                {/* Multi-day: Row 1 - Start Date | Start Time */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                                  <div className="space-y-2">
+                                    <Label className="text-base font-medium">Start Date *</Label>
+                                    <Popover open={isDatePickerOpen} onOpenChange={setIsDatePickerOpen}>
+                                      <PopoverTrigger asChild>
+                                        <Button
+                                          ref={dateRef}
+                                          variant="outline"
+                                          className={cn(
+                                            "w-full h-14 justify-start text-left font-normal border-2 transition-colors hover:bg-[#FFF] hover:text-[#B08D39]",
+                                            !date && "text-muted-foreground",
+                                            date && "border-accent/30",
+                                            fieldErrors.date && "border-red-500 hover:border-red-600"
+                                          )}
+                                        >
+                                          <CalendarIcon className="mr-3 h-5 w-5 text-accent shrink-0" />
+                                          <span className="text-base text-black truncate">
+                                            {date ? format(date, "EEEE, MMMM dd, yyyy") : "Select start date"}
+                                          </span>
+                                        </Button>
+                                      </PopoverTrigger>
+                                      <PopoverContent className="w-auto p-0 shadow-elevated" align="start">
+                                        <Calendar
+                                          mode="single"
+                                          selected={date}
+                                          onSelect={handleDateSelect}
+                                          disabled={(date) =>
+                                            date < new Date() || date < new Date("1900-01-01")
+                                          }
+                                          initialFocus
+                                          className="rounded-lg border-0"
+                                        />
+                                      </PopoverContent>
+                                    </Popover>
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label htmlFor="startTime" className="text-base font-medium flex items-center gap-2">
+                                      <Clock className="h-4 w-4 text-accent" />
+                                      Start Time *
+                                    </Label>
+                                    <Popover open={isStartTimeOpen} onOpenChange={setIsStartTimeOpen}>
+                                      <PopoverTrigger asChild>
+                                        <button
+                                          ref={startTimeRef}
+                                          type="button"
+                                          id="startTime"
+                                          className={cn(
+                                            "flex h-14 w-full items-center justify-between rounded-md border-2 bg-background px-4 text-left text-base transition-colors hover:border-accent/50 focus:border-accent focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 cursor-pointer",
+                                            fieldErrors.startTime && "border-red-500 hover:border-red-600 focus:border-red-600 focus:ring-red-500"
+                                          )}
+                                        >
+                                          <span className={formData.startTime ? "text-foreground" : "text-muted-foreground"}>
+                                            {formData.startTime ? formatTime(formData.startTime) : "-- : --"}
+                                          </span>
+                                          <Clock className="h-4 w-4 shrink-0 text-muted-foreground" />
+                                        </button>
+                                      </PopoverTrigger>
+                                      <PopoverContent className="w-auto p-0 shadow-elevated" align="start" sideOffset={4}>
+                                        <div className="flex border-b border-border">
+                                          <div className="flex flex-col max-h-[220px] overflow-y-auto scrollbar-hide w-14 border-r border-border">
+                                            {HOURS_12.map((h) => {
+                                              const current = parseTime(formData.startTime);
+                                              const isSelected = current.hour12 === h;
+                                              return (
+                                                <button
+                                                  key={h}
+                                                  type="button"
+                                                  onClick={() => {
+                                                    const next = buildTime(h, current.minute, current.ampm);
+                                                    setFormData({ ...formData, startTime: next });
+                                                    if (fieldErrors.startTime) setFieldErrors({ ...fieldErrors, startTime: false });
+                                                  }}
+                                                  className={cn(
+                                                    "px-3 py-2 text-sm font-medium transition-colors hover:bg-muted",
+                                                    isSelected ? "bg-[#B08D39] text-white hover:bg-[#9a7b32]" : "text-foreground"
+                                                  )}
+                                                >
+                                                  {String(h).padStart(2, "0")}
+                                                </button>
+                                              );
+                                            })}
+                                          </div>
+                                          <div className="flex flex-col max-h-[220px] overflow-y-auto scrollbar-hide w-14 border-r border-border">
+                                            {MINUTES_QUARTER.map((m) => {
+                                              const current = parseTime(formData.startTime);
+                                              const isSelected = current.minute === m;
+                                              return (
+                                                <button
+                                                  key={m}
+                                                  type="button"
+                                                  onClick={() => {
+                                                    const next = buildTime(current.hour12, m, current.ampm);
+                                                    setFormData({ ...formData, startTime: next });
+                                                    if (fieldErrors.startTime) setFieldErrors({ ...fieldErrors, startTime: false });
+                                                  }}
+                                                  className={cn(
+                                                    "px-3 py-2 text-sm font-medium transition-colors hover:bg-muted",
+                                                    isSelected ? "bg-[#B08D39] text-white hover:bg-[#9a7b32]" : "text-foreground"
+                                                  )}
+                                                >
+                                                  {String(m).padStart(2, "0")}
+                                                </button>
+                                              );
+                                            })}
+                                          </div>
+                                          <div className="flex flex-col max-h-[220px] overflow-y-auto scrollbar-hide w-12">
+                                            {AMPM.map((a) => {
+                                              const current = parseTime(formData.startTime);
+                                              const isSelected = current.ampm === a;
+                                              return (
+                                                <button
+                                                  key={a}
+                                                  type="button"
+                                                  onClick={() => {
+                                                    const next = buildTime(current.hour12, current.minute, a);
+                                                    setFormData({ ...formData, startTime: next });
+                                                    if (fieldErrors.startTime) setFieldErrors({ ...fieldErrors, startTime: false });
+                                                  }}
+                                                  className={cn(
+                                                    "px-2 py-2 text-sm font-medium transition-colors hover:bg-muted",
+                                                    isSelected ? "bg-[#B08D39] text-white hover:bg-[#9a7b32]" : "text-foreground"
+                                                  )}
+                                                >
+                                                  {a}
+                                                </button>
+                                              );
+                                            })}
+                                          </div>
+                                        </div>
+                                        <p className="text-xs text-muted-foreground px-3 py-2 border-t border-border">Select hour, minute (00/15/30/45), and AM/PM</p>
+                                      </PopoverContent>
+                                    </Popover>
+                                  </div>
+                                </div>
+                                {/* Multi-day: Row 2 - End Date | End Time */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                                  <div className="space-y-2">
+                                    <Label className="text-base font-medium">End Date *</Label>
+                                    <Popover open={isEndDatePickerOpen} onOpenChange={setIsEndDatePickerOpen}>
+                                      <PopoverTrigger asChild>
+                                        <Button
+                                          ref={endDateRef}
+                                          variant="outline"
+                                          className={cn(
+                                            "w-full h-14 justify-start text-left font-normal border-2 transition-colors hover:bg-[#FFF] hover:text-[#B08D39]",
+                                            !endDate && "text-muted-foreground",
+                                            endDate && "border-accent/30",
+                                            fieldErrors.endDate && "border-red-500 hover:border-red-600"
+                                          )}
+                                        >
+                                          <CalendarIcon className="mr-3 h-5 w-5 text-accent shrink-0" />
+                                          <span className="text-base text-black truncate">
+                                            {endDate ? format(endDate, "EEEE, MMMM dd, yyyy") : "Select end date"}
+                                          </span>
+                                        </Button>
+                                      </PopoverTrigger>
+                                      <PopoverContent className="w-auto p-0 shadow-elevated" align="start">
+                                        <Calendar
+                                          mode="single"
+                                          selected={endDate}
+                                          onSelect={handleEndDateSelect}
+                                          disabled={(d) => {
+                                            if (!formData.date) return d < new Date();
+                                            const start = new Date(formData.date);
+                                            return d < start || d < new Date();
+                                          }}
+                                          initialFocus
+                                          className="rounded-lg border-0"
+                                        />
+                                      </PopoverContent>
+                                    </Popover>
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label htmlFor="endTime" className="text-base font-medium flex items-center gap-2">
+                                      <Clock className="h-4 w-4 text-accent" />
+                                      End Time *
+                                    </Label>
+                                    <Popover open={isEndTimeOpen} onOpenChange={setIsEndTimeOpen}>
+                                      <PopoverTrigger asChild>
+                                        <button
+                                          ref={endTimeRef}
+                                          type="button"
+                                          id="endTime"
+                                          className={cn(
+                                            "flex h-14 w-full items-center justify-between rounded-md border-2 bg-background px-4 text-left text-base transition-colors hover:border-accent/50 focus:border-accent focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 cursor-pointer",
+                                            fieldErrors.endTime && "border-red-500 hover:border-red-600 focus:border-red-600 focus:ring-red-500"
+                                          )}
+                                        >
+                                          <span className={formData.endTime ? "text-foreground" : "text-muted-foreground"}>
+                                            {formData.endTime ? formatTime(formData.endTime) : "-- : --"}
+                                          </span>
+                                          <Clock className="h-4 w-4 shrink-0 text-muted-foreground" />
+                                        </button>
+                                      </PopoverTrigger>
+                                      <PopoverContent className="w-auto p-0 shadow-elevated" align="start" sideOffset={4}>
+                                        <div className="flex border-b border-border">
+                                          <div className="flex flex-col max-h-[220px] overflow-y-auto scrollbar-hide w-14 border-r border-border">
+                                            {HOURS_12.map((h) => {
+                                              const current = parseTime(formData.endTime);
+                                              const isSelected = current.hour12 === h;
+                                              return (
+                                                <button
+                                                  key={h}
+                                                  type="button"
+                                                  onClick={() => {
+                                                    const next = buildTime(h, current.minute, current.ampm);
+                                                    setFormData({ ...formData, endTime: next });
+                                                    if (fieldErrors.endTime) setFieldErrors({ ...fieldErrors, endTime: false });
+                                                  }}
+                                                  className={cn(
+                                                    "px-3 py-2 text-sm font-medium transition-colors hover:bg-muted",
+                                                    isSelected ? "bg-[#B08D39] text-white hover:bg-[#9a7b32]" : "text-foreground"
+                                                  )}
+                                                >
+                                                  {String(h).padStart(2, "0")}
+                                                </button>
+                                              );
+                                            })}
+                                          </div>
+                                          <div className="flex flex-col max-h-[220px] overflow-y-auto scrollbar-hide w-14 border-r border-border">
+                                            {MINUTES_QUARTER.map((m) => {
+                                              const current = parseTime(formData.endTime);
+                                              const isSelected = current.minute === m;
+                                              return (
+                                                <button
+                                                  key={m}
+                                                  type="button"
+                                                  onClick={() => {
+                                                    const next = buildTime(current.hour12, m, current.ampm);
+                                                    setFormData({ ...formData, endTime: next });
+                                                    if (fieldErrors.endTime) setFieldErrors({ ...fieldErrors, endTime: false });
+                                                  }}
+                                                  className={cn(
+                                                    "px-3 py-2 text-sm font-medium transition-colors hover:bg-muted",
+                                                    isSelected ? "bg-[#B08D39] text-white hover:bg-[#9a7b32]" : "text-foreground"
+                                                  )}
+                                                >
+                                                  {String(m).padStart(2, "0")}
+                                                </button>
+                                              );
+                                            })}
+                                          </div>
+                                          <div className="flex flex-col max-h-[220px] overflow-y-auto scrollbar-hide w-12">
+                                            {AMPM.map((a) => {
+                                              const current = parseTime(formData.endTime);
+                                              const isSelected = current.ampm === a;
+                                              return (
+                                                <button
+                                                  key={a}
+                                                  type="button"
+                                                  onClick={() => {
+                                                    const next = buildTime(current.hour12, current.minute, a);
+                                                    setFormData({ ...formData, endTime: next });
+                                                    if (fieldErrors.endTime) setFieldErrors({ ...fieldErrors, endTime: false });
+                                                  }}
+                                                  className={cn(
+                                                    "px-2 py-2 text-sm font-medium transition-colors hover:bg-muted",
+                                                    isSelected ? "bg-[#B08D39] text-white hover:bg-[#9a7b32]" : "text-foreground"
+                                                  )}
+                                                >
+                                                  {a}
+                                                </button>
+                                              );
+                                            })}
+                                          </div>
+                                        </div>
+                                        <p className="text-xs text-muted-foreground px-3 py-2 border-t border-border">Select hour, minute (00/15/30/45), and AM/PM</p>
+                                      </PopoverContent>
+                                    </Popover>
+                                  </div>
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                {/* Single-day: existing layout - Date full width, then Start Time | End Time */}
+                                <div className="space-y-2">
+                                  <Label className="text-base font-medium">Date *</Label>
+                                  <Popover open={isDatePickerOpen} onOpenChange={setIsDatePickerOpen}>
+                                    <PopoverTrigger asChild>
+                                      <Button
+                                        ref={dateRef}
+                                        variant="outline"
+                                        className={cn(
+                                          "w-full h-14 justify-start text-left font-normal border-2 transition-colors hover:bg-[#FFF] hover:text-[#B08D39]",
+                                          !date && "text-muted-foreground",
+                                          date && "border-accent/30",
+                                          fieldErrors.date && "border-red-500 hover:border-red-600"
+                                        )}
+                                      >
+                                        <CalendarIcon className="mr-3 h-5 w-5 text-accent" />
+                                        <span className="text-base text-black ">
+                                          {date ? format(date, "EEEE, MMMM dd, yyyy") : "Select your booking date"}
+                                        </span>
+                                      </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-auto p-0 shadow-elevated" align="start">
+                                      <Calendar
+                                        mode="single"
+                                        selected={date}
+                                        onSelect={handleDateSelect}
+                                        disabled={(date) =>
+                                          date < new Date() || date < new Date("1900-01-01")
+                                        }
+                                        initialFocus
+                                        className="rounded-lg border-0"
+                                      />
+                                    </PopoverContent>
+                                  </Popover>
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                                  <div className="space-y-2">
+                                    <Label htmlFor="startTime" className="text-base font-medium flex items-center gap-2">
+                                      <Clock className="h-4 w-4 text-accent" />
+                                      Start Time *
+                                    </Label>
+                                    <Popover open={isStartTimeOpen} onOpenChange={setIsStartTimeOpen}>
+                                      <PopoverTrigger asChild>
+                                        <button
+                                          ref={startTimeRef}
+                                          type="button"
+                                          id="startTime"
+                                          className={cn(
+                                            "flex h-14 w-full items-center justify-between rounded-md border-2 bg-background px-4 text-left text-base transition-colors hover:border-accent/50 focus:border-accent focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 cursor-pointer",
+                                            fieldErrors.startTime && "border-red-500 hover:border-red-600 focus:border-red-600 focus:ring-red-500"
+                                          )}
+                                        >
+                                          <span className={formData.startTime ? "text-foreground" : "text-muted-foreground"}>
+                                            {formData.startTime ? formatTime(formData.startTime) : "-- : --"}
+                                          </span>
+                                          <Clock className="h-4 w-4 shrink-0 text-muted-foreground" />
+                                        </button>
+                                      </PopoverTrigger>
+                                      <PopoverContent className="w-auto p-0 shadow-elevated" align="start" sideOffset={4}>
+                                        <div className="flex border-b border-border">
+                                          <div className="flex flex-col max-h-[220px] overflow-y-auto scrollbar-hide w-14 border-r border-border">
+                                            {HOURS_12.map((h) => {
+                                              const current = parseTime(formData.startTime);
+                                              const isSelected = current.hour12 === h;
+                                              return (
+                                                <button
+                                                  key={h}
+                                                  type="button"
+                                                  onClick={() => {
+                                                    const next = buildTime(h, current.minute, current.ampm);
+                                                    setFormData({ ...formData, startTime: next });
+                                                    if (fieldErrors.startTime) setFieldErrors({ ...fieldErrors, startTime: false });
+                                                  }}
+                                                  className={cn(
+                                                    "px-3 py-2 text-sm font-medium transition-colors hover:bg-muted",
+                                                    isSelected ? "bg-[#B08D39] text-white hover:bg-[#9a7b32]" : "text-foreground"
+                                                  )}
+                                                >
+                                                  {String(h).padStart(2, "0")}
+                                                </button>
+                                              );
+                                            })}
+                                          </div>
+                                          <div className="flex flex-col max-h-[220px] overflow-y-auto scrollbar-hide w-14 border-r border-border">
+                                            {MINUTES_QUARTER.map((m) => {
+                                              const current = parseTime(formData.startTime);
+                                              const isSelected = current.minute === m;
+                                              return (
+                                                <button
+                                                  key={m}
+                                                  type="button"
+                                                  onClick={() => {
+                                                    const next = buildTime(current.hour12, m, current.ampm);
+                                                    setFormData({ ...formData, startTime: next });
+                                                    if (fieldErrors.startTime) setFieldErrors({ ...fieldErrors, startTime: false });
+                                                  }}
+                                                  className={cn(
+                                                    "px-3 py-2 text-sm font-medium transition-colors hover:bg-muted",
+                                                    isSelected ? "bg-[#B08D39] text-white hover:bg-[#9a7b32]" : "text-foreground"
+                                                  )}
+                                                >
+                                                  {String(m).padStart(2, "0")}
+                                                </button>
+                                              );
+                                            })}
+                                          </div>
+                                          <div className="flex flex-col max-h-[220px] overflow-y-auto scrollbar-hide w-12">
+                                            {AMPM.map((a) => {
+                                              const current = parseTime(formData.startTime);
+                                              const isSelected = current.ampm === a;
+                                              return (
+                                                <button
+                                                  key={a}
+                                                  type="button"
+                                                  onClick={() => {
+                                                    const next = buildTime(current.hour12, current.minute, a);
+                                                    setFormData({ ...formData, startTime: next });
+                                                    if (fieldErrors.startTime) setFieldErrors({ ...fieldErrors, startTime: false });
+                                                  }}
+                                                  className={cn(
+                                                    "px-2 py-2 text-sm font-medium transition-colors hover:bg-muted",
+                                                    isSelected ? "bg-[#B08D39] text-white hover:bg-[#9a7b32]" : "text-foreground"
+                                                  )}
+                                                >
+                                                  {a}
+                                                </button>
+                                              );
+                                            })}
+                                          </div>
+                                        </div>
+                                        <p className="text-xs text-muted-foreground px-3 py-2 border-t border-border">Select hour, minute (00/15/30/45), and AM/PM</p>
+                                      </PopoverContent>
+                                    </Popover>
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label htmlFor="endTime" className="text-base font-medium flex items-center gap-2">
+                                      <Clock className="h-4 w-4 text-accent" />
+                                      End Time *
+                                    </Label>
+                                    <Popover open={isEndTimeOpen} onOpenChange={setIsEndTimeOpen}>
+                                      <PopoverTrigger asChild>
+                                        <button
+                                          ref={endTimeRef}
+                                          type="button"
+                                          id="endTime"
+                                          className={cn(
+                                            "flex h-14 w-full items-center justify-between rounded-md border-2 bg-background px-4 text-left text-base transition-colors hover:border-accent/50 focus:border-accent focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 cursor-pointer",
+                                            fieldErrors.endTime && "border-red-500 hover:border-red-600 focus:border-red-600 focus:ring-red-500"
+                                          )}
+                                        >
+                                          <span className={formData.endTime ? "text-foreground" : "text-muted-foreground"}>
+                                            {formData.endTime ? formatTime(formData.endTime) : "-- : --"}
+                                          </span>
+                                          <Clock className="h-4 w-4 shrink-0 text-muted-foreground" />
+                                        </button>
+                                      </PopoverTrigger>
+                                      <PopoverContent className="w-auto p-0 shadow-elevated" align="start" sideOffset={4}>
+                                        <div className="flex border-b border-border">
+                                          <div className="flex flex-col max-h-[220px] overflow-y-auto scrollbar-hide w-14 border-r border-border">
+                                            {HOURS_12.map((h) => {
+                                              const current = parseTime(formData.endTime);
+                                              const isSelected = current.hour12 === h;
+                                              return (
+                                                <button
+                                                  key={h}
+                                                  type="button"
+                                                  onClick={() => {
+                                                    const next = buildTime(h, current.minute, current.ampm);
+                                                    setFormData({ ...formData, endTime: next });
+                                                    if (fieldErrors.endTime) setFieldErrors({ ...fieldErrors, endTime: false });
+                                                  }}
+                                                  className={cn(
+                                                    "px-3 py-2 text-sm font-medium transition-colors hover:bg-muted",
+                                                    isSelected ? "bg-[#B08D39] text-white hover:bg-[#9a7b32]" : "text-foreground"
+                                                  )}
+                                                >
+                                                  {String(h).padStart(2, "0")}
+                                                </button>
+                                              );
+                                            })}
+                                          </div>
+                                          <div className="flex flex-col max-h-[220px] overflow-y-auto scrollbar-hide w-14 border-r border-border">
+                                            {MINUTES_QUARTER.map((m) => {
+                                              const current = parseTime(formData.endTime);
+                                              const isSelected = current.minute === m;
+                                              return (
+                                                <button
+                                                  key={m}
+                                                  type="button"
+                                                  onClick={() => {
+                                                    const next = buildTime(current.hour12, m, current.ampm);
+                                                    setFormData({ ...formData, endTime: next });
+                                                    if (fieldErrors.endTime) setFieldErrors({ ...fieldErrors, endTime: false });
+                                                  }}
+                                                  className={cn(
+                                                    "px-3 py-2 text-sm font-medium transition-colors hover:bg-muted",
+                                                    isSelected ? "bg-[#B08D39] text-white hover:bg-[#9a7b32]" : "text-foreground"
+                                                  )}
+                                                >
+                                                  {String(m).padStart(2, "0")}
+                                                </button>
+                                              );
+                                            })}
+                                          </div>
+                                          <div className="flex flex-col max-h-[220px] overflow-y-auto scrollbar-hide w-12">
+                                            {AMPM.map((a) => {
+                                              const current = parseTime(formData.endTime);
+                                              const isSelected = current.ampm === a;
+                                              return (
+                                                <button
+                                                  key={a}
+                                                  type="button"
+                                                  onClick={() => {
+                                                    const next = buildTime(current.hour12, current.minute, a);
+                                                    setFormData({ ...formData, endTime: next });
+                                                    if (fieldErrors.endTime) setFieldErrors({ ...fieldErrors, endTime: false });
+                                                  }}
+                                                  className={cn(
+                                                    "px-2 py-2 text-sm font-medium transition-colors hover:bg-muted",
+                                                    isSelected ? "bg-[#B08D39] text-white hover:bg-[#9a7b32]" : "text-foreground"
+                                                  )}
+                                                >
+                                                  {a}
+                                                </button>
+                                              );
+                                            })}
+                                          </div>
+                                        </div>
+                                        <p className="text-xs text-muted-foreground px-3 py-2 border-t border-border">Select hour, minute (00/15/30/45), and AM/PM</p>
+                                      </PopoverContent>
+                                    </Popover>
+                                  </div>
+                                </div>
+                              </>
                             )}
-                            
-                            <div className={cn("grid gap-4", isMultiDay ? "sm:grid-cols-2" : "sm:grid-cols-2")}>
-                              <div className="space-y-2">
-                                <Label htmlFor="startTime" className="text-base font-medium flex items-center gap-2">
-                                  <Clock className="h-4 w-4 text-accent" />
-                                  Start Time *
-                                </Label>
-                                <Popover open={isStartTimeOpen} onOpenChange={setIsStartTimeOpen}>
-                                  <PopoverTrigger asChild>
-                                    <button
-                                      ref={startTimeRef}
-                                      type="button"
-                                      id="startTime"
-                                      className={cn(
-                                        "flex h-14 w-full items-center justify-between rounded-md border-2 bg-background px-4 text-left text-base transition-colors hover:border-accent/50 focus:border-accent focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 cursor-pointer",
-                                        fieldErrors.startTime && "border-red-500 hover:border-red-600 focus:border-red-600 focus:ring-red-500"
-                                      )}
-                                    >
-                                      <span className={formData.startTime ? "text-foreground" : "text-muted-foreground"}>
-                                        {formData.startTime ? formatTime(formData.startTime) : "-- : --"}
-                                      </span>
-                                      <Clock className="h-4 w-4 shrink-0 text-muted-foreground" />
-                                    </button>
-                                  </PopoverTrigger>
-                                  <PopoverContent className="w-auto p-0 shadow-elevated" align="start" sideOffset={4}>
-                                    <div className="flex border-b border-border">
-                                      <div className="flex flex-col max-h-[220px] overflow-y-auto scrollbar-hide w-14 border-r border-border">
-                                        {HOURS_12.map((h) => {
-                                          const current = parseTime(formData.startTime);
-                                          const isSelected = current.hour12 === h;
-                                          return (
-                                            <button
-                                              key={h}
-                                              type="button"
-                                              onClick={() => {
-                                                const next = buildTime(h, current.minute, current.ampm);
-                                                setFormData({ ...formData, startTime: next });
-                                                if (fieldErrors.startTime) setFieldErrors({ ...fieldErrors, startTime: false });
-                                              }}
-                                              className={cn(
-                                                "px-3 py-2 text-sm font-medium transition-colors hover:bg-muted",
-                                                isSelected ? "bg-[#B08D39] text-white hover:bg-[#9a7b32]" : "text-foreground"
-                                              )}
-                                            >
-                                              {String(h).padStart(2, "0")}
-                                            </button>
-                                          );
-                                        })}
-                                      </div>
-                                      <div className="flex flex-col max-h-[220px] overflow-y-auto scrollbar-hide w-14 border-r border-border">
-                                        {MINUTES_QUARTER.map((m) => {
-                                          const current = parseTime(formData.startTime);
-                                          const isSelected = current.minute === m;
-                                          return (
-                                            <button
-                                              key={m}
-                                              type="button"
-                                              onClick={() => {
-                                                const next = buildTime(current.hour12, m, current.ampm);
-                                                setFormData({ ...formData, startTime: next });
-                                                if (fieldErrors.startTime) setFieldErrors({ ...fieldErrors, startTime: false });
-                                              }}
-                                              className={cn(
-                                                "px-3 py-2 text-sm font-medium transition-colors hover:bg-muted",
-                                                isSelected ? "bg-[#B08D39] text-white hover:bg-[#9a7b32]" : "text-foreground"
-                                              )}
-                                            >
-                                              {String(m).padStart(2, "0")}
-                                            </button>
-                                          );
-                                        })}
-                                      </div>
-                                      <div className="flex flex-col max-h-[220px] overflow-y-auto scrollbar-hide w-12">
-                                        {AMPM.map((a) => {
-                                          const current = parseTime(formData.startTime);
-                                          const isSelected = current.ampm === a;
-                                          return (
-                                            <button
-                                              key={a}
-                                              type="button"
-                                              onClick={() => {
-                                                const next = buildTime(current.hour12, current.minute, a);
-                                                setFormData({ ...formData, startTime: next });
-                                                if (fieldErrors.startTime) setFieldErrors({ ...fieldErrors, startTime: false });
-                                              }}
-                                              className={cn(
-                                                "px-2 py-2 text-sm font-medium transition-colors hover:bg-muted",
-                                                isSelected ? "bg-[#B08D39] text-white hover:bg-[#9a7b32]" : "text-foreground"
-                                              )}
-                                            >
-                                              {a}
-                                            </button>
-                                          );
-                                        })}
-                                      </div>
-                                    </div>
-                                    <p className="text-xs text-muted-foreground px-3 py-2 border-t border-border">Select hour, minute (00/15/30/45), and AM/PM</p>
-                                  </PopoverContent>
-                                </Popover>
-                              </div>
-                              
-                              <div className="space-y-2">
-                                <Label htmlFor="endTime" className="text-base font-medium flex items-center gap-2">
-                                  <Clock className="h-4 w-4 text-accent" />
-                                  End Time *
-                                </Label>
-                                <Popover open={isEndTimeOpen} onOpenChange={setIsEndTimeOpen}>
-                                  <PopoverTrigger asChild>
-                                    <button
-                                      ref={endTimeRef}
-                                      type="button"
-                                      id="endTime"
-                                      className={cn(
-                                        "flex h-14 w-full items-center justify-between rounded-md border-2 bg-background px-4 text-left text-base transition-colors hover:border-accent/50 focus:border-accent focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 cursor-pointer",
-                                        fieldErrors.endTime && "border-red-500 hover:border-red-600 focus:border-red-600 focus:ring-red-500"
-                                      )}
-                                    >
-                                      <span className={formData.endTime ? "text-foreground" : "text-muted-foreground"}>
-                                        {formData.endTime ? formatTime(formData.endTime) : "-- : --"}
-                                      </span>
-                                      <Clock className="h-4 w-4 shrink-0 text-muted-foreground" />
-                                    </button>
-                                  </PopoverTrigger>
-                                  <PopoverContent className="w-auto p-0 shadow-elevated" align="start" sideOffset={4}>
-                                    <div className="flex border-b border-border">
-                                      <div className="flex flex-col max-h-[220px] overflow-y-auto scrollbar-hide w-14 border-r border-border">
-                                        {HOURS_12.map((h) => {
-                                          const current = parseTime(formData.endTime);
-                                          const isSelected = current.hour12 === h;
-                                          return (
-                                            <button
-                                              key={h}
-                                              type="button"
-                                              onClick={() => {
-                                                const next = buildTime(h, current.minute, current.ampm);
-                                                setFormData({ ...formData, endTime: next });
-                                                if (fieldErrors.endTime) setFieldErrors({ ...fieldErrors, endTime: false });
-                                              }}
-                                              className={cn(
-                                                "px-3 py-2 text-sm font-medium transition-colors hover:bg-muted",
-                                                isSelected ? "bg-[#B08D39] text-white hover:bg-[#9a7b32]" : "text-foreground"
-                                              )}
-                                            >
-                                              {String(h).padStart(2, "0")}
-                                            </button>
-                                          );
-                                        })}
-                                      </div>
-                                      <div className="flex flex-col max-h-[220px] overflow-y-auto scrollbar-hide w-14 border-r border-border">
-                                        {MINUTES_QUARTER.map((m) => {
-                                          const current = parseTime(formData.endTime);
-                                          const isSelected = current.minute === m;
-                                          return (
-                                            <button
-                                              key={m}
-                                              type="button"
-                                              onClick={() => {
-                                                const next = buildTime(current.hour12, m, current.ampm);
-                                                setFormData({ ...formData, endTime: next });
-                                                if (fieldErrors.endTime) setFieldErrors({ ...fieldErrors, endTime: false });
-                                              }}
-                                              className={cn(
-                                                "px-3 py-2 text-sm font-medium transition-colors hover:bg-muted",
-                                                isSelected ? "bg-[#B08D39] text-white hover:bg-[#9a7b32]" : "text-foreground"
-                                              )}
-                                            >
-                                              {String(m).padStart(2, "0")}
-                                            </button>
-                                          );
-                                        })}
-                                      </div>
-                                      <div className="flex flex-col max-h-[220px] overflow-y-auto scrollbar-hide w-12">
-                                        {AMPM.map((a) => {
-                                          const current = parseTime(formData.endTime);
-                                          const isSelected = current.ampm === a;
-                                          return (
-                                            <button
-                                              key={a}
-                                              type="button"
-                                              onClick={() => {
-                                                const next = buildTime(current.hour12, current.minute, a);
-                                                setFormData({ ...formData, endTime: next });
-                                                if (fieldErrors.endTime) setFieldErrors({ ...fieldErrors, endTime: false });
-                                              }}
-                                              className={cn(
-                                                "px-2 py-2 text-sm font-medium transition-colors hover:bg-muted",
-                                                isSelected ? "bg-[#B08D39] text-white hover:bg-[#9a7b32]" : "text-foreground"
-                                              )}
-                                            >
-                                              {a}
-                                            </button>
-                                          );
-                                        })}
-                                      </div>
-                                    </div>
-                                    <p className="text-xs text-muted-foreground px-3 py-2 border-t border-border">Select hour, minute (00/15/30/45), and AM/PM</p>
-                                  </PopoverContent>
-                                </Popover>
-                              </div>
-                            </div>
 
                             {/* Layout / Setup - click opens dialog (no dropdown) */}
                             {availableLayouts.length > 0 && (
-                              <div className="space-y-2">
+                              <div className="space-y-3">
                                 <Label className="text-base font-medium">Layout / Setup</Label>
                                 <button
                                   type="button"
                                   onClick={() => setIsLayoutDialogOpen(true)}
                                   className={cn(
                                     "flex h-14 w-full items-center justify-between rounded-md border-2 bg-background px-4 text-left text-base transition-colors hover:border-accent/50 focus:border-accent focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 cursor-pointer",
-                                    formData.layoutId && "border-accent/30"
+                                    selectedLayouts.length > 0 && "border-accent/30"
                                   )}
                                 >
-                                  <span className={selectedLayout ? "text-foreground" : "text-muted-foreground"}>
-                                    {selectedLayout ? selectedLayout.name : "Choose your preferred layout"}
+                                  <span className={selectedLayouts.length > 0 ? "text-foreground" : "text-muted-foreground"}>
+                                    {selectedLayouts.length === 0 &&
+                                      "Choose your preferred layout(s)"}
+                                    {selectedLayouts.length === 1 &&
+                                      selectedLayouts[0].name}
+                                    {selectedLayouts.length > 1 &&
+                                      `${selectedLayouts.length} layouts selected`}
                                   </span>
                                   <MapPin className="h-5 w-5 shrink-0 text-accent" />
                                 </button>
+
+                                {selectedLayouts.length > 0 && (
+                                  <div className="flex flex-wrap gap-2">
+                                    {selectedLayouts.map((layout) => (
+                                      <div
+                                        key={layout.id}
+                                        className="flex items-center gap-2 rounded-full border border-accent/40 bg-background px-3 py-1 text-xs sm:text-sm"
+                                      >
+                                        <span className="font-medium truncate max-w-[8rem] sm:max-w-[10rem]">
+                                          {layout.name}
+                                        </span>
+                                        <span className="text-muted-foreground whitespace-nowrap">
+                                          {layout.capacity} ppl
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
                               </div>
                             )}
 
@@ -1044,15 +1477,33 @@ export default function Book() {
                                 Expected Attendees
                               </Label>
                               <Input
+                                ref={attendeesRef}
                                 id="attendees"
                                 name="attendees"
                                 type="number"
                                 value={formData.attendees}
                                 onChange={handleChange}
                                 placeholder="Enter number of attendees"
-                                className="h-14 text-base border-2 hover:border-accent/50 focus:border-accent transition-colors"
+                                className={cn(
+                                  "h-14 text-base border-2 hover:border-accent/50 focus:border-accent transition-colors",
+                                  attendeesError && "border-red-500 hover:border-red-600 focus:border-red-600"
+                                )}
                                 min="1"
                               />
+                              {totalAttendeesCapacity !== undefined && (
+                                <p className="text-xs text-muted-foreground">
+                                  Combined capacity for selected layout
+                                  {selectedLayouts.length > 1 ? "s" : ""}:{" "}
+                                  <span className="font-semibold">
+                                    {totalAttendeesCapacity} guests
+                                  </span>
+                                </p>
+                              )}
+                              {attendeesError && (
+                                <p className="text-xs text-red-600">
+                                  {attendeesError}
+                                </p>
+                              )}
                             </div>
                           </div>
 
@@ -1216,13 +1667,14 @@ export default function Book() {
                                     }
                                   }}
                                   className={cn(
-                                    "flex items-start gap-4 p-5 border-2 rounded-xl transition-all group cursor-pointer",
+                                    "flex items-center gap-4 p-5 border-2 rounded-xl transition-all group cursor-pointer",
                                     formData.addOns.includes(addOn.id)
                                       ? "border-accent bg-accent/10 shadow-sm"
                                       : "border-border hover:border-accent/50 hover:bg-accent/5 hover:shadow-sm"
                                   )}
                                 >
-                                  <span onClick={(e) => e.stopPropagation()} className="mt-1 flex-shrink-0">
+                                  {/* Visually hidden checkbox for accessibility; entire card remains clickable */}
+                                  <span onClick={(e) => e.stopPropagation()} className="sr-only">
                                     <Checkbox
                                       id={addOn.id}
                                       checked={formData.addOns.includes(addOn.id)}
@@ -1230,6 +1682,31 @@ export default function Book() {
                                       className="data-[state=checked]:bg-accent data-[state=checked]:border-accent"
                                     />
                                   </span>
+
+                                  {/* Left image / icon area */}
+                                  <div
+                                    aria-hidden="true"
+                                    className={cn(
+                                      "relative flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-lg border bg-white shadow-sm",
+                                      formData.addOns.includes(addOn.id)
+                                        ? "border-accent bg-accent/10"
+                                        : "border-border"
+                                    )}
+                                  >
+                                    {/*<span className="text-lg font-heading font-semibold text-accent">*/}
+                                    {/*  {addOn.name.charAt(0)}*/}
+                                    {/*</span>*/}
+                                    <div className="relative w-full h-full">
+                                      <Image
+                                          src={addOn.img || ""}
+                                          alt="coffee"
+                                          fill
+                                          className="object-cover rounded-lg"
+                                      />
+                                    </div>
+                                  </div>
+
+                                  {/* Right content area */}
                                   <div className="flex-1 min-w-0">
                                     <div className="flex items-start justify-between gap-3">
                                       <label
@@ -1239,8 +1716,8 @@ export default function Book() {
                                       >
                                         {addOn.name}
                                       </label>
-                                      <Badge 
-                                        variant="outline" 
+                                      <Badge
+                                        variant="outline"
                                         className={cn(
                                           "bg-white flex-shrink-0 font-semibold px-3 py-1",
                                           formData.addOns.includes(addOn.id) && "bg-accent text-white border-accent"
@@ -1307,10 +1784,19 @@ export default function Book() {
                                 <p className="text-muted-foreground mb-1">Event Type</p>
                                 <p className="font-medium">{selectedEventType?.label ?? selectedService}</p>
                               </div>
-                              {selectedLayout && (
+                              {selectedLayouts.length > 0 && (
                                 <div>
-                                  <p className="text-muted-foreground mb-1">Layout</p>
-                                  <p className="font-medium">{selectedLayout.name}</p>
+                                  <p className="text-muted-foreground mb-1">Layouts</p>
+                                  <div className="space-y-1">
+                                    {selectedLayouts.map((layout) => (
+                                      <p key={layout.id} className="font-medium text-sm">
+                                        {layout.name}{" "}
+                                        <span className="text-muted-foreground">
+                                          ({layout.capacity} ppl)
+                                        </span>
+                                      </p>
+                                    ))}
+                                  </div>
                                 </div>
                               )}
                               <div>
