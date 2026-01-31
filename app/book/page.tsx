@@ -1008,7 +1008,7 @@ export default function Book() {
                               >
                                 <SelectValue placeholder="Choose your event type (small or large)" />
                               </SelectTrigger>
-                              <SelectContent className="shadow-elevated max-h-[65vh] overflow-y-auto w-[var(--radix-select-trigger-width)] sm:w-auto">
+                              <SelectContent className="shadow-elevated overflow-y-auto w-[var(--radix-select-trigger-width)] sm:w-auto">
                                 {eventTypes.map((event) => (
                                   <SelectItem key={event.id} value={event.id} className="text-base py-3">
                                     <div className="flex items-center justify-between gap-3">
