@@ -75,7 +75,12 @@ export default function Book() {
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [bookingReference, setBookingReference] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, boolean>>({});
-  
+  const [emailErrorMessage, setEmailErrorMessage] = useState<string | null>(null);
+
+  // Email format: local@domain.tld (e.g. admin@gmail.com)
+  const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const isValidEmail = (email: string) => EMAIL_REGEX.test(email.trim());
+
   // Refs for form fields to enable scrolling
   const serviceTypeRef = useRef<HTMLButtonElement>(null);
   const dateRef = useRef<HTMLButtonElement>(null);
@@ -164,41 +169,45 @@ export default function Book() {
   }, [formData.date, formData.endDate, formData.startTime, formData.endTime, isMultiDay]);
 
   const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+      e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => {
     const fieldName = e.target.name;
-    const value = e.target.value;
+    let value = e.target.value;
 
+    // 🔒 Allow only digits for attendees
     if (fieldName === "attendees") {
+      value = value.replace(/\D/g, ""); // removes letters, symbols, spaces
+
       if (!value) {
         setAttendeesError(null);
       } else {
         const num = Number(value);
         const hasSelectedLayouts = selectedLayoutIds.length > 0;
         const layoutsForCapacity = hasSelectedLayouts
-          ? selectedLayoutIds
-          : formData.layoutId
-            ? [formData.layoutId]
-            : [];
+            ? selectedLayoutIds
+            : formData.layoutId
+                ? [formData.layoutId]
+                : [];
 
         let totalCapacity: number | undefined;
         if (layoutsForCapacity.length > 0 && formData.serviceType) {
           const layouts = serviceLayouts[formData.serviceType] || [];
           const capacities = layouts
-            .filter((l) => layoutsForCapacity.includes(l.id))
-            .map((l) => l.capacity);
+              .filter((l) => layoutsForCapacity.includes(l.id))
+              .map((l) => l.capacity);
+
           if (capacities.length > 0) {
             totalCapacity = capacities.reduce((sum, c) => sum + c, 0);
           }
         }
 
         if (
-          totalCapacity !== undefined &&
-          !Number.isNaN(num) &&
-          num > totalCapacity
+            totalCapacity !== undefined &&
+            !Number.isNaN(num) &&
+            num > totalCapacity
         ) {
           setAttendeesError(
-            `Expected attendees cannot exceed the combined capacity of the selected layouts (${totalCapacity} guests).`
+              `Expected attendees cannot exceed the combined capacity of the selected layouts (${totalCapacity} guests).`
           );
         } else {
           setAttendeesError(null);
@@ -206,18 +215,39 @@ export default function Book() {
       }
     }
 
+    if (fieldName === "phone") {
+      value = value.replace(/\D/g, "");
+
+      if (value.length > 10) {
+        value = value.slice(0, 10);
+      }
+
+      if (value.length === 0) {
+        setFieldErrors((prev) => ({ ...prev, phone: false }));
+      } else if (value.length < 10) {
+        setFieldErrors((prev) => ({ ...prev, phone: true }));
+      } else {
+        setFieldErrors((prev) => ({ ...prev, phone: false }));
+      }
+    }
+
     setFormData({
       ...formData,
       [fieldName]: value,
     });
-    // Clear error for this field when user starts typing
+
+    // Clear field error when typing
     if (fieldErrors[fieldName]) {
       setFieldErrors({
         ...fieldErrors,
         [fieldName]: false,
       });
     }
+    if (fieldName === "email") {
+      setEmailErrorMessage(null);
+    }
   };
+
 
   const handleEventTypeChange = (value: string) => {
     const event = eventTypes.find((e) => e.id === value);
@@ -389,7 +419,12 @@ export default function Book() {
         errors.endTime = true;
         if (!firstInvalidField) firstInvalidField = endTimeRef;
       }
+      if (!formData.attendees?.trim()) {
+        errors.attendees = true;
+        if (!firstInvalidField && attendeesRef) firstInvalidField = attendeesRef as unknown as React.RefObject<HTMLElement>;
+      }
       if (attendeesError) {
+        errors.attendees = true;
         if (!firstInvalidField && attendeesRef) {
           firstInvalidField = attendeesRef as unknown as React.RefObject<HTMLElement>;
         }
@@ -429,25 +464,36 @@ export default function Book() {
     if (step === 2) {
       const errors: Record<string, boolean> = {};
       let firstInvalidField: React.RefObject<HTMLElement> | null = null;
-      
-      if (!formData.name) {
+
+      if (!formData.name?.trim()) {
         errors.name = true;
         if (!firstInvalidField) firstInvalidField = nameRef;
       }
-      if (!formData.email) {
+      const emailTrimmed = formData.email?.trim() ?? "";
+      if (!emailTrimmed) {
         errors.email = true;
+        setEmailErrorMessage("Please enter your email address.");
         if (!firstInvalidField) firstInvalidField = emailRef;
+      } else if (!isValidEmail(formData.email)) {
+        errors.email = true;
+        setEmailErrorMessage("Please enter a valid email address (e.g. admin@gmail.com).");
+        if (!firstInvalidField) firstInvalidField = emailRef;
+      } else {
+        setEmailErrorMessage(null);
       }
-      if (!formData.phone) {
+      if (!formData.phone?.trim()) {
         errors.phone = true;
         if (!firstInvalidField) firstInvalidField = phoneRef;
       }
-      
+
       if (Object.keys(errors).length > 0) {
         setFieldErrors(errors);
+        const toastDescription = errors.email
+          ? (emailTrimmed ? "Please enter a valid email address (e.g. admin@gmail.com)." : "Please enter your email address.")
+          : "Please fill in all required contact fields";
         toast({
           title: "Missing Information",
-          description: "Please fill in all required contact fields",
+          description: toastDescription,
           variant: "destructive",
         });
         if (firstInvalidField) {
@@ -456,7 +502,77 @@ export default function Book() {
         return false;
       }
     }
-    
+
+    if (step === 3) {
+      const errors: Record<string, boolean> = {};
+      let firstInvalidField: React.RefObject<HTMLElement> | null = null;
+
+      if (!formData.eventType || !formData.serviceType) {
+        errors.serviceType = true;
+        if (!firstInvalidField) firstInvalidField = serviceTypeRef;
+      }
+      if (!formData.date) {
+        errors.date = true;
+        if (!firstInvalidField) firstInvalidField = dateRef;
+      }
+      if (isMultiDay && !formData.endDate) {
+        errors.endDate = true;
+        if (!firstInvalidField) firstInvalidField = endDateRef;
+      }
+      if (formData.endDate && formData.date && formData.endDate < formData.date) {
+        errors.endDate = true;
+        if (!firstInvalidField) firstInvalidField = endDateRef;
+      }
+      if (!formData.startTime) {
+        errors.startTime = true;
+        if (!firstInvalidField) firstInvalidField = startTimeRef;
+      }
+      if (!formData.endTime) {
+        errors.endTime = true;
+        if (!firstInvalidField) firstInvalidField = endTimeRef;
+      }
+      if (!formData.attendees?.trim()) {
+        errors.attendees = true;
+        if (!firstInvalidField && attendeesRef) firstInvalidField = attendeesRef as unknown as React.RefObject<HTMLElement>;
+      }
+      if (attendeesError) {
+        errors.attendees = true;
+        if (!firstInvalidField && attendeesRef) firstInvalidField = attendeesRef as unknown as React.RefObject<HTMLElement>;
+      }
+      if (!isAvailable) {
+        errors.startTime = true;
+        errors.endTime = true;
+        if (!firstInvalidField) firstInvalidField = startTimeRef;
+      }
+      if (!formData.name?.trim()) {
+        errors.name = true;
+        if (!firstInvalidField) firstInvalidField = nameRef;
+      }
+      const emailTrimmedStep3 = formData.email?.trim() ?? "";
+      if (!emailTrimmedStep3) {
+        errors.email = true;
+        if (!firstInvalidField) firstInvalidField = emailRef;
+      } else if (!isValidEmail(formData.email)) {
+        errors.email = true;
+        setEmailErrorMessage("Please enter a valid email address (e.g. admin@gmail.com).");
+        if (!firstInvalidField) firstInvalidField = emailRef;
+      }
+      if (!formData.phone?.trim()) {
+        errors.phone = true;
+        if (!firstInvalidField) firstInvalidField = phoneRef;
+      }
+
+      if (Object.keys(errors).length > 0) {
+        setFieldErrors(errors);
+        toast({
+          title: "Missing Information",
+          description: "Please complete all required fields. Use Previous to review your booking details.",
+          variant: "destructive",
+        });
+        return false;
+      }
+    }
+
     return true;
   };
 
@@ -1474,19 +1590,19 @@ export default function Book() {
                             <div className="space-y-2">
                               <Label htmlFor="attendees" className="text-base font-medium flex items-center gap-2">
                                 <Users className="h-4 w-4 text-accent" />
-                                Expected Attendees
+                                Expected Attendees *
                               </Label>
                               <Input
                                 ref={attendeesRef}
                                 id="attendees"
                                 name="attendees"
-                                type="number"
+                                type="text"
                                 value={formData.attendees}
                                 onChange={handleChange}
                                 placeholder="Enter number of attendees"
                                 className={cn(
                                   "h-14 text-base border-2 hover:border-accent/50 focus:border-accent transition-colors",
-                                  attendeesError && "border-red-500 hover:border-red-600 focus:border-red-600"
+                                  (fieldErrors.attendees || attendeesError) && "border-red-500 hover:border-red-600 focus:border-red-600"
                                 )}
                                 min="1"
                               />
@@ -1499,9 +1615,9 @@ export default function Book() {
                                   </span>
                                 </p>
                               )}
-                              {attendeesError && (
+                              {(fieldErrors.attendees || attendeesError) && (
                                 <p className="text-xs text-red-600">
-                                  {attendeesError}
+                                  {attendeesError ?? "Please enter the expected number of attendees."}
                                 </p>
                               )}
                             </div>
@@ -1602,12 +1718,17 @@ export default function Book() {
                                 value={formData.email}
                                 onChange={handleChange}
                                 required
-                                placeholder="your.email@example.com"
+                                placeholder="admin@gmail.com"
                                 className={cn(
                                   "h-14 text-base border-2 hover:border-accent/50 focus:border-accent transition-colors",
                                   fieldErrors.email && "border-red-500 hover:border-red-600 focus:border-red-600"
                                 )}
                               />
+                              {fieldErrors.email && (
+                                <p className="text-xs text-red-600">
+                                  {emailErrorMessage ?? "Please enter a valid email address (e.g. admin@gmail.com)."}
+                                </p>
+                              )}
                             </div>
                             <div className="space-y-2">
                               <Label htmlFor="phone" className="text-base font-medium">
@@ -1618,6 +1739,9 @@ export default function Book() {
                                 id="phone"
                                 name="phone"
                                 type="tel"
+                                inputMode="numeric"
+                                pattern="[0-9]{10}"
+                                maxLength={10}
                                 value={formData.phone}
                                 onChange={handleChange}
                                 required
