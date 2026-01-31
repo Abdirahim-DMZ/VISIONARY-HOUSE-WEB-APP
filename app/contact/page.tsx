@@ -74,6 +74,7 @@ export default function Contact() {
         description="Have questions or need assistance? Our team is here to help. Reach out through any of the channels below."
         backgroundImage="/assets/5.jpg"
         titleClassName="text-[#B7974B]"
+        sectionClassName="py-32 md:py-40 overflow-hidden"
       />
 
       {/* Contact Content */}

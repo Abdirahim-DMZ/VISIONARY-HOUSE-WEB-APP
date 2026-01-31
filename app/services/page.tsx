@@ -91,8 +91,9 @@ export default function Services() {
         eyebrow="Our Services"
         title="Everything Your Business Needs"
         description="From event hosting to virtual presence, we provide comprehensive solutions designed for professional businesses."
-        backgroundImage="/assets/1.jpg"
+        backgroundImage="/assets/q1.jpg"
         titleClassName="text-[#B7974B]"
+        sectionClassName="py-32 md:py-40 overflow-hidden"
       />
 
       {/* Services Detail Sections */}

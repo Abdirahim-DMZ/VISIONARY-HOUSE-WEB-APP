@@ -52,7 +52,7 @@ export default function Bookings() {
         title="Manage Your Booking"
         description="View, modify, or cancel your booking. Enter your reference number and email address below."
         backgroundImage="/assets/3.jpg"
-        sectionClassName="py-32 md:py-40"
+        sectionClassName="py-32 md:py-40 overflow-hidden"
         titleClassName="text-[#B7974B]"
       />
 

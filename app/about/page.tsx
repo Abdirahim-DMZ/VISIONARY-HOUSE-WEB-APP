@@ -46,7 +46,7 @@ export default function About() {
                 eyebrow="About Us"
                 title="The Complete Business Ecosystem"
                 description="Visionary House is where ambition meets sophistication—a premium business environment designed for those who demand excellence."
-                imageSrc="/assets/1.jpg"
+                imageSrc="/assets/6.jpg"
                 imageAlt=""
                 sectionClassName="py-32 md:py-40 overflow-hidden"
                 titleClassName="text-[#B7974B]"

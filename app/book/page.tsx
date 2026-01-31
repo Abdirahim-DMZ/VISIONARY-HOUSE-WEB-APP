@@ -14,7 +14,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Calendar } from "@/components/ui/calendar";
 import {
   Popover,
@@ -62,8 +61,59 @@ import {
   generateBookingReference,
   getTotalDurationMinutes
 } from "@/lib/utils/booking-utils";
-import type { BookingFormData } from "@/lib/types/booking";
+import type { BookingFormData, BookingAddOn } from "@/lib/types/booking";
 import coffee from '../../public/assets/coffee.jpg'
+
+function AddOnCard({
+  addOn,
+  selected,
+  onToggle,
+}: {
+  addOn: BookingAddOn;
+  selected: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onToggle}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onToggle();
+        }
+      }}
+      className={cn(
+        "flex overflow-hidden rounded-xl border-2 bg-white transition-all group cursor-pointer shadow-sm hover:shadow-md",
+        selected
+          ? "border-accent bg-accent/5 shadow-md ring-2 ring-accent/20"
+          : "border-border hover:border-accent/50 hover:bg-accent/5"
+      )}
+    >
+      <div className="relative w-28 sm:w-32 flex-shrink-0 aspect-[4/3] bg-muted overflow-hidden">
+        <Image
+          src={addOn.img || ""}
+          alt=""
+          fill
+          className="object-cover"
+          sizes="(max-width: 640px) 112px, 128px"
+        />
+        <span className="absolute bottom-2 right-2 rounded-md bg-foreground/90 px-2 py-1 text-xs font-semibold text-background shadow-sm">
+          ${addOn.price}
+        </span>
+      </div>
+      <div className="flex-1 min-w-0 p-4 flex flex-col justify-center text-left">
+        <p className="text-base font-semibold leading-tight text-foreground group-hover:text-accent transition-colors">
+          {addOn.name}
+        </p>
+        <p className="text-sm text-muted-foreground mt-0.5 leading-relaxed line-clamp-2">
+          {addOn.description}
+        </p>
+      </div>
+    </div>
+  );
+}
 
 export default function Book() {
   const { toast } = useToast();
@@ -207,7 +257,7 @@ export default function Book() {
             num > totalCapacity
         ) {
           setAttendeesError(
-              `Expected attendees cannot exceed the combined capacity of the selected layouts (${totalCapacity} guests).`
+              `Expected attendees cannot exceed the capacity of the selected layout (${totalCapacity} guests).`
           );
         } else {
           setAttendeesError(null);
@@ -267,9 +317,8 @@ export default function Book() {
 
   const handleLayoutToggle = (value: string) => {
     setSelectedLayoutIds((prev) => {
-      const exists = prev.includes(value);
-      const next = exists ? prev.filter((id) => id !== value) : [...prev, value];
-      // Keep first selected layout in formData.layoutId for compatibility
+      const isAlreadySelected = prev.length === 1 && prev[0] === value;
+      const next = isAlreadySelected ? [] : [value];
       setFormData((current) => ({
         ...current,
         layoutId: next[0] ?? "",
@@ -280,8 +329,8 @@ export default function Book() {
 
   const handleDialogLayoutToggle = (value: string) => {
     setDialogLayoutIds((prev) => {
-      const exists = prev.includes(value);
-      return exists ? prev.filter((id) => id !== value) : [...prev, value];
+      const isAlreadySelected = prev.length === 1 && prev[0] === value;
+      return isAlreadySelected ? [] : [value];
     });
   };
 
@@ -656,6 +705,9 @@ export default function Book() {
         : timeToMinutes(formData.endTime) - timeToMinutes(formData.startTime)
       : 0;
   const duration = totalDurationMinutes / 60;
+  const addOnsSubtotal = selectedAddOns.reduce((s, a) => s + a.price, 0);
+  const serviceCost = totalPrice - addOnsSubtotal;
+  const serviceRatePerHour = duration > 0 ? serviceCost / duration : 0;
 
   return (
     <Layout>
@@ -750,7 +802,7 @@ export default function Book() {
           <DialogHeader>
             <DialogTitle>Choose a Layout</DialogTitle>
             <DialogDescription>
-              Select a layout to see capacity and setup details. Click an image to select.
+              Select one layout to see capacity and setup details. Click an image to select.
             </DialogDescription>
           </DialogHeader>
           
@@ -879,28 +931,28 @@ export default function Book() {
               );
             })()}
           </div>
-          <div className="mt-4 flex flex-col-reverse gap-3 sm:flex-row sm:justify-between sm:items-center border-t border-border pt-4">
+          <div className="mt-4 flex flex-col items-center gap-3 md:flex-row md:justify-between md:items-center border-t border-border pt-4">
+            {dialogLayoutIds.length > 0 && (
+                <p className="text-md text-muted-foreground mb-2 sm:mb-1">
+                  Capacity of selected layout:{" "}
+                  <span className="font-semibold">
+                    {availableLayouts
+                        .filter((l) => dialogLayoutIds.includes(l.id))
+                        .reduce((sum, l) => sum + l.capacity, 0)}{" "}
+                    guests
+                  </span>
+                </p>
+            )}
+            <div className="">
             <Button
               type="button"
               variant="outline"
               size="lg"
-              className="w-full sm:w-auto h-11"
+              className="w-full sm:w-auto h-11 mr-4 mb-4 sm:mb-0"
               onClick={handleLayoutDialogCancel}
             >
               Cancel
             </Button>
-            <div className="flex-1 sm:text-right">
-              {dialogLayoutIds.length > 0 && (
-                <p className="text-xs text-muted-foreground mb-2 sm:mb-1">
-                  Combined capacity of selected layouts:{" "}
-                  <span className="font-semibold">
-                    {availableLayouts
-                      .filter((l) => dialogLayoutIds.includes(l.id))
-                      .reduce((sum, l) => sum + l.capacity, 0)}{" "}
-                    guests
-                  </span>
-                </p>
-              )}
               <Button
                 type="button"
                 variant="gold"
@@ -1008,7 +1060,7 @@ export default function Book() {
                               >
                                 <SelectValue placeholder="Choose your event type (small or large)" />
                               </SelectTrigger>
-                              <SelectContent className="shadow-elevated overflow-y-auto w-[var(--radix-select-trigger-width)] sm:w-auto">
+                              <SelectContent className="shadow-elevated  overflow-y-auto w-[var(--radix-select-trigger-width)] sm:w-auto">
                                 {eventTypes.map((event) => (
                                   <SelectItem key={event.id} value={event.id} className="text-base py-3">
                                     <div className="flex items-center justify-between gap-3">
@@ -1558,11 +1610,9 @@ export default function Book() {
                                 >
                                   <span className={selectedLayouts.length > 0 ? "text-foreground" : "text-muted-foreground"}>
                                     {selectedLayouts.length === 0 &&
-                                      "Choose your preferred layout(s)"}
+                                      "Choose your preferred layout"}
                                     {selectedLayouts.length === 1 &&
                                       selectedLayouts[0].name}
-                                    {selectedLayouts.length > 1 &&
-                                      `${selectedLayouts.length} layouts selected`}
                                   </span>
                                   <MapPin className="h-5 w-5 shrink-0 text-accent" />
                                 </button>
@@ -1608,8 +1658,7 @@ export default function Book() {
                               />
                               {totalAttendeesCapacity !== undefined && (
                                 <p className="text-xs text-muted-foreground">
-                                  Combined capacity for selected layout
-                                  {selectedLayouts.length > 1 ? "s" : ""}:{" "}
+                                  Capacity for selected layout:{" "}
                                   <span className="font-semibold">
                                     {totalAttendeesCapacity} guests
                                   </span>
@@ -1769,104 +1818,166 @@ export default function Book() {
                             />
                           </div>
 
-                          {/* Add-ons Selection */}
-                          <div className="space-y-4">
+                          {/* Add-Ons & Extras — Food (Breakfast, Lunch), Refreshments (Snacks, Beverages), Equipment, Services */}
+                          <div className="space-y-6">
                             <div>
-                              <Label className="text-base font-medium">Add-ons & Extras</Label>
+                              <Label className="text-base font-medium">Add-Ons & Extras</Label>
                               <p className="text-sm text-muted-foreground mt-1">
-                                Enhance your booking with our premium add-ons
+                                Choose any extras for your booking. Select multiple options as needed.
                               </p>
                             </div>
-                            <div className="grid gap-3 max-h-96 overflow-y-auto pr-2 custom-scrollbar">
-                              {bookingAddOns.map((addOn) => (
-                                <div
-                                  key={addOn.id}
-                                  role="button"
-                                  tabIndex={0}
-                                  onClick={() => handleAddOnToggle(addOn.id)}
-                                  onKeyDown={(e) => {
-                                    if (e.key === "Enter" || e.key === " ") {
-                                      e.preventDefault();
-                                      handleAddOnToggle(addOn.id);
-                                    }
-                                  }}
-                                  className={cn(
-                                    "flex items-center gap-4 p-5 border-2 rounded-xl transition-all group cursor-pointer",
-                                    formData.addOns.includes(addOn.id)
-                                      ? "border-accent bg-accent/10 shadow-sm"
-                                      : "border-border hover:border-accent/50 hover:bg-accent/5 hover:shadow-sm"
-                                  )}
-                                >
-                                  {/* Visually hidden checkbox for accessibility; entire card remains clickable */}
-                                  <span onClick={(e) => e.stopPropagation()} className="sr-only">
-                                    <Checkbox
-                                      id={addOn.id}
-                                      checked={formData.addOns.includes(addOn.id)}
-                                      onCheckedChange={() => handleAddOnToggle(addOn.id)}
-                                      className="data-[state=checked]:bg-accent data-[state=checked]:border-accent"
-                                    />
-                                  </span>
-
-                                  {/* Left image / icon area */}
-                                  <div
-                                    aria-hidden="true"
-                                    className={cn(
-                                      "relative flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-lg border bg-white shadow-sm",
-                                      formData.addOns.includes(addOn.id)
-                                        ? "border-accent bg-accent/10"
-                                        : "border-border"
+                            <div className="space-y-6 max-h-[28rem] overflow-y-auto pr-2 custom-scrollbar">
+                              {/* Food — Breakfast, Lunch */}
+                              {(() => {
+                                const foodItems = bookingAddOns.filter(
+                                  (a) => a.category === 'catering' && (a.subcategory === 'breakfast' || a.subcategory === 'lunch')
+                                );
+                                if (foodItems.length === 0) return null;
+                                const breakfast = foodItems.filter((a) => a.subcategory === 'breakfast');
+                                const lunch = foodItems.filter((a) => a.subcategory === 'lunch');
+                                return (
+                                  <div className="space-y-4">
+                                    <div className="border-b border-border pb-2">
+                                      <h4 className="text-sm font-semibold text-foreground">Food</h4>
+                                      <p className="text-xs text-muted-foreground mt-0.5">Breakfast and lunch options</p>
+                                    </div>
+                                    {breakfast.length > 0 && (
+                                      <div className="space-y-2">
+                                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Breakfast</p>
+                                        <div className="grid gap-3">
+                                          {breakfast.map((addOn) => (
+                                            <AddOnCard
+                                              key={addOn.id}
+                                              addOn={addOn}
+                                              selected={formData.addOns.includes(addOn.id)}
+                                              onToggle={() => handleAddOnToggle(addOn.id)}
+                                            />
+                                          ))}
+                                        </div>
+                                      </div>
                                     )}
-                                  >
-                                    {/*<span className="text-lg font-heading font-semibold text-accent">*/}
-                                    {/*  {addOn.name.charAt(0)}*/}
-                                    {/*</span>*/}
-                                    <div className="relative w-full h-full">
-                                      <Image
-                                          src={addOn.img || ""}
-                                          alt="coffee"
-                                          fill
-                                          className="object-cover rounded-lg"
-                                      />
+                                    {lunch.length > 0 && (
+                                      <div className="space-y-2">
+                                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Lunch</p>
+                                        <div className="grid gap-3">
+                                          {lunch.map((addOn) => (
+                                            <AddOnCard
+                                              key={addOn.id}
+                                              addOn={addOn}
+                                              selected={formData.addOns.includes(addOn.id)}
+                                              onToggle={() => handleAddOnToggle(addOn.id)}
+                                            />
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })()}
+                              {/* Refreshments — Snacks, Beverages */}
+                              {(() => {
+                                const refreshmentItems = bookingAddOns.filter(
+                                  (a) => a.category === 'catering' && (a.subcategory === 'snacks' || a.subcategory === 'beverages')
+                                );
+                                if (refreshmentItems.length === 0) return null;
+                                const snacks = refreshmentItems.filter((a) => a.subcategory === 'snacks');
+                                const beverages = refreshmentItems.filter((a) => a.subcategory === 'beverages');
+                                return (
+                                  <div className="space-y-4">
+                                    <div className="border-b border-border pb-2">
+                                      <h4 className="text-sm font-semibold text-foreground">Refreshments</h4>
+                                      <p className="text-xs text-muted-foreground mt-0.5">Snacks and beverages</p>
+                                    </div>
+                                    {snacks.length > 0 && (
+                                      <div className="space-y-2">
+                                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Snacks</p>
+                                        <div className="grid gap-3">
+                                          {snacks.map((addOn) => (
+                                            <AddOnCard
+                                              key={addOn.id}
+                                              addOn={addOn}
+                                              selected={formData.addOns.includes(addOn.id)}
+                                              onToggle={() => handleAddOnToggle(addOn.id)}
+                                            />
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+                                    {beverages.length > 0 && (
+                                      <div className="space-y-2">
+                                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Beverages</p>
+                                        <div className="grid gap-3">
+                                          {beverages.map((addOn) => (
+                                            <AddOnCard
+                                              key={addOn.id}
+                                              addOn={addOn}
+                                              selected={formData.addOns.includes(addOn.id)}
+                                              onToggle={() => handleAddOnToggle(addOn.id)}
+                                            />
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })()}
+                              {/* Equipment */}
+                              {(() => {
+                                const items = bookingAddOns.filter((a) => a.category === 'equipment');
+                                if (items.length === 0) return null;
+                                return (
+                                  <div className="space-y-3">
+                                    <div className="border-b border-border pb-2">
+                                      <h4 className="text-sm font-semibold text-foreground">Equipment</h4>
+                                      <p className="text-xs text-muted-foreground mt-0.5">AV and recording options</p>
+                                    </div>
+                                    <div className="grid gap-3">
+                                      {items.map((addOn) => (
+                                        <AddOnCard
+                                          key={addOn.id}
+                                          addOn={addOn}
+                                          selected={formData.addOns.includes(addOn.id)}
+                                          onToggle={() => handleAddOnToggle(addOn.id)}
+                                        />
+                                      ))}
                                     </div>
                                   </div>
-
-                                  {/* Right content area */}
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-start justify-between gap-3">
-                                      <label
-                                        htmlFor={addOn.id}
-                                        onClick={(e) => e.stopPropagation()}
-                                        className="text-base font-semibold leading-none cursor-pointer group-hover:text-accent transition-colors"
-                                      >
-                                        {addOn.name}
-                                      </label>
-                                      <Badge
-                                        variant="outline"
-                                        className={cn(
-                                          "bg-white flex-shrink-0 font-semibold px-3 py-1",
-                                          formData.addOns.includes(addOn.id) && "bg-accent text-white border-accent"
-                                        )}
-                                      >
-                                        ${addOn.price}
-                                      </Badge>
+                                );
+                              })()}
+                              {/* Services */}
+                              {(() => {
+                                const items = bookingAddOns.filter((a) => a.category === 'services');
+                                if (items.length === 0) return null;
+                                return (
+                                  <div className="space-y-3">
+                                    <div className="border-b border-border pb-2">
+                                      <h4 className="text-sm font-semibold text-foreground">Services</h4>
+                                      <p className="text-xs text-muted-foreground mt-0.5">Support and coordination</p>
                                     </div>
-                                    <p className="text-sm text-muted-foreground mt-2 leading-relaxed">
-                                      {addOn.description}
-                                    </p>
+                                    <div className="grid gap-3">
+                                      {items.map((addOn) => (
+                                        <AddOnCard
+                                          key={addOn.id}
+                                          addOn={addOn}
+                                          selected={formData.addOns.includes(addOn.id)}
+                                          onToggle={() => handleAddOnToggle(addOn.id)}
+                                        />
+                                      ))}
+                                    </div>
                                   </div>
-                                </div>
-                              ))}
+                                );
+                              })()}
                             </div>
                           </div>
                         </div>
 
-                        <div className="flex justify-between pt-6">
+                        <div className="flex flex-col sm:flex-row item-center sm:flex sm:justify-between pt-6">
                           <Button
                             type="button"
                             onClick={handlePrevious}
                             variant="outline"
                             size="lg"
-                            className="h-14 px-8 text-base font-semibold border-2 hover:border-accent hover:text-accent transition-all"
+                            className="h-14 px-8 text-base font-semibold border-2 hover:border-accent hover:text-accent transition-all mb-4 sm:mb-0"
                           >
                             Back
                           </Button>
@@ -1910,7 +2021,7 @@ export default function Book() {
                               </div>
                               {selectedLayouts.length > 0 && (
                                 <div>
-                                  <p className="text-muted-foreground mb-1">Layouts</p>
+                                  <p className="text-muted-foreground mb-1">Layout</p>
                                   <div className="space-y-1">
                                     {selectedLayouts.map((layout) => (
                                       <p key={layout.id} className="font-medium text-sm">
@@ -2003,13 +2114,13 @@ export default function Book() {
                           )}
                         </div>
 
-                        <div className="flex justify-between pt-6">
+                        <div className="flex flex-col sm:flex-row sm:flex sm:justify-between pt-6">
                           <Button
                             type="button"
                             onClick={handlePrevious}
                             variant="outline"
                             size="lg"
-                            className="h-14 px-8 text-base font-semibold border-2 hover:border-accent hover:text-accent transition-all"
+                            className="h-14 px-8 text-base font-semibold border-2 hover:border-accent hover:text-accent transition-all mb-4 sm:mb-0"
                           >
                             Back
                           </Button>
@@ -2050,29 +2161,108 @@ export default function Book() {
                   <CardContent className="space-y-4">
                     {formData.serviceType && duration > 0 ? (
                       <>
-                        <div className="space-y-3">
-                          <div className="flex justify-between text-sm">
-                            <span className="text-muted-foreground">Service</span>
-                            <span className="font-medium">{selectedService}</span>
+                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Itemized receipt</p>
+
+                        {/* Service summary — main venue/duration */}
+                        <div className="space-y-1">
+                          <p className="text-xs font-semibold text-foreground">Venue & duration</p>
+                          <div className="flex justify-between items-baseline text-sm">
+                            <span className="text-foreground pr-2">
+                              {selectedService}
+                              {/*<span className="text-muted-foreground font-normal ml-1">*/}
+                                {/*({duration.toFixed(2)} hrs{duration !== 1 ? "s" : ""} × ${serviceRatePerHour.toFixed(0)}/hr)*/}
+                              {/*</span>*/}
+                            </span>
+                            <span className="font-medium whitespace-nowrap">
+                              ${serviceCost.toFixed(2)}
+                            </span>
                           </div>
-                          {duration > 0 && (
-                            <div className="flex justify-between text-sm">
-                              <span className="text-muted-foreground">Duration</span>
-                              <span className="font-medium">{duration.toFixed(2)} hours</span>
-                            </div>
-                          )}
-                          {selectedAddOns.length > 0 && (
-                            <div className="flex justify-between text-sm">
-                              <span className="text-muted-foreground">Add-ons</span>
-                              <span className="font-medium">{selectedAddOns.length} selected</span>
-                            </div>
-                          )}
                         </div>
-                        
+
+                        {/* Add-Ons by category with subtotals — Food (Breakfast, Lunch), Refreshments (Snacks, Beverages), Equipment, Services */}
+                        {selectedAddOns.length > 0 && (
+                          <>
+                            {(() => {
+                              const foodItems = selectedAddOns.filter(
+                                (a) => a.category === 'catering' && (a.subcategory === 'breakfast' || a.subcategory === 'lunch')
+                              );
+                              if (foodItems.length > 0) {
+                                const subtotal = foodItems.reduce((s, a) => s + a.price, 0);
+                                return (
+                                  <div key="food" className="space-y-1.5">
+                                    <p className="text-xs font-semibold text-foreground">Food</p>
+                                    {foodItems.map((addOn) => (
+                                      <div key={addOn.id} className="flex justify-between text-sm pl-1">
+                                        <span className="text-muted-foreground pr-2">{addOn.name}</span>
+                                        <span className="font-medium whitespace-nowrap">${addOn.price}</span>
+                                      </div>
+                                    ))}
+                                    <div className="flex justify-between text-sm pl-1 border-t border-border/60 pt-1">
+                                      <span className="text-muted-foreground italic">Subtotal</span>
+                                      <span className="font-medium whitespace-nowrap">${subtotal}</span>
+                                    </div>
+                                  </div>
+                                );
+                              }
+                              return null;
+                            })()}
+                            {(() => {
+                              const refreshmentItems = selectedAddOns.filter(
+                                (a) => a.category === 'catering' && (a.subcategory === 'snacks' || a.subcategory === 'beverages')
+                              );
+                              if (refreshmentItems.length > 0) {
+                                const subtotal = refreshmentItems.reduce((s, a) => s + a.price, 0);
+                                return (
+                                  <div key="refreshments" className="space-y-1.5">
+                                    <p className="text-xs font-semibold text-foreground">Refreshments</p>
+                                    {refreshmentItems.map((addOn) => (
+                                      <div key={addOn.id} className="flex justify-between text-sm pl-1">
+                                        <span className="text-muted-foreground pr-2">{addOn.name}</span>
+                                        <span className="font-medium whitespace-nowrap">${addOn.price}</span>
+                                      </div>
+                                    ))}
+                                    <div className="flex justify-between text-sm pl-1 border-t border-border/60 pt-1">
+                                      <span className="text-muted-foreground italic">Subtotal</span>
+                                      <span className="font-medium whitespace-nowrap">${subtotal}</span>
+                                    </div>
+                                  </div>
+                                );
+                              }
+                              return null;
+                            })()}
+                            {(
+                              [
+                                { key: "equipment" as const, label: "Equipment" },
+                                { key: "services" as const, label: "Services" },
+                              ] as const
+                            ).map(({ key, label }) => {
+                              const items = selectedAddOns.filter((a) => a.category === key);
+                              if (items.length === 0) return null;
+                              const subtotal = items.reduce((s, a) => s + a.price, 0);
+                              return (
+                                <div key={key} className="space-y-1.5">
+                                  <p className="text-xs font-semibold text-foreground">{label}</p>
+                                  {items.map((addOn) => (
+                                    <div key={addOn.id} className="flex justify-between text-sm pl-1">
+                                      <span className="text-muted-foreground pr-2">{addOn.name}</span>
+                                      <span className="font-medium whitespace-nowrap">${addOn.price}</span>
+                                    </div>
+                                  ))}
+                                  <div className="flex justify-between text-sm pl-1 border-t border-border/60 pt-1">
+                                    <span className="text-muted-foreground italic">Subtotal</span>
+                                    <span className="font-medium whitespace-nowrap">${subtotal}</span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </>
+                        )}
+
                         <Separator />
-                        
+
+                        {/* Grand total */}
                         <div className="flex justify-between items-baseline">
-                          <span className="font-heading font-semibold text-lg">Total</span>
+                          <span className="font-heading font-semibold text-lg">Grand total</span>
                           <div className="text-right">
                             <p className="font-heading font-bold text-2xl text-accent">
                               ${totalPrice.toFixed(2)}

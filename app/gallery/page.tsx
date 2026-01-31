@@ -62,6 +62,7 @@ export default function Gallery() {
         description="Take a visual tour of our premium facilities and discover the environments where business excellence thrives."
         backgroundImage="/assets/2.jpg"
         titleClassName="text-[#B7974B]"
+        sectionClassName="py-32 md:py-40 overflow-hidden"
       />
 
       {/* Gallery Section */}

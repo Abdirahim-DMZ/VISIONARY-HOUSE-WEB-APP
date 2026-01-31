@@ -80,19 +80,25 @@ export function Header() {
             <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-4">
                 <div className="flex items-center justify-between h-16 md:h-20">
                     {/* Logo */}
-                    <Link
-                        href="/"
-                        className="flex items-center gap-2"
-                        aria-label="Visionary House home"
-                    >
-                        <div className="relative h-12 md:h-16 flex items-center">
-                            <Image
-                                src={logo}
-                                alt="Visionary House logo"
-                                className="h-full w-auto object-cover"
-                                priority
-                            />
-                        </div>
+                    {/*<Link*/}
+                    {/*    href="/"*/}
+                    {/*    className="flex items-center gap-2"*/}
+                    {/*    aria-label="Visionary House home"*/}
+                    {/*>*/}
+                    {/*    <div className="relative h-12 md:h-16 flex items-center">*/}
+                    {/*        <Image*/}
+                    {/*            src={logo}*/}
+                    {/*            alt="Visionary House logo"*/}
+                    {/*            className="h-full w-auto object-cover"*/}
+                    {/*            priority*/}
+                    {/*        />*/}
+                    {/*    </div>*/}
+                    {/*</Link>*/}
+
+                    <Link href="/" className="flex items-center gap-2">
+            <span className="font-heading text-xl md:text-2xl font-bold text-foreground tracking-tight">
+              Visionary <span className="text-accent">House</span>
+            </span>
                     </Link>
 
                     {/* Desktop Navigation + Search + CTA */}
@@ -181,14 +187,21 @@ export function Header() {
                         aria-label="Navigation menu"
                     >
                         <div className="flex items-center justify-between h-16 px-4 sm:px-6 border-b border-border shrink-0">
-                            <Link href="/" className="flex items-center gap-2" onClick={closeDrawer}>
-                                <div className="relative h-10 w-auto flex items-center">
-                                    <Image
-                                        src={logo}
-                                        alt="Visionary House"
-                                        className="h-10 w-auto object-cover"
-                                    />
-                                </div>
+                            {/*<Link href="/" className="flex items-center gap-2" onClick={closeDrawer}>*/}
+                                {/*<div className="relative h-10 w-auto flex items-center">*/}
+                                {/*    <Image*/}
+                                {/*        src={logo}*/}
+                                {/*        alt="Visionary House"*/}
+                                {/*        className="h-10 w-auto object-cover"*/}
+                                {/*    />*/}
+                                {/*</div>*/}
+
+
+                            {/*</Link>*/}
+                            <Link href="/" className="flex items-center gap-2">
+            <span className="font-heading text-xl md:text-2xl font-bold text-foreground tracking-tight">
+              Visionary <span className="text-accent">House</span>
+            </span>
                             </Link>
                             <button
                                 onClick={closeDrawer}

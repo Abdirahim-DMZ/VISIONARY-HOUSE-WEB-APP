@@ -159,13 +159,14 @@ export const serviceLayouts: Record<string, ServiceLayout[]> = {
 
 // Available Add-ons
 export const bookingAddOns: BookingAddOn[] = [
-  // Catering
+  // Catering — Food (Breakfast, Lunch) and Refreshments (Snacks, Beverages)
   {
     id: 'coffee-tea',
     name: 'Coffee & Tea Service',
     description: 'Continuous coffee and tea service throughout the event',
     price: 150,
     category: 'catering',
+    subcategory: 'beverages',
     img: "/assets/coffee.jpg",
   },
   {
@@ -174,6 +175,7 @@ export const bookingAddOns: BookingAddOn[] = [
     description: 'Pastries, fruits, yogurt, and beverages',
     price: 350,
     category: 'catering',
+    subcategory: 'breakfast',
     img: "/assets/breakfast.jpg",
   },
   {
@@ -182,6 +184,7 @@ export const bookingAddOns: BookingAddOn[] = [
     description: 'Full lunch service with choice of menu',
     price: 650,
     category: 'catering',
+    subcategory: 'lunch',
     img: "/assets/catered-lunch.jpg",
   },
   {
@@ -190,6 +193,7 @@ export const bookingAddOns: BookingAddOn[] = [
     description: 'Selection of healthy snacks and refreshments',
     price: 200,
     category: 'catering',
+    subcategory: 'snacks',
     img: "/assets/Premium-snacks.jpg",
   },
   

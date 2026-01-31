@@ -1,12 +1,17 @@
 // Booking Types and Interfaces
 
+/** Catering subcategory: Food = breakfast, lunch; Refreshments = snacks, beverages */
+export type CateringSubcategory = 'breakfast' | 'lunch' | 'snacks' | 'beverages';
+
 export interface BookingAddOn {
   id: string;
   name: string;
   description: string;
   price: number;
   category: 'catering' | 'equipment' | 'services';
-  img? : string;
+  /** Only for category 'catering': breakfast/lunch (Food) or snacks/beverages (Refreshments) */
+  subcategory?: CateringSubcategory;
+  img?: string;
 }
 
 export interface ServiceLayout {
@@ -40,9 +45,9 @@ export interface Booking {
   endTime: string; // HH:mm format
   attendees?: number;
   
-  // Layout & Add-ons
+  // Layout & Add-Ons
   layoutId?: string;
-  addOns: string[]; // Array of add-on IDs
+  addOns: string[]; // Array of Add-On IDs
   
   // Additional Info
   specialRequirements?: string;
