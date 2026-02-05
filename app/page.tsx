@@ -29,7 +29,6 @@ import {
   type MappedFaq,
 } from "@/lib/strapi/mappers";
 
-// Import Swiper styles
 import 'swiper/css';
 import 'swiper/css/effect-fade';
 import 'swiper/css/autoplay';
