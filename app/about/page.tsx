@@ -8,45 +8,95 @@ import { Layout } from "@/components/layout/layout";
 import { PageHero, CtaSection } from "@/components/sections";
 import { motion } from "framer-motion";
 import { fadeInUp, staggerContainer } from "@/lib/constants/animations";
+import { useQuery } from "@tanstack/react-query";
+import { fetchAboutPage, isStrapiConfigured } from "@/lib/strapi";
+import { getAboutHeroImageUrl, getAboutStoryImageUrl, mapAboutStoryParagraphs, mapAboutStats, mapAboutValues } from "@/lib/strapi/mappers";
 
-const values = [
-    {
-        icon: Award,
-        title: "Excellence",
-        description: "We maintain the highest standards in every aspect of our service, from facilities to client interactions.",
-    },
-    {
-        icon: Shield,
-        title: "Trust",
-        description: "Your business dealings require discretion and reliability. We uphold unwavering confidentiality and dependability.",
-    },
-    {
-        icon: Users,
-        title: "Professionalism",
-        description: "Our team embodies the professionalism that reflects positively on every client who walks through our doors.",
-    },
-    {
-        icon: Clock,
-        title: "Flexibility",
-        description: "Business demands adaptability. Our services are designed to accommodate your evolving needs seamlessly.",
-    },
-];
+const valueIconMap = { Award, Shield, Users, Clock } as const;
 
-const stats = [
+const fallbackStats = [
     { value: "10+", label: "Years of Excellence" },
     { value: "500+", label: "Visionary Clients" },
     { value: "2,000+", label: "Events Hosted" },
     { value: "98%", label: "Client Satisfaction" },
 ];
 
+const fallbackValues = [
+    { icon: "Award" as const, title: "Excellence", description: "We maintain the highest standards in every aspect of our service, from facilities to client interactions." },
+    { icon: "Shield" as const, title: "Trust", description: "Your business dealings require discretion and reliability. We uphold unwavering confidentiality and dependability." },
+    { icon: "Users" as const, title: "Professionalism", description: "Our team embodies the professionalism that reflects positively on every client who walks through our doors." },
+    { icon: "Clock" as const, title: "Flexibility", description: "Business demands adaptability. Our services are designed to accommodate your evolving needs seamlessly." },
+];
+
+const fallbackStoryParagraphs = [
+    "Visionary House was founded with a singular vision: to create a business environment that matches the caliber of the professionals who use it. We recognized that visionary founders, leaders, and enterprises deserve more than generic office spaces—they deserve an ecosystem that elevates their work.",
+    "Today, Visionary House stands as a testament to that vision. Our facilities combine architectural elegance with practical functionality, creating spaces where important decisions are made, relationships are forged, and businesses thrive.",
+    "From intimate boardroom meetings to large-scale corporate events, from virtual office solutions to professional media production, we provide the complete infrastructure for business success.",
+];
+
 export default function About() {
+    const { data: aboutData, isLoading: aboutLoading, isError: aboutError } = useQuery({
+        queryKey: ["strapi", "about-page"],
+        queryFn: fetchAboutPage,
+        enabled: isStrapiConfigured(),
+        staleTime: 60_000,
+    });
+
+    const heroEyebrow = aboutData?.heroEyebrow ?? "About Us";
+    const heroTitle = aboutData?.heroTitle ?? "The Complete Business Ecosystem";
+    const heroDescription = aboutData?.heroDescription ?? "Visionary House is where ambition meets sophistication—a premium business environment designed for those who demand excellence.";
+    const heroImageSrc = getAboutHeroImageUrl(aboutData ?? null);
+    const storyEyebrow = aboutData?.storyEyebrow ?? "Our Story";
+    const storyTitle = aboutData?.storyTitle ?? "Built for Business Leaders";
+    const storyParagraphs = mapAboutStoryParagraphs(aboutData ?? null).length > 0 ? mapAboutStoryParagraphs(aboutData ?? null) : fallbackStoryParagraphs;
+    const storyCta = aboutData?.storyCta ?? "Explore Our Services";
+    const storyCtaHref = aboutData?.storyCtaHref ?? "/services";
+    const storyImageSrc = getAboutStoryImageUrl(aboutData ?? null);
+
+    const statsFromApi = mapAboutStats(aboutData ?? null);
+    const stats = statsFromApi.length > 0 ? statsFromApi : fallbackStats;
+
+    const valuesFromApi = mapAboutValues(aboutData ?? null);
+    const values = valuesFromApi.length > 0 ? valuesFromApi : fallbackValues;
+
+    const valuesEyebrow = aboutData?.valuesEyebrow ?? "Our Values";
+    const valuesTitle = aboutData?.valuesTitle ?? "The Principles That Guide Us";
+    const valuesDescription = aboutData?.valuesDescription ?? "Every interaction, every space, and every service at Visionary House is shaped by our unwavering commitment to these core values.";
+    const missionEyebrow = aboutData?.missionEyebrow ?? "Our Mission";
+    const missionQuote = aboutData?.missionQuote ?? "To provide an unparalleled professional experience that empowers business leaders to focus on what matters most—their success.";
+    const ctaTitle = aboutData?.ctaTitle ?? "Experience Visionary House";
+    const ctaDescription = aboutData?.ctaDescription ?? "We invite you to discover the difference a premium business environment can make. Schedule a private tour of our facilities today.";
+    const ctaPrimaryLabel = aboutData?.ctaPrimaryLabel ?? "Schedule a Tour";
+    const ctaPrimaryHref = aboutData?.ctaPrimaryHref ?? "/contact";
+    const ctaSecondaryLabel = aboutData?.ctaSecondaryLabel ?? "Book Now";
+    const ctaSecondaryHref = aboutData?.ctaSecondaryHref ?? "/book";
+
+    const isLoading = isStrapiConfigured() && aboutLoading;
+    const isError = isStrapiConfigured() && aboutError;
+
     return (
         <Layout>
+            {isLoading && (
+                <div className="fixed top-0 left-0 right-0 z-50 h-1 bg-muted overflow-hidden">
+                    <motion.div
+                        className="h-full bg-accent"
+                        initial={{ width: "0%" }}
+                        animate={{ width: "70%" }}
+                        transition={{ duration: 0.8, repeat: Infinity, repeatDelay: 0.2 }}
+                        style={{ originX: 0 }}
+                    />
+                </div>
+            )}
+            {isError && (
+                <div className="bg-amber-50 border-b border-amber-200 text-amber-900 text-center py-2 px-4 text-sm">
+                    Unable to load latest content. Showing default content.
+                </div>
+            )}
             <PageHero
-                eyebrow="About Us"
-                title="The Complete Business Ecosystem"
-                description="Visionary House is where ambition meets sophistication—a premium business environment designed for those who demand excellence."
-                imageSrc="/assets/6.jpg"
+                eyebrow={heroEyebrow}
+                title={heroTitle}
+                description={heroDescription}
+                imageSrc={heroImageSrc}
                 imageAlt=""
                 sectionClassName="py-32 md:py-40 overflow-hidden"
                 titleClassName="text-[#B7974B]"
@@ -63,30 +113,15 @@ export default function About() {
                             transition={{ duration: 0.6 }}
                         >
                             <p className="text-accent font-medium tracking-widest uppercase text-sm mb-4">
-                                Our Story
+                                {storyEyebrow}
                             </p>
                             <h2 className="heading-section text-foreground mb-6">
-                                Built for Business Leaders
+                                {storyTitle}
                             </h2>
                             <div className="space-y-4 text-body">
-                                <p>
-                                    Visionary House was founded with a singular vision: to create a business
-                                    environment that matches the caliber of the professionals who use it.
-                                    We recognized that visionary founders, leaders, and enterprises deserve more
-                                    than generic office spaces—they deserve an ecosystem that elevates
-                                    their work.
-                                </p>
-                                <p>
-                                    Today, Visionary House stands as a testament to that vision. Our facilities
-                                    combine architectural elegance with practical functionality, creating
-                                    spaces where important decisions are made, relationships are forged,
-                                    and businesses thrive.
-                                </p>
-                                <p>
-                                    From intimate boardroom meetings to large-scale corporate events,
-                                    from virtual office solutions to professional media production, we
-                                    provide the complete infrastructure for business success.
-                                </p>
+                                {storyParagraphs.map((paragraph, i) => (
+                                    <p key={i}>{paragraph}</p>
+                                ))}
                             </div>
                             <motion.div 
                                 className="mt-8"
@@ -95,9 +130,9 @@ export default function About() {
                                 viewport={{ once: false, amount: 0.3 }}
                                 transition={{ delay: 0.3, duration: 0.6 }}
                             >
-                                <Link href="/services">
+                                <Link href={storyCtaHref}>
                                     <Button variant="premium" size="lg">
-                                        Explore Our Services
+                                        {storyCta}
                                         <ArrowRight className="ml-2 h-4 w-4" />
                                     </Button>
                                 </Link>
@@ -112,7 +147,7 @@ export default function About() {
                         >
                             <div className="aspect-[4/5] rounded-lg overflow-hidden shadow-elevated relative">
                                 <Image
-                                    src="/assets/q3.jpg"
+                                    src={storyImageSrc}
                                     alt="Professional boardroom and business environment"
                                     fill
                                     sizes="(max-width: 1024px) 100vw, 50vw"
@@ -143,7 +178,7 @@ export default function About() {
                     >
                         {stats.map((stat, index) => (
                             <motion.div 
-                                key={index} 
+                                key={stat.label || index} 
                                 className="text-center"
                                 variants={fadeInUp}
                             >
@@ -168,14 +203,13 @@ export default function About() {
                         transition={{ duration: 0.6 }}
                     >
                         <p className="text-accent font-medium tracking-widest uppercase text-sm mb-4">
-                            Our Values
+                            {valuesEyebrow}
                         </p>
                         <h2 className="heading-section text-foreground mb-6">
-                            The Principles That Guide Us
+                            {valuesTitle}
                         </h2>
                         <p className="text-body max-w-2xl mx-auto">
-                            Every interaction, every space, and every service at Visionary House
-                            is shaped by our unwavering commitment to these core values.
+                            {valuesDescription}
                         </p>
                     </motion.div>
 
@@ -186,21 +220,24 @@ export default function About() {
                         whileInView="animate"
                         viewport={{ once: false, amount: 0.2 }}
                     >
-                        {values.map((value, index) => (
-                            <motion.div
-                                key={index}
-                                className="card-premium text-center"
-                                variants={fadeInUp}
-                                whileHover={{ y: -5 }}
-                                transition={{ duration: 0.3 }}
-                            >
-                                <div className="inline-flex p-4 bg-secondary rounded-full mb-6">
-                                    <value.icon className="h-8 w-8 text-accent" />
-                                </div>
-                                <h3 className="heading-card text-foreground mb-3">{value.title}</h3>
-                                <p className="text-muted-foreground text-sm">{value.description}</p>
-                            </motion.div>
-                        ))}
+                        {values.map((value, index) => {
+                            const IconComponent = valueIconMap[value.icon] ?? Award;
+                            return (
+                                <motion.div
+                                    key={value.title || index}
+                                    className="card-premium text-center"
+                                    variants={fadeInUp}
+                                    whileHover={{ y: -5 }}
+                                    transition={{ duration: 0.3 }}
+                                >
+                                    <div className="inline-flex p-4 bg-secondary rounded-full mb-6">
+                                        <IconComponent className="h-8 w-8 text-accent" />
+                                    </div>
+                                    <h3 className="heading-card text-foreground mb-3">{value.title}</h3>
+                                    <p className="text-muted-foreground text-sm">{value.description}</p>
+                                </motion.div>
+                            );
+                        })}
                     </motion.div>
                 </div>
             </section>
@@ -222,7 +259,7 @@ export default function About() {
                             viewport={{ once: false, amount: 0.3 }}
                             transition={{ delay: 0.2, duration: 0.6 }}
                         >
-                            Our Mission
+                            {missionEyebrow}
                         </motion.p>
                         <motion.h2
                             className="heading-section text-primary-foreground mb-8"
@@ -231,8 +268,7 @@ export default function About() {
                             viewport={{ once: false, amount: 0.3 }}
                             transition={{ delay: 0.3, duration: 0.6 }}
                         >
-                            &quot;To provide an unparalleled professional experience that empowers
-                            business leaders to focus on what matters most—their success.&quot;
+                            &quot;{missionQuote}&quot;
                         </motion.h2>
                         <motion.div
                             className="divider-gold mx-auto"
@@ -246,18 +282,18 @@ export default function About() {
             </section>
 
             <CtaSection
-                title="Experience Visionary House"
-                description="We invite you to discover the difference a premium business environment can make. Schedule a private tour of our facilities today."
+                title={ctaTitle}
+                description={ctaDescription}
                 sectionClassName="section-padding bg-background"
             >
-                <Link href="/contact">
+                <Link href={ctaPrimaryHref}>
                     <Button variant="gold" size="xl" className="bg-[#B08D39] text-[#FFF]">
-                        Schedule a Tour
+                        {ctaPrimaryLabel}
                     </Button>
                 </Link>
-                <Link href="/book">
+                <Link href={ctaSecondaryHref}>
                     <Button variant="premium-outline" size="xl">
-                        Book Now
+                        {ctaSecondaryLabel}
                     </Button>
                 </Link>
             </CtaSection>

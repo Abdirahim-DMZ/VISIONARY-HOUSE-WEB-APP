@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import Image from "next/image";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -62,7 +63,111 @@ import {
   getTotalDurationMinutes
 } from "@/lib/utils/booking-utils";
 import type { BookingFormData, BookingAddOn } from "@/lib/types/booking";
+import { fetchBookPage, isStrapiConfigured } from "@/lib/strapi";
+import { getBookPageHeroImageUrl, mapBookPageFeatures } from "@/lib/strapi/mappers";
 import coffee from '../../public/assets/coffee.jpg'
+
+// Visionary House room matching (UI-only)
+const GUEST_TYPES = ["Government", "NGO", "Corporate"] as const;
+
+const ROOM_SPACE_OPTIONS: { id: string; name: string }[] = [
+  { id: "small-meeting-room", name: "Small Meeting Room" },
+  { id: "lounge", name: "Lounge" },
+  { id: "main-hall", name: "Main Hall" },
+  { id: "combined-hall", name: "Combined Hall" },
+];
+
+// Strict space visibility by participant count (UI-only)
+function getAvailableRoomSpaces(participantCount: number): { id: string; name: string }[] {
+  if (participantCount >= 1 && participantCount <= 8) {
+    return [ROOM_SPACE_OPTIONS.find((r) => r.id === "small-meeting-room")!];
+  }
+  if (participantCount >= 9 && participantCount <= 15) {
+    return [ROOM_SPACE_OPTIONS.find((r) => r.id === "lounge")!];
+  }
+  if (participantCount >= 16 && participantCount <= 35) {
+    return [ROOM_SPACE_OPTIONS.find((r) => r.id === "main-hall")!];
+  }
+  if (participantCount >= 36 && participantCount <= 50) {
+    return [
+      ROOM_SPACE_OPTIONS.find((r) => r.id === "main-hall")!,
+      ROOM_SPACE_OPTIONS.find((r) => r.id === "combined-hall")!,
+    ];
+  }
+  if (participantCount >= 51 && participantCount <= 70) {
+    return [ROOM_SPACE_OPTIONS.find((r) => r.id === "combined-hall")!];
+  }
+  return [];
+}
+
+// Layout capacity by hall (max people)
+const HALL_LAYOUT_CAPACITIES: Record<string, Record<string, number>> = {
+  "main-hall": { "u-shape": 35, meeting: 37, theatre: 50 },
+  "combined-hall": { "u-shape": 45, meeting: 47, theatre: 70 },
+};
+
+// Layout options filtered by hall + participant count; hide options that cannot accommodate participants
+function getAvailableLayoutsForHall(
+  hallId: string,
+  participantCount: number
+): { id: string; name: string; capacity: number }[] {
+  if (
+    Number.isNaN(participantCount) ||
+    participantCount < 1 ||
+    participantCount > 70
+  ) {
+    return [];
+  }
+  const caps = HALL_LAYOUT_CAPACITIES[hallId];
+  if (!caps) return [];
+  const all = [
+    { id: "u-shape" as const, name: "U-Shape", capacity: caps["u-shape"] ?? 0 },
+    { id: "meeting" as const, name: "Meeting", capacity: caps.meeting ?? 0 },
+    { id: "theatre" as const, name: "Theatre", capacity: caps.theatre ?? 0 },
+  ];
+  // Only return layouts that can accommodate the participant count
+  if (hallId === "main-hall") {
+    if (participantCount >= 36) return all.filter((e) => e.id === "theatre" && e.capacity >= participantCount);
+    return all.filter((e) => e.capacity >= participantCount);
+  }
+  if (hallId === "combined-hall") {
+    if (participantCount >= 46) return all.filter((e) => e.id === "theatre" && e.capacity >= participantCount);
+    return all.filter((e) => e.capacity >= participantCount);
+  }
+  return [];
+}
+
+function getLayoutLabel(name: string, capacity: number): string {
+  return `${name} – up to ${capacity} people`;
+}
+
+const ROOM_SPACE_LABELS: Record<string, string> = {
+  "small-meeting-room": "Small Meeting Room",
+  lounge: "Lounge",
+  "main-hall": "Main Hall",
+  "combined-hall": "Combined Hall",
+};
+
+const HALL_LAYOUT_LABELS: Record<string, string> = {
+  "u-shape": "U-Shape",
+  meeting: "Meeting",
+  theatre: "Theatre",
+};
+
+function getLayoutDisplayLabel(roomSpace: string, layoutId: string): string {
+  const name = HALL_LAYOUT_LABELS[layoutId] ?? layoutId;
+  const cap = HALL_LAYOUT_CAPACITIES[roomSpace]?.[layoutId];
+  return cap != null ? `${name} – up to ${cap} people` : name;
+}
+
+// Map "Choose a Layout" popup layout names (serviceLayouts) to hall layout ids
+// Boardroom / Meeting Setup → Meeting; Theatre Style → Theatre; U-Shape Setup → U-Shape
+const SERVICE_LAYOUT_TO_HALL: Record<string, string> = {
+  boardroom: "meeting",
+  theater: "theatre",
+  "u-shape": "u-shape",
+};
+const HALL_LAYOUT_SERVICE_IDS = ["u-shape", "boardroom", "theater"] as const;
 
 function AddOnCard({
   addOn,
@@ -126,6 +231,31 @@ export default function Book() {
   const [bookingReference, setBookingReference] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, boolean>>({});
   const [emailErrorMessage, setEmailErrorMessage] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+
+  const { data: bookPageData, isLoading: bookPageLoading, isError: bookPageError } = useQuery({
+    queryKey: ["strapi", "book-from-page"],
+    queryFn: fetchBookPage,
+    enabled: isStrapiConfigured(),
+    staleTime: 60_000,
+  });
+
+  const heroEyebrow = bookPageData?.heroEyebrow ?? "Reserve Your Space";
+  const heroTitle = bookPageData?.heroTitle ?? "Book Your Premium Environment";
+  const heroDescription = bookPageData?.heroDescription ?? "Reserve your ideal business environment in just a few steps. Professional spaces designed for visionary minds.";
+  const heroImageSrc = getBookPageHeroImageUrl(bookPageData ?? null);
+  const bookPageFeatures = useMemo(() => {
+    const mapped = mapBookPageFeatures(bookPageData ?? null);
+    if (mapped.length > 0) return mapped;
+    return [
+      { title: "Instant Confirmation", description: "Receive booking confirmation and details immediately via email" },
+      { title: "Dedicated Support", description: "Personal assistance throughout your booking and event" },
+      { title: "Flexible Modifications", description: "Easy booking changes up to 48 hours before your event" },
+    ];
+  }, [bookPageData]);
+  const isLoadingBookPage = isStrapiConfigured() && bookPageLoading;
+  const isErrorBookPage = isStrapiConfigured() && bookPageError;
 
   // Email format: local@domain.tld (e.g. admin@gmail.com)
   const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -148,12 +278,14 @@ export default function Book() {
     phone: "",
     company: "",
     eventType: "",
+    guestType: "",
     serviceType: "",
     date: "",
     endDate: "",
     startTime: "",
     endTime: "",
     attendees: "",
+    roomSpace: "",
     layoutId: "",
     addOns: [],
     message: "",
@@ -218,6 +350,29 @@ export default function Book() {
     setValidationErrors(errors);
   }, [formData.date, formData.endDate, formData.startTime, formData.endTime, isMultiDay]);
 
+  useEffect(() => {
+    const count = formData.attendees ? parseInt(formData.attendees, 10) : 0;
+    if (Number.isNaN(count) || count <= 0) return;
+    if (count > 70) {
+      setFormData((prev) => ({ ...prev, roomSpace: "", layoutId: "" }));
+      return;
+    }
+    if (!formData.roomSpace) return;
+    const available = getAvailableRoomSpaces(count);
+    const isStillAvailable = available.some((r) => r.id === formData.roomSpace);
+    if (!isStillAvailable) {
+      setFormData((prev) => ({ ...prev, roomSpace: "", layoutId: "" }));
+      return;
+    }
+    if (formData.roomSpace === "main-hall" || formData.roomSpace === "combined-hall") {
+      const layoutOpts = getAvailableLayoutsForHall(formData.roomSpace, count);
+      const layoutStillValid = formData.layoutId && layoutOpts.some((l) => l.id === formData.layoutId);
+      if (!layoutStillValid) {
+        setFormData((prev) => ({ ...prev, layoutId: "" }));
+      }
+    }
+  }, [formData.attendees, formData.roomSpace, formData.layoutId]);
+
   const handleChange = (
       e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => {
@@ -232,35 +387,39 @@ export default function Book() {
         setAttendeesError(null);
       } else {
         const num = Number(value);
-        const hasSelectedLayouts = selectedLayoutIds.length > 0;
-        const layoutsForCapacity = hasSelectedLayouts
-            ? selectedLayoutIds
-            : formData.layoutId
-                ? [formData.layoutId]
-                : [];
-
-        let totalCapacity: number | undefined;
-        if (layoutsForCapacity.length > 0 && formData.serviceType) {
-          const layouts = serviceLayouts[formData.serviceType] || [];
-          const capacities = layouts
-              .filter((l) => layoutsForCapacity.includes(l.id))
-              .map((l) => l.capacity);
-
-          if (capacities.length > 0) {
-            totalCapacity = capacities.reduce((sum, c) => sum + c, 0);
-          }
-        }
-
-        if (
-            totalCapacity !== undefined &&
-            !Number.isNaN(num) &&
-            num > totalCapacity
-        ) {
-          setAttendeesError(
-              `Expected attendees cannot exceed the capacity of the selected layout (${totalCapacity} guests).`
-          );
-        } else {
+        if (formData.roomSpace) {
           setAttendeesError(null);
+        } else {
+          const hasSelectedLayouts = selectedLayoutIds.length > 0;
+          const layoutsForCapacity = hasSelectedLayouts
+              ? selectedLayoutIds
+              : formData.layoutId
+                  ? [formData.layoutId]
+                  : [];
+
+          let totalCapacity: number | undefined;
+          if (layoutsForCapacity.length > 0 && formData.serviceType) {
+            const layouts = serviceLayouts[formData.serviceType] || [];
+            const capacities = layouts
+                .filter((l) => layoutsForCapacity.includes(l.id))
+                .map((l) => l.capacity);
+
+            if (capacities.length > 0) {
+              totalCapacity = capacities.reduce((sum, c) => sum + c, 0);
+            }
+          }
+
+          if (
+              totalCapacity !== undefined &&
+              !Number.isNaN(num) &&
+              num > totalCapacity
+          ) {
+            setAttendeesError(
+                `Expected attendees cannot exceed the capacity of the selected layout (${totalCapacity} guests).`
+            );
+          } else {
+            setAttendeesError(null);
+          }
         }
       }
     }
@@ -306,6 +465,7 @@ export default function Book() {
       ...prev,
       eventType: value,
       serviceType: event.serviceType,
+      roomSpace: "",
       layoutId: "",
       ...(event.isMultiDay ? {} : { endDate: "" }),
     }));
@@ -313,6 +473,15 @@ export default function Book() {
     if (fieldErrors.serviceType) {
       setFieldErrors({ ...fieldErrors, serviceType: false });
     }
+  };
+
+  const handleRoomSpaceChange = (value: string) => {
+    const isHall = value === "main-hall" || value === "combined-hall";
+    setFormData((prev) => ({
+      ...prev,
+      roomSpace: value,
+      layoutId: isHall ? prev.layoutId : "",
+    }));
   };
 
   const handleLayoutToggle = (value: string) => {
@@ -336,9 +505,12 @@ export default function Book() {
 
   const handleLayoutDialogSave = () => {
     setSelectedLayoutIds(dialogLayoutIds);
+    const selectedId = dialogLayoutIds[0] ?? "";
+    const isHallMode = formData.roomSpace === "main-hall" || formData.roomSpace === "combined-hall";
+    const hallLayoutId = isHallMode && selectedId ? (SERVICE_LAYOUT_TO_HALL[selectedId] ?? selectedId) : selectedId;
     setFormData((current) => ({
       ...current,
-      layoutId: dialogLayoutIds[0] ?? "",
+      layoutId: hallLayoutId,
     }));
     setIsLayoutDialogOpen(false);
     setLayoutSearchQuery("");
@@ -395,6 +567,34 @@ export default function Book() {
 
   const HOURS_12 = [12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
   const AMPM = ["AM", "PM"] as const;
+
+  // Same-day booking: filter time slots by exact current time (hours + minutes)
+  const getCurrentMinutes = () => {
+    const now = new Date();
+    return now.getHours() * 60 + now.getMinutes();
+  };
+  // Parse selected date as local so "today" is correct in all timezones
+  const isStartDateToday = formData.date
+    ? (() => {
+        const [y, mo, d] = formData.date.split("-").map(Number);
+        const selectedLocal = new Date(y, mo - 1, d);
+        return selectedLocal.toDateString() === new Date().toDateString();
+      })()
+    : false;
+  const currentMinutes = getCurrentMinutes();
+  // Disable only slots strictly earlier than current time (full timestamp: hours + minutes + AM/PM); current time and later stay selectable
+  const isStartTimeOptionDisabled = (hour12: number, minute: number, ampm: "AM" | "PM") =>
+    isStartDateToday && timeToMinutes(buildTime(hour12, minute, ampm)) < currentMinutes;
+  // Hour column: disable only when the latest slot in that hour (h:45 PM) is strictly before current time
+  const isStartTimeHourDisabled = (hour12: number) =>
+    isStartDateToday && timeToMinutes(buildTime(hour12, 45, "PM")) < currentMinutes;
+  // AM/PM column: disable only when the latest slot in that period for the selected hour (h:45 AM or h:45 PM) is past; never disable entire period so future times remain selectable
+  const isStartTimeAmPmDisabled = (hour12: number, ampm: "AM" | "PM") =>
+    isStartDateToday && timeToMinutes(buildTime(hour12, 45, ampm)) < currentMinutes;
+  const isStartTimePast =
+    !!formData.startTime &&
+    isStartDateToday &&
+    timeToMinutes(formData.startTime) < currentMinutes;
 
   const handleDateSelect = (selectedDate: Date | undefined) => {
     setDate(selectedDate);
@@ -468,6 +668,18 @@ export default function Book() {
         errors.endTime = true;
         if (!firstInvalidField) firstInvalidField = endTimeRef;
       }
+      const pastTimeErrorStep1 =
+        !!formData.startTime &&
+        !!formData.date &&
+        new Date(formData.date).toDateString() === new Date().toDateString() &&
+        timeToMinutes(formData.startTime) < (() => {
+          const now = new Date();
+          return now.getHours() * 60 + now.getMinutes();
+        })();
+      if (pastTimeErrorStep1) {
+        errors.startTime = true;
+        if (!firstInvalidField) firstInvalidField = startTimeRef;
+      }
       if (!formData.attendees?.trim()) {
         errors.attendees = true;
         if (!firstInvalidField && attendeesRef) firstInvalidField = attendeesRef as unknown as React.RefObject<HTMLElement>;
@@ -481,11 +693,14 @@ export default function Book() {
       
       if (Object.keys(errors).length > 0) {
         setFieldErrors(errors);
-        toast({
-          title: "Missing Information",
-          description: attendeesError
+        const toastDescriptionStep1 = pastTimeErrorStep1
+          ? "Cannot select a past time."
+          : attendeesError
             ? attendeesError
-            : "Please fill in all required fields for booking details",
+            : "Please fill in all required fields for booking details";
+        toast({
+          title: pastTimeErrorStep1 ? "Invalid Time" : "Missing Information",
+          description: toastDescriptionStep1,
           variant: "destructive",
         });
         if (firstInvalidField) {
@@ -580,6 +795,18 @@ export default function Book() {
         errors.endTime = true;
         if (!firstInvalidField) firstInvalidField = endTimeRef;
       }
+      const pastTimeErrorStep3 =
+        !!formData.startTime &&
+        !!formData.date &&
+        new Date(formData.date).toDateString() === new Date().toDateString() &&
+        timeToMinutes(formData.startTime) < (() => {
+          const now = new Date();
+          return now.getHours() * 60 + now.getMinutes();
+        })();
+      if (pastTimeErrorStep3) {
+        errors.startTime = true;
+        if (!firstInvalidField) firstInvalidField = startTimeRef;
+      }
       if (!formData.attendees?.trim()) {
         errors.attendees = true;
         if (!firstInvalidField && attendeesRef) firstInvalidField = attendeesRef as unknown as React.RefObject<HTMLElement>;
@@ -613,9 +840,12 @@ export default function Book() {
 
       if (Object.keys(errors).length > 0) {
         setFieldErrors(errors);
+        const toastDescriptionStep3 = pastTimeErrorStep3
+          ? "Cannot select a past time."
+          : "Please complete all required fields. Use Previous to review your booking details.";
         toast({
-          title: "Missing Information",
-          description: "Please complete all required fields. Use Previous to review your booking details.",
+          title: pastTimeErrorStep3 ? "Invalid Time" : "Missing Information",
+          description: toastDescriptionStep3,
           variant: "destructive",
         });
         return false;
@@ -637,14 +867,143 @@ export default function Book() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const loadRazorpayScript = (): Promise<void> => {
+    if (typeof window === "undefined") return Promise.reject(new Error("No window"));
+    if ((window as unknown as { Razorpay?: unknown }).Razorpay) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = "https://checkout.razorpay.com/v1/checkout.js";
+      script.async = true;
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error("Failed to load Razorpay"));
+      document.body.appendChild(script);
+    });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
     if (!validateStep(3)) return;
 
-    const referenceNumber = generateBookingReference();
-    setBookingReference(referenceNumber);
-    setShowConfirmation(true);
+    const razorpayKeyId = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
+    const strapiUrl = process.env.NEXT_PUBLIC_STRAPI_URL;
+
+    if (!razorpayKeyId) {
+      // No payment: confirm locally only
+      const ref = generateBookingReference();
+      setBookingReference(ref);
+      setShowConfirmation(true);
+      return;
+    }
+
+    setIsSubmitting(true);
+    setPaymentError(null);
+    let ref = generateBookingReference();
+    let bookingId: string | number | undefined;
+
+    try {
+      // 1) Create booking in Strapi (if configured)
+      if (strapiUrl) {
+        const bookingRes = await fetch("/api/booking", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            customerName: formData.name,
+            customerEmail: formData.email,
+            customerPhone: formData.phone,
+            companyName: formData.company || undefined,
+            eventType: formData.eventType,
+            serviceSlug: formData.serviceType,
+            date: formData.date,
+            endDate: formData.endDate || undefined,
+            startTime: formData.startTime,
+            endTime: formData.endTime,
+            attendees: formData.attendees ? parseInt(formData.attendees, 10) : undefined,
+            layoutId: formData.layoutId || undefined,
+            addOnIds: formData.addOns?.length ? undefined : undefined,
+            message: formData.message || undefined,
+            totalPrice,
+            currency: "INR",
+          }),
+        });
+        const bookingJson = await bookingRes.json();
+        if (bookingRes.ok && bookingJson.referenceNumber) {
+          ref = bookingJson.referenceNumber;
+          bookingId = bookingJson.bookingId;
+        }
+      }
+
+      // 2) Create Razorpay order (amount in paise for INR)
+      const amountPaise = Math.round(totalPrice * 100);
+      const orderRes = await fetch("/api/razorpay/create-order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          amount: amountPaise,
+          currency: "INR",
+          receipt: ref,
+          referenceNumber: ref,
+        }),
+      });
+      const orderJson = await orderRes.json();
+      if (!orderRes.ok) {
+        setPaymentError(orderJson.error || "Failed to create payment order");
+        setIsSubmitting(false);
+        return;
+      }
+      const { orderId, keyId } = orderJson;
+
+      // 3) Load Razorpay and open checkout
+      await loadRazorpayScript();
+      const Razorpay = (window as unknown as {
+        Razorpay: new (options: unknown) => { open: () => void; on: (event: string, handler: () => void) => void };
+      }).Razorpay;
+      await new Promise<void>((resolve, reject) => {
+        const options = {
+          key: keyId,
+          amount: amountPaise,
+          currency: "INR",
+          name: "Visionary House",
+          description: "Booking payment",
+          order_id: orderId,
+          handler: async (response: { razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string }) => {
+            try {
+              const verifyRes = await fetch("/api/razorpay/verify-payment", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  razorpay_order_id: response.razorpay_order_id,
+                  razorpay_payment_id: response.razorpay_payment_id,
+                  razorpay_signature: response.razorpay_signature,
+                  bookingId,
+                  referenceNumber: ref,
+                }),
+              });
+              const verifyJson = await verifyRes.json();
+              if (verifyRes.ok && verifyJson.success) {
+                setBookingReference(ref);
+                setShowConfirmation(true);
+              } else {
+                setPaymentError(verifyJson.error || "Payment verification failed");
+              }
+            } catch {
+              setPaymentError("Payment verification failed");
+            }
+            resolve();
+          },
+          modal: { ondismiss: () => resolve() },
+        };
+        const rzp = new Razorpay(options);
+        rzp.on("payment.failed", () => {
+          setPaymentError("Payment failed or was cancelled");
+          resolve();
+        });
+        rzp.open();
+      });
+    } catch (err) {
+      setPaymentError(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleCloseConfirmation = () => {
@@ -656,12 +1015,14 @@ export default function Book() {
         phone: "",
         company: "",
         eventType: "",
+        guestType: "",
         serviceType: "",
         date: "",
         endDate: "",
         startTime: "",
         endTime: "",
         attendees: "",
+        roomSpace: "",
         layoutId: "",
         addOns: [],
         message: "",
@@ -673,6 +1034,18 @@ export default function Book() {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }, 300);
   };
+
+  const participantCount = formData.attendees ? parseInt(formData.attendees, 10) : 0;
+  const isValidParticipantCount = !Number.isNaN(participantCount) && participantCount > 0;
+  const participantsExceedMax = participantCount > 70;
+  const availableRoomSpaces =
+    isValidParticipantCount && !participantsExceedMax ? getAvailableRoomSpaces(participantCount) : [];
+  const isHallSelected = formData.roomSpace === "main-hall" || formData.roomSpace === "combined-hall";
+  const isLoungeSelected = formData.roomSpace === "lounge";
+  const availableLayoutsForHall =
+    isHallSelected && formData.roomSpace
+      ? getAvailableLayoutsForHall(formData.roomSpace, participantCount)
+      : [];
 
   const availableLayouts = formData.serviceType
     ? serviceLayouts[formData.serviceType] || []
@@ -709,14 +1082,33 @@ export default function Book() {
   const serviceCost = totalPrice - addOnsSubtotal;
   const serviceRatePerHour = duration > 0 ? serviceCost / duration : 0;
 
+  const FEATURE_ICONS = [Clock, Users, CheckCircle2] as const;
+
   return (
     <Layout>
     <main className="min-h-screen pb-20">
+      {isLoadingBookPage && (
+        <div className="fixed top-0 left-0 right-0 z-50 h-1 bg-muted overflow-hidden">
+          <motion.div
+            className="h-full bg-accent"
+            initial={{ width: "0%" }}
+            animate={{ width: "70%" }}
+            transition={{ duration: 0.8, repeat: Infinity, repeatDelay: 0.2 }}
+            style={{ originX: 0 }}
+          />
+        </div>
+      )}
+      {isErrorBookPage && (
+        <div className="bg-amber-50 border-b border-amber-200 text-amber-900 text-center py-2 px-4 text-sm">
+          Unable to load latest content. Showing default content.
+        </div>
+      )}
       <PageHero
-        eyebrow="Reserve Your Space"
-        title="Book Your Premium Environment"
-        description="Reserve your ideal business environment in just a few steps. Professional spaces designed for visionary minds."
-        backgroundImage="/assets/4.jpg"
+        eyebrow={heroEyebrow}
+        title={heroTitle}
+        description={heroDescription}
+        imageSrc={heroImageSrc}
+        imageAlt=""
         sectionClassName="py-32 md:py-28"
         titleClassName="text-[#B7974B]"
       />
@@ -789,9 +1181,13 @@ export default function Book() {
       <Dialog
         open={isLayoutDialogOpen}
         onOpenChange={(open) => {
+          const isHallMode = formData.roomSpace === "main-hall" || formData.roomSpace === "combined-hall";
+          if (open && isHallMode && participantsExceedMax) {
+            setIsLayoutDialogOpen(false);
+            return;
+          }
           setIsLayoutDialogOpen(open);
           if (open) {
-            // Start dialog with current committed selection
             setDialogLayoutIds(selectedLayoutIds);
           } else {
             setLayoutSearchQuery("");
@@ -805,7 +1201,22 @@ export default function Book() {
               Select one layout to see capacity and setup details. Click an image to select.
             </DialogDescription>
           </DialogHeader>
-          
+
+          {(() => {
+            const isHallMode = formData.roomSpace === "main-hall" || formData.roomSpace === "combined-hall";
+            if (isHallMode && participantsExceedMax) {
+              return (
+                <Alert className="border-amber-200 bg-amber-50 text-amber-900 mb-4">
+                  <Info className="h-4 w-4" />
+                  <AlertDescription>
+                    No hall is available for more than 70 participants.
+                  </AlertDescription>
+                </Alert>
+              );
+            }
+            return null;
+          })()}
+
           {/* Search Bar */}
           <div className="mb-4">
             <div className="relative">
@@ -823,7 +1234,7 @@ export default function Book() {
           {/* Filtered Layouts Grid with Scroll - Show only 2 rows */}
           <div className="overflow-y-auto pr-3 max-h-[420px] custom-scrollbar">
             {(() => {
-              const filteredLayouts = availableLayouts.filter((layout) => {
+              let filteredLayouts = availableLayouts.filter((layout) => {
                 if (!layoutSearchQuery.trim()) return true;
                 const query = layoutSearchQuery.toLowerCase();
                 return (
@@ -832,6 +1243,16 @@ export default function Book() {
                   layout.capacity.toString().includes(query)
                 );
               });
+
+              const isHallMode = formData.roomSpace === "main-hall" || formData.roomSpace === "combined-hall";
+              if (isHallMode && !participantsExceedMax) {
+                filteredLayouts = filteredLayouts.filter((layout) => {
+                  const hallLayoutId = SERVICE_LAYOUT_TO_HALL[layout.id];
+                  if (!hallLayoutId || !formData.roomSpace) return false;
+                  const capacity = HALL_LAYOUT_CAPACITIES[formData.roomSpace]?.[hallLayoutId] ?? 0;
+                  return capacity >= participantCount;
+                });
+              }
 
               if (filteredLayouts.length === 0) {
                 return (
@@ -1041,41 +1462,101 @@ export default function Book() {
                         </div>
 
                         <div className="space-y-6">
+                          {/* Number of Participants */}
+                          <div className="space-y-2">
+                            <Label htmlFor="attendees" className="text-base font-medium flex items-center gap-2">
+                              <Users className="h-4 w-4 text-accent" />
+                              Number of Participants *
+                            </Label>
+                            <Input
+                              ref={attendeesRef}
+                              id="attendees"
+                              name="attendees"
+                              type="text"
+                              value={formData.attendees}
+                              onChange={handleChange}
+                              placeholder="Enter number of participants"
+                              className={cn(
+                                "h-14 text-base border-2 hover:border-accent/50 focus:border-accent transition-colors",
+                                (fieldErrors.attendees || attendeesError) && "border-red-500 hover:border-red-600 focus:border-red-600"
+                              )}
+                              min="1"
+                            />
+                            {totalAttendeesCapacity !== undefined && selectedLayouts.length > 0 && !formData.roomSpace && (
+                              <p className="text-xs text-muted-foreground">
+                                Capacity for selected layout:{" "}
+                                <span className="font-semibold">
+                                  {totalAttendeesCapacity} guests
+                                </span>
+                              </p>
+                            )}
+                            {(fieldErrors.attendees || attendeesError) && (
+                              <p className="text-xs text-red-600">
+                                {attendeesError ?? "Please enter the expected number of participants."}
+                              </p>
+                            )}
+                          </div>
+
+                          {/* Guest Type */}
+                          <div className="space-y-2">
+                            <Label htmlFor="guestType" className="text-base font-medium">
+                              Guest Type
+                            </Label>
+                            <Select
+                              value={formData.guestType ?? ""}
+                              onValueChange={(value) => setFormData((prev) => ({ ...prev, guestType: value }))}
+                            >
+                              <SelectTrigger
+                                id="guestType"
+                                className="h-14 text-base border-2 hover:border-accent/50 focus:border-accent transition-colors"
+                              >
+                                <SelectValue placeholder="Select guest type" />
+                              </SelectTrigger>
+                              <SelectContent className="shadow-elevated overflow-y-auto w-[var(--radix-select-trigger-width)] sm:w-auto">
+                                {GUEST_TYPES.map((type) => (
+                                  <SelectItem key={type} value={type} className="text-base py-3">
+                                    {type}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
                           {/* Event Type */}
                           <div className="space-y-2">
                             <Label htmlFor="eventType" className="text-base font-medium">
                               Event Type *
                             </Label>
                             <Select
-                              value={formData.eventType}
-                              onValueChange={handleEventTypeChange}
+                                value={formData.eventType}
+                                onValueChange={handleEventTypeChange}
                             >
-                              <SelectTrigger 
-                                ref={serviceTypeRef}
-                                id="eventType"
-                                className={cn(
-                                  "h-14 text-base border-2 hover:border-accent/50 focus:border-accent transition-colors",
-                                  fieldErrors.serviceType && "border-red-500 hover:border-red-600 focus:border-red-600"
-                                )}
+                              <SelectTrigger
+                                  ref={serviceTypeRef}
+                                  id="eventType"
+                                  className={cn(
+                                      "h-14 text-base border-2 hover:border-accent/50 focus:border-accent transition-colors",
+                                      fieldErrors.serviceType && "border-red-500 hover:border-red-600 focus:border-red-600"
+                                  )}
                               >
                                 <SelectValue placeholder="Choose your event type (small or large)" />
                               </SelectTrigger>
                               <SelectContent className="shadow-elevated  overflow-y-auto w-[var(--radix-select-trigger-width)] sm:w-auto">
                                 {eventTypes.map((event) => (
-                                  <SelectItem key={event.id} value={event.id} className="text-base py-3">
-                                    <div className="flex items-center justify-between gap-3">
-                                      <div className="flex items-center gap-3">
-                                        <MapPin className="h-5 w-5 text-accent" />
-                                        <span className="font-medium">{event.label}</span>
+                                    <SelectItem key={event.id} value={event.id} className="text-base py-3">
+                                      <div className="flex items-center justify-between gap-3">
+                                        <div className="flex items-center gap-3">
+                                          <MapPin className="h-5 w-5 text-accent" />
+                                          <span className="font-medium">{event.label}</span>
+                                        </div>
+                                        <Badge
+                                            variant="outline"
+                                            className="hidden xs:inline-flex text-[11px] px-2 py-0.5 rounded-full border-accent/40 text-accent bg-accent/5"
+                                        >
+                                          {event.isMultiDay ? "Multi Day" : "Single Day"}
+                                        </Badge>
                                       </div>
-                                      <Badge
-                                        variant="outline"
-                                        className="hidden xs:inline-flex text-[11px] px-2 py-0.5 rounded-full border-accent/40 text-accent bg-accent/5"
-                                      >
-                                        {event.isMultiDay ? "Multi Day" : "Single Day"}
-                                      </Badge>
-                                    </div>
-                                  </SelectItem>
+                                    </SelectItem>
                                 ))}
                               </SelectContent>
                             </Select>
@@ -1112,9 +1593,13 @@ export default function Book() {
                                           mode="single"
                                           selected={date}
                                           onSelect={handleDateSelect}
-                                          disabled={(date) =>
-                                            date < new Date() || date < new Date("1900-01-01")
-                                          }
+                                          disabled={(date) => {
+                                            const d = new Date(date);
+                                            d.setHours(0, 0, 0, 0);
+                                            const todayStart = new Date();
+                                            todayStart.setHours(0, 0, 0, 0);
+                                            return d < todayStart || d < new Date("1900-01-01");
+                                          }}
                                           initialFocus
                                           className="rounded-lg border-0"
                                         />
@@ -1149,18 +1634,22 @@ export default function Book() {
                                             {HOURS_12.map((h) => {
                                               const current = parseTime(formData.startTime);
                                               const isSelected = current.hour12 === h;
+                                              const isPast = isStartTimeHourDisabled(h);
                                               return (
                                                 <button
                                                   key={h}
                                                   type="button"
+                                                  disabled={isPast}
                                                   onClick={() => {
+                                                    if (isPast) return;
                                                     const next = buildTime(h, current.minute, current.ampm);
                                                     setFormData({ ...formData, startTime: next });
                                                     if (fieldErrors.startTime) setFieldErrors({ ...fieldErrors, startTime: false });
                                                   }}
                                                   className={cn(
                                                     "px-3 py-2 text-sm font-medium transition-colors hover:bg-muted",
-                                                    isSelected ? "bg-[#B08D39] text-white hover:bg-[#9a7b32]" : "text-foreground"
+                                                    isSelected ? "bg-[#B08D39] text-white hover:bg-[#9a7b32]" : "text-foreground",
+                                                    isPast && "opacity-40 cursor-not-allowed hover:bg-transparent"
                                                   )}
                                                 >
                                                   {String(h).padStart(2, "0")}
@@ -1172,18 +1661,22 @@ export default function Book() {
                                             {MINUTES_QUARTER.map((m) => {
                                               const current = parseTime(formData.startTime);
                                               const isSelected = current.minute === m;
+                                              const isPast = isStartTimeOptionDisabled(current.hour12, m, current.ampm);
                                               return (
                                                 <button
                                                   key={m}
                                                   type="button"
+                                                  disabled={isPast}
                                                   onClick={() => {
+                                                    if (isPast) return;
                                                     const next = buildTime(current.hour12, m, current.ampm);
                                                     setFormData({ ...formData, startTime: next });
                                                     if (fieldErrors.startTime) setFieldErrors({ ...fieldErrors, startTime: false });
                                                   }}
                                                   className={cn(
                                                     "px-3 py-2 text-sm font-medium transition-colors hover:bg-muted",
-                                                    isSelected ? "bg-[#B08D39] text-white hover:bg-[#9a7b32]" : "text-foreground"
+                                                    isSelected ? "bg-[#B08D39] text-white hover:bg-[#9a7b32]" : "text-foreground",
+                                                    isPast && "opacity-40 cursor-not-allowed hover:bg-transparent"
                                                   )}
                                                 >
                                                   {String(m).padStart(2, "0")}
@@ -1195,18 +1688,22 @@ export default function Book() {
                                             {AMPM.map((a) => {
                                               const current = parseTime(formData.startTime);
                                               const isSelected = current.ampm === a;
+                                              const isPast = isStartTimeAmPmDisabled(current.hour12, a);
                                               return (
                                                 <button
                                                   key={a}
                                                   type="button"
+                                                  disabled={isPast}
                                                   onClick={() => {
+                                                    if (isPast) return;
                                                     const next = buildTime(current.hour12, current.minute, a);
                                                     setFormData({ ...formData, startTime: next });
                                                     if (fieldErrors.startTime) setFieldErrors({ ...fieldErrors, startTime: false });
                                                   }}
                                                   className={cn(
                                                     "px-2 py-2 text-sm font-medium transition-colors hover:bg-muted",
-                                                    isSelected ? "bg-[#B08D39] text-white hover:bg-[#9a7b32]" : "text-foreground"
+                                                    isSelected ? "bg-[#B08D39] text-white hover:bg-[#9a7b32]" : "text-foreground",
+                                                    isPast && "opacity-40 cursor-not-allowed hover:bg-transparent"
                                                   )}
                                                 >
                                                   {a}
@@ -1218,6 +1715,9 @@ export default function Book() {
                                         <p className="text-xs text-muted-foreground px-3 py-2 border-t border-border">Select hour, minute (00/15/30/45), and AM/PM</p>
                                       </PopoverContent>
                                     </Popover>
+                                    {fieldErrors.startTime && isStartTimePast && (
+                                      <p className="text-sm text-red-500">Cannot select a past time.</p>
+                                    )}
                                   </div>
                                 </div>
                                 {/* Multi-day: Row 2 - End Date | End Time */}
@@ -1248,9 +1748,16 @@ export default function Book() {
                                           selected={endDate}
                                           onSelect={handleEndDateSelect}
                                           disabled={(d) => {
-                                            if (!formData.date) return d < new Date();
+                                            const dNorm = new Date(d);
+                                            dNorm.setHours(0, 0, 0, 0);
+                                            if (!formData.date) {
+                                              const todayStart = new Date();
+                                              todayStart.setHours(0, 0, 0, 0);
+                                              return dNorm < todayStart;
+                                            }
                                             const start = new Date(formData.date);
-                                            return d < start || d < new Date();
+                                            start.setHours(0, 0, 0, 0);
+                                            return dNorm < start;
                                           }}
                                           initialFocus
                                           className="rounded-lg border-0"
@@ -1386,9 +1893,13 @@ export default function Book() {
                                         mode="single"
                                         selected={date}
                                         onSelect={handleDateSelect}
-                                        disabled={(date) =>
-                                          date < new Date() || date < new Date("1900-01-01")
-                                        }
+                                        disabled={(date) => {
+                                          const d = new Date(date);
+                                          d.setHours(0, 0, 0, 0);
+                                          const todayStart = new Date();
+                                          todayStart.setHours(0, 0, 0, 0);
+                                          return d < todayStart || d < new Date("1900-01-01");
+                                        }}
                                         initialFocus
                                         className="rounded-lg border-0"
                                       />
@@ -1424,18 +1935,22 @@ export default function Book() {
                                             {HOURS_12.map((h) => {
                                               const current = parseTime(formData.startTime);
                                               const isSelected = current.hour12 === h;
+                                              const isPast = isStartTimeHourDisabled(h);
                                               return (
                                                 <button
                                                   key={h}
                                                   type="button"
+                                                  disabled={isPast}
                                                   onClick={() => {
+                                                    if (isPast) return;
                                                     const next = buildTime(h, current.minute, current.ampm);
                                                     setFormData({ ...formData, startTime: next });
                                                     if (fieldErrors.startTime) setFieldErrors({ ...fieldErrors, startTime: false });
                                                   }}
                                                   className={cn(
                                                     "px-3 py-2 text-sm font-medium transition-colors hover:bg-muted",
-                                                    isSelected ? "bg-[#B08D39] text-white hover:bg-[#9a7b32]" : "text-foreground"
+                                                    isSelected ? "bg-[#B08D39] text-white hover:bg-[#9a7b32]" : "text-foreground",
+                                                    isPast && "opacity-40 cursor-not-allowed hover:bg-transparent"
                                                   )}
                                                 >
                                                   {String(h).padStart(2, "0")}
@@ -1447,18 +1962,22 @@ export default function Book() {
                                             {MINUTES_QUARTER.map((m) => {
                                               const current = parseTime(formData.startTime);
                                               const isSelected = current.minute === m;
+                                              const isPast = isStartTimeOptionDisabled(current.hour12, m, current.ampm);
                                               return (
                                                 <button
                                                   key={m}
                                                   type="button"
+                                                  disabled={isPast}
                                                   onClick={() => {
+                                                    if (isPast) return;
                                                     const next = buildTime(current.hour12, m, current.ampm);
                                                     setFormData({ ...formData, startTime: next });
                                                     if (fieldErrors.startTime) setFieldErrors({ ...fieldErrors, startTime: false });
                                                   }}
                                                   className={cn(
                                                     "px-3 py-2 text-sm font-medium transition-colors hover:bg-muted",
-                                                    isSelected ? "bg-[#B08D39] text-white hover:bg-[#9a7b32]" : "text-foreground"
+                                                    isSelected ? "bg-[#B08D39] text-white hover:bg-[#9a7b32]" : "text-foreground",
+                                                    isPast && "opacity-40 cursor-not-allowed hover:bg-transparent"
                                                   )}
                                                 >
                                                   {String(m).padStart(2, "0")}
@@ -1470,18 +1989,22 @@ export default function Book() {
                                             {AMPM.map((a) => {
                                               const current = parseTime(formData.startTime);
                                               const isSelected = current.ampm === a;
+                                              const isPast = isStartTimeAmPmDisabled(current.hour12, a);
                                               return (
                                                 <button
                                                   key={a}
                                                   type="button"
+                                                  disabled={isPast}
                                                   onClick={() => {
+                                                    if (isPast) return;
                                                     const next = buildTime(current.hour12, current.minute, a);
                                                     setFormData({ ...formData, startTime: next });
                                                     if (fieldErrors.startTime) setFieldErrors({ ...fieldErrors, startTime: false });
                                                   }}
                                                   className={cn(
                                                     "px-2 py-2 text-sm font-medium transition-colors hover:bg-muted",
-                                                    isSelected ? "bg-[#B08D39] text-white hover:bg-[#9a7b32]" : "text-foreground"
+                                                    isSelected ? "bg-[#B08D39] text-white hover:bg-[#9a7b32]" : "text-foreground",
+                                                    isPast && "opacity-40 cursor-not-allowed hover:bg-transparent"
                                                   )}
                                                 >
                                                   {a}
@@ -1493,6 +2016,9 @@ export default function Book() {
                                         <p className="text-xs text-muted-foreground px-3 py-2 border-t border-border">Select hour, minute (00/15/30/45), and AM/PM</p>
                                       </PopoverContent>
                                     </Popover>
+                                    {fieldErrors.startTime && isStartTimePast && (
+                                      <p className="text-sm text-red-500">Cannot select a past time.</p>
+                                    )}
                                   </div>
                                   <div className="space-y-2">
                                     <Label htmlFor="endTime" className="text-base font-medium flex items-center gap-2">
@@ -1596,8 +2122,93 @@ export default function Book() {
                               </>
                             )}
 
-                            {/* Layout / Setup - click opens dialog (no dropdown) */}
-                            {availableLayouts.length > 0 && (
+                            {/* Message when participants exceed 70 */}
+                            {participantsExceedMax && (
+                              <Alert className="border-amber-200 bg-amber-50 text-amber-900">
+                                <Info className="h-4 w-4" />
+                                <AlertDescription>
+                                  No hall or room is available for more than 70 participants.
+                                </AlertDescription>
+                              </Alert>
+                            )}
+
+                            {/* Room/Space — visibility by participant count; hidden when > 70 */}
+                            {!participantsExceedMax && availableRoomSpaces.length > 0 && (
+                              <div className="space-y-2">
+                                <Label htmlFor="roomSpace" className="text-base font-medium">
+                                  Room / Space
+                                </Label>
+                                <Select
+                                  value={formData.roomSpace ?? ""}
+                                  onValueChange={handleRoomSpaceChange}
+                                >
+                                  <SelectTrigger
+                                    id="roomSpace"
+                                    className="h-14 text-base border-2 hover:border-accent/50 focus:border-accent transition-colors"
+                                  >
+                                    <SelectValue placeholder="Select room or space" />
+                                  </SelectTrigger>
+                                  <SelectContent className="shadow-elevated overflow-y-auto w-[var(--radix-select-trigger-width)] sm:w-auto">
+                                    {availableRoomSpaces.map((room) => (
+                                      <SelectItem key={room.id} value={room.id} className="text-base py-3">
+                                        {room.name}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                {formData.roomSpace === "combined-hall" && (
+                                  <p className="text-xs text-muted-foreground">
+                                    Combined Hall supports the largest groups (up to 70 theatre style).
+                                  </p>
+                                )}
+                                {availableRoomSpaces.some((r) => r.id === "combined-hall") && !formData.roomSpace && (
+                                  <p className="text-xs text-muted-foreground">
+                                    Combined Hall supports the largest groups (up to 70 theatre style).
+                                  </p>
+                                )}
+                                {isLoungeSelected && (
+                                  <>
+                                    <p className="text-xs text-muted-foreground italic">
+                                      Lounge is a shared space; longer bookings may require admin approval.
+                                    </p>
+                                    <Badge variant="outline" className="text-amber-700 border-amber-300 bg-amber-50">
+                                      May Require Admin Approval
+                                    </Badge>
+                                  </>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Layout — only after valid participant count and hall selected; opens "Choose a Layout" popup */}
+                            {isHallSelected &&
+                              formData.roomSpace &&
+                              isValidParticipantCount &&
+                              !participantsExceedMax &&
+                              availableLayoutsForHall.length > 0 && (
+                              <div className="space-y-2">
+                                <Label className="text-base font-medium">
+                                  Layout
+                                </Label>
+                                <button
+                                  type="button"
+                                  onClick={() => setIsLayoutDialogOpen(true)}
+                                  className={cn(
+                                    "flex h-14 w-full items-center justify-between rounded-md border-2 bg-background px-4 text-left text-base transition-colors hover:border-accent/50 focus:border-accent focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 cursor-pointer",
+                                    formData.layoutId && "border-accent/30"
+                                  )}
+                                >
+                                  <span className={formData.layoutId ? "text-foreground" : "text-muted-foreground"}>
+                                    {formData.layoutId
+                                      ? getLayoutDisplayLabel(formData.roomSpace ?? "", formData.layoutId)
+                                      : "Choose layout"}
+                                  </span>
+                                  <MapPin className="h-5 w-5 shrink-0 text-accent" />
+                                </button>
+                              </div>
+                            )}
+
+                            {/* Legacy Layout / Setup — only when no room/space options exist (e.g. no participant count); never show layout before room is selected when room flow is active */}
+                            {availableLayouts.length > 0 && !formData.roomSpace && isValidParticipantCount && availableRoomSpaces.length === 0 && (
                               <div className="space-y-3">
                                 <Label className="text-base font-medium">Layout / Setup</Label>
                                 <button
@@ -1636,40 +2247,6 @@ export default function Book() {
                                 )}
                               </div>
                             )}
-
-                            <div className="space-y-2">
-                              <Label htmlFor="attendees" className="text-base font-medium flex items-center gap-2">
-                                <Users className="h-4 w-4 text-accent" />
-                                Expected Attendees *
-                              </Label>
-                              <Input
-                                ref={attendeesRef}
-                                id="attendees"
-                                name="attendees"
-                                type="text"
-                                value={formData.attendees}
-                                onChange={handleChange}
-                                placeholder="Enter number of attendees"
-                                className={cn(
-                                  "h-14 text-base border-2 hover:border-accent/50 focus:border-accent transition-colors",
-                                  (fieldErrors.attendees || attendeesError) && "border-red-500 hover:border-red-600 focus:border-red-600"
-                                )}
-                                min="1"
-                              />
-                              {totalAttendeesCapacity !== undefined && (
-                                <p className="text-xs text-muted-foreground">
-                                  Capacity for selected layout:{" "}
-                                  <span className="font-semibold">
-                                    {totalAttendeesCapacity} guests
-                                  </span>
-                                </p>
-                              )}
-                              {(fieldErrors.attendees || attendeesError) && (
-                                <p className="text-xs text-red-600">
-                                  {attendeesError ?? "Please enter the expected number of attendees."}
-                                </p>
-                              )}
-                            </div>
                           </div>
 
                           {/* Validation Alerts */}
@@ -2019,7 +2596,32 @@ export default function Book() {
                                 <p className="text-muted-foreground mb-1">Event Type</p>
                                 <p className="font-medium">{selectedEventType?.label ?? selectedService}</p>
                               </div>
-                              {selectedLayouts.length > 0 && (
+                              {formData.guestType && (
+                                <div>
+                                  <p className="text-muted-foreground mb-1">Guest Type</p>
+                                  <p className="font-medium">{formData.guestType}</p>
+                                </div>
+                              )}
+                              {formData.roomSpace && (
+                                <div>
+                                  <p className="text-muted-foreground mb-1">Selected Space</p>
+                                  <p className="font-medium">{ROOM_SPACE_LABELS[formData.roomSpace] ?? formData.roomSpace}</p>
+                                  {isLoungeSelected && (
+                                    <Badge variant="outline" className="mt-1.5 text-amber-700 border-amber-300 bg-amber-50 text-xs">
+                                      May Require Admin Approval
+                                    </Badge>
+                                  )}
+                                </div>
+                              )}
+                              {isHallSelected && formData.layoutId && (
+                                <div>
+                                  <p className="text-muted-foreground mb-1">Layout</p>
+                                  <p className="font-medium">
+                                    {getLayoutDisplayLabel(formData.roomSpace ?? "", formData.layoutId)}
+                                  </p>
+                                </div>
+                              )}
+                              {selectedLayouts.length > 0 && !formData.roomSpace && (
                                 <div>
                                   <p className="text-muted-foreground mb-1">Layout</p>
                                   <div className="space-y-1">
@@ -2032,6 +2634,18 @@ export default function Book() {
                                       </p>
                                     ))}
                                   </div>
+                                </div>
+                              )}
+                              {formData.attendees && (
+                                <div>
+                                  <p className="text-muted-foreground mb-1">Participants</p>
+                                  <p className="font-medium">{formData.attendees} people</p>
+                                </div>
+                              )}
+                              {duration > 0 && (
+                                <div>
+                                  <p className="text-muted-foreground mb-1">Booking Duration</p>
+                                  <p className="font-medium">{duration.toFixed(1)} hour{duration !== 1 ? "s" : ""}</p>
                                 </div>
                               )}
                               <div>
@@ -2051,12 +2665,6 @@ export default function Book() {
                                   {duration > 0 && <span className="text-muted-foreground ml-2">({duration.toFixed(1)}h)</span>}
                                 </p>
                               </div>
-                              {formData.attendees && (
-                                <div>
-                                  <p className="text-muted-foreground mb-1">Attendees</p>
-                                  <p className="font-medium">{formData.attendees} people</p>
-                                </div>
-                              )}
                             </div>
                           </div>
 
@@ -2124,13 +2732,19 @@ export default function Book() {
                           >
                             Back
                           </Button>
+                          {paymentError && (
+                            <Alert variant="destructive" className="mb-4">
+                              <AlertDescription>{paymentError}</AlertDescription>
+                            </Alert>
+                          )}
                           <Button
                             type="submit"
                             variant="gold"
                             size="lg"
+                            disabled={isSubmitting}
                             className="h-14 px-10 text-base font-semibold shadow-gold hover:shadow-elevated transition-all"
                           >
-                            Confirm Booking
+                            {isSubmitting ? "Processing…" : "Pay & Confirm Booking"}
                             <CheckCircle2 className="ml-2 h-5 w-5" />
                           </Button>
                         </div>
@@ -2162,6 +2776,43 @@ export default function Book() {
                     {formData.serviceType && duration > 0 ? (
                       <>
                         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Itemized receipt</p>
+
+                        {/* Selected Space, Layout (if applicable), Participants, Booking Duration — placeholders */}
+                        {(formData.roomSpace || formData.attendees || duration > 0) && (
+                          <div className="space-y-1.5 text-sm">
+                            {formData.roomSpace && (
+                              <div className="flex justify-between items-baseline">
+                                <span className="text-muted-foreground">Selected Space</span>
+                                <span className="font-medium">{ROOM_SPACE_LABELS[formData.roomSpace] ?? formData.roomSpace}</span>
+                              </div>
+                            )}
+                            {isHallSelected && formData.layoutId && (
+                              <div className="flex justify-between items-baseline">
+                                <span className="text-muted-foreground">Layout</span>
+                                <span className="font-medium text-right">
+                                  {getLayoutDisplayLabel(formData.roomSpace ?? "", formData.layoutId)}
+                                </span>
+                              </div>
+                            )}
+                            {formData.attendees && (
+                              <div className="flex justify-between items-baseline">
+                                <span className="text-muted-foreground">Participants</span>
+                                <span className="font-medium">{formData.attendees} people</span>
+                              </div>
+                            )}
+                            {duration > 0 && (
+                              <div className="flex justify-between items-baseline">
+                                <span className="text-muted-foreground">Booking Duration</span>
+                                <span className="font-medium">{duration.toFixed(1)} hour{duration !== 1 ? "s" : ""}</span>
+                              </div>
+                            )}
+                            {isLoungeSelected && (
+                              <Badge variant="outline" className="text-amber-700 border-amber-300 bg-amber-50 text-xs w-full justify-center mt-1">
+                                May Require Admin Approval
+                              </Badge>
+                            )}
+                          </div>
+                        )}
 
                         {/* Service summary — main venue/duration */}
                         <div className="space-y-1">
@@ -2322,57 +2973,29 @@ export default function Book() {
               }
             }}
           >
-            <motion.div 
-              className="text-center"
-              variants={{
-                initial: { opacity: 0, y: 20 },
-                animate: { opacity: 1, y: 0, transition: { duration: 0.6 } }
-              }}
-            >
-              <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-accent/10 text-accent mb-4">
-                <Clock className="h-7 w-7" />
-              </div>
-              <h3 className="heading-card mb-2">
-                Instant Confirmation
-              </h3>
-              <p className="text-small">
-                Receive booking confirmation and details immediately via email
-              </p>
-            </motion.div>
-            <motion.div 
-              className="text-center"
-              variants={{
-                initial: { opacity: 0, y: 20 },
-                animate: { opacity: 1, y: 0, transition: { duration: 0.6 } }
-              }}
-            >
-              <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-accent/10 text-accent mb-4">
-                <Users className="h-7 w-7" />
-              </div>
-              <h3 className="heading-card mb-2">
-                Dedicated Support
-              </h3>
-              <p className="text-small">
-                Personal assistance throughout your booking and event
-              </p>
-            </motion.div>
-            <motion.div 
-              className="text-center"
-              variants={{
-                initial: { opacity: 0, y: 20 },
-                animate: { opacity: 1, y: 0, transition: { duration: 0.6 } }
-              }}
-            >
-              <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-accent/10 text-accent mb-4">
-                <CheckCircle2 className="h-7 w-7" />
-              </div>
-              <h3 className="heading-card mb-2">
-                Flexible Modifications
-              </h3>
-              <p className="text-small">
-                Easy booking changes up to 48 hours before your event
-              </p>
-            </motion.div>
+            {bookPageFeatures.map((item, index) => {
+              const IconComponent = FEATURE_ICONS[index % FEATURE_ICONS.length];
+              return (
+                <motion.div
+                  key={item.title || index}
+                  className="text-center"
+                  variants={{
+                    initial: { opacity: 0, y: 20 },
+                    animate: { opacity: 1, y: 0, transition: { duration: 0.6 } }
+                  }}
+                >
+                  <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-accent/10 text-accent mb-4">
+                    <IconComponent className="h-7 w-7" />
+                  </div>
+                  <h3 className="heading-card mb-2">
+                    {item.title}
+                  </h3>
+                  <p className="text-small">
+                    {item.description}
+                  </p>
+                </motion.div>
+              );
+            })}
           </motion.div>
         </div>
       </section>

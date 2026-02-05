@@ -10,73 +10,47 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { motion, AnimatePresence } from "framer-motion";
 import { fadeInUp, staggerContainer } from "@/lib/constants/animations";
 import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { Autoplay, EffectFade } from 'swiper/modules';
 import type { Swiper as SwiperType } from 'swiper';
+import { fetchHomepage, fetchServices, fetchTestimonials, fetchFaqs, isStrapiConfigured } from "@/lib/strapi";
+import {
+  mapHomepageHeroSlides,
+  mapServicesPreview,
+  mapHomepageServicesPreview,
+  mapDifferentiators,
+  mapTestimonials,
+  mapFaqs,
+  getWhyChooseUsImageUrl,
+  type MappedHeroSlide,
+  type MappedServicePreview,
+  type MappedTestimonial,
+  type MappedFaq,
+} from "@/lib/strapi/mappers";
 
 // Import Swiper styles
 import 'swiper/css';
 import 'swiper/css/effect-fade';
 import 'swiper/css/autoplay';
 
-// Hero carousel slides (using existing assets)
-const heroSlides = [
-  {
-    title: "Where Business",
+const iconMap = { Building2, Users, Briefcase, Video } as const;
 
-    highlight: "Excellence",
-    subtitle: "Meets Premium Experience",
-    description: "A complete business ecosystem designed for visionary founders, leaders, and enterprises seeking an environment that reflects their standard of excellence.",
-    image: "/assets/1.jpg",
-  },
-  {
-    title: "Premium Event",
-    highlight: "Spaces",
-    subtitle: "For Visionary Leaders",
-    description: "Host conferences, board meetings, and corporate gatherings in our sophisticated venues that reflect your professional standards.",
-    image: "/assets/2.jpg",
-  },
-  {
-    title: "Professional",
-    highlight: "Virtual Offices",
-    subtitle: "Your Business Presence",
-    description: "Establish your business with prestigious addresses, mail handling, and call answering services that project confidence.",
-    image: "/assets/3.jpg",
-  },
+// Fallback data when Strapi is not configured or fetch fails
+const fallbackHeroSlides: MappedHeroSlide[] = [
+  { title: "Where Business", highlight: "Excellence", subtitle: "Meets Premium Experience", description: "A complete business ecosystem designed for visionary founders, leaders, and enterprises seeking an environment that reflects their standard of excellence.", heading: "Welcome to Visionary House", image: "/assets/1.jpg" },
+  { title: "Premium Event", highlight: "Spaces", subtitle: "For Visionary Leaders", description: "Host conferences, board meetings, and corporate gatherings in our sophisticated venues that reflect your professional standards.", heading: "Welcome to Visionary House", image: "/assets/2.jpg" },
+  { title: "Professional", highlight: "Virtual Offices", subtitle: "Your Business Presence", description: "Establish your business with prestigious addresses, mail handling, and call answering services that project confidence.", heading: "Welcome to Visionary House", image: "/assets/3.jpg" },
 ];
 
-const services = [
-  {
-    title: "Event Space",
-    description: "Sophisticated venues for conferences, board meetings, and corporate gatherings.",
-    icon: Building2,
-    image: "/assets/4.jpg",
-    href: "/services#event-space",
-  },
-  {
-    title: "Lounge Suite",
-    description: "Premium relaxation spaces designed for professional comfort and private conversations.",
-    icon: Users,
-    image: "/assets/5.jpg",
-    href: "/services#lounge",
-  },
-  {
-    title: "Virtual Offices",
-    description: "Professional business presence with mail handling, call answering, and registered addresses.",
-    icon: Briefcase,
-    image: "/assets/6.jpg",
-    href: "/services#virtual-offices",
-  },
-  {
-    title: "Media Services",
-    description: "State-of-the-art studios for podcasts, video production, and professional content creation.",
-    icon: Video,
-    image: "/assets/q1.jpg",
-    href: "/services#media",
-  },
+const fallbackServices: MappedServicePreview[] = [
+  { title: "Event Space", description: "Sophisticated venues for conferences, board meetings, and corporate gatherings.", icon: "Building2", image: "/assets/4.jpg", href: "/services#event-space" },
+  { title: "Lounge Suite", description: "Premium relaxation spaces designed for professional comfort and private conversations.", icon: "Users", image: "/assets/5.jpg", href: "/services#lounge" },
+  { title: "Virtual Offices", description: "Professional business presence with mail handling, call answering, and registered addresses.", icon: "Briefcase", image: "/assets/6.jpg", href: "/services#virtual-offices" },
+  { title: "Media Services", description: "State-of-the-art studios for podcasts, video production, and professional content creation.", icon: "Video", image: "/assets/q1.jpg", href: "/services#media" },
 ];
 
-const differentiators = [
+const fallbackDifferentiators = [
   "Premium, professional-grade experience",
   "Flexible booking with transparent pricing",
   "Professional and reliable service",
@@ -85,57 +59,108 @@ const differentiators = [
   "Modern, well-appointed facilities",
 ];
 
-const testimonials = [
-  {
-    quote: "Visionary House has transformed how we conduct business meetings. The facilities are impeccable, and the service is consistently exceptional.",
-    author: "Victoria Chen",
-    title: "CEO, Meridian Capital",
-  },
-  {
-    quote: "A truly premium experience. From booking to departure, every detail is handled with professionalism and care.",
-    author: "Marcus Thompson",
-    title: "Managing Director, Atlas Ventures",
-  },
-  {
-    quote: "The virtual office service has given our startup the credibility we needed. Highly recommend to any serious business.",
-    author: "Sarah Mitchell",
-    title: "Founder, Catalyst Tech",
-  },
+const fallbackTestimonials: MappedTestimonial[] = [
+  { quote: "Visionary House has transformed how we conduct business meetings. The facilities are impeccable, and the service is consistently exceptional.", author: "Victoria Chen", title: "CEO, Meridian Capital" },
+  { quote: "A truly premium experience. From booking to departure, every detail is handled with professionalism and care.", author: "Marcus Thompson", title: "Managing Director, Atlas Ventures" },
+  { quote: "The virtual office service has given our startup the credibility we needed. Highly recommend to any serious business.", author: "Sarah Mitchell", title: "Founder, Catalyst Tech" },
 ];
 
-const faqs = [
-  {
-    question: "What services does Visionary House offer?",
-    answer: "We provide a comprehensive business ecosystem including event spaces for conferences and meetings, premium lounge suites for professional relaxation, virtual office services with mail handling and call answering, and state-of-the-art media studios for content creation.",
-  },
-  {
-    question: "How do I book an event space or meeting room?",
-    answer: "You can book spaces through our website by selecting your preferred date, time, and space type. Our team will confirm availability within 24 hours and provide you with all necessary details. For urgent bookings, please contact our concierge team directly.",
-  },
-  {
-    question: "What are the benefits of a virtual office?",
-    answer: "Our virtual office services provide your business with a prestigious address, professional mail handling, dedicated phone answering service, and access to meeting rooms when needed. It's perfect for establishing credibility while maintaining flexibility.",
-  },
-  {
-    question: "Are the facilities suitable for corporate events?",
-    answer: "Absolutely. Our event spaces are designed specifically for corporate gatherings, from board meetings to large conferences. We offer professional-grade AV equipment, high-speed internet, catering services, and dedicated support staff to ensure your event runs smoothly.",
-  },
-  {
-    question: "What makes Visionary House different from other business centers?",
-    answer: "We focus on providing a premium, professional-grade experience with attention to every detail. Our prime location, modern facilities, transparent pricing, flexible booking options, and dedicated concierge support set us apart. We understand that your business environment reflects your professional standards.",
-  },
-  {
-    question: "Can I schedule a tour before booking?",
-    answer: "Yes, we encourage prospective clients to schedule a tour of our facilities. Contact us through the website or call our concierge team to arrange a convenient time. We'll walk you through our spaces and discuss how we can meet your specific business needs.",
-  },
+const fallbackFaqs: MappedFaq[] = [
+  { question: "What services does Visionary House offer?", answer: "We provide a comprehensive business ecosystem including event spaces for conferences and meetings, premium lounge suites for professional relaxation, virtual office services with mail handling and call answering, and state-of-the-art media studios for content creation." },
+  { question: "How do I book an event space or meeting room?", answer: "You can book spaces through our website by selecting your preferred date, time, and space type. Our team will confirm availability within 24 hours and provide you with all necessary details. For urgent bookings, please contact our concierge team directly." },
+  { question: "What are the benefits of a virtual office?", answer: "Our virtual office services provide your business with a prestigious address, professional mail handling, dedicated phone answering service, and access to meeting rooms when needed. It's perfect for establishing credibility while maintaining flexibility." },
+  { question: "Are the facilities suitable for corporate events?", answer: "Absolutely. Our event spaces are designed specifically for corporate gatherings, from board meetings to large conferences. We offer professional-grade AV equipment, high-speed internet, catering services, and dedicated support staff to ensure your event runs smoothly." },
+  { question: "What makes Visionary House different from other business centers?", answer: "We focus on providing a premium, professional-grade experience with attention to every detail. Our prime location, modern facilities, transparent pricing, flexible booking options, and dedicated concierge support set us apart. We understand that your business environment reflects your professional standards." },
+  { question: "Can I schedule a tour before booking?", answer: "Yes, we encourage prospective clients to schedule a tour of our facilities. Contact us through the website or call our concierge team to arrange a convenient time. We'll walk you through our spaces and discuss how we can meet your specific business needs." },
 ];
 
 export default function Home() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [swiperInstance, setSwiperInstance] = useState<SwiperType | null>(null);
 
+  const { data: homepageData, isLoading: homepageLoading, isError: homepageError } = useQuery({
+    queryKey: ["strapi", "homepage"],
+    queryFn: fetchHomepage,
+    enabled: isStrapiConfigured(),
+    staleTime: 60_000,
+  });
+  const { data: servicesData } = useQuery({
+    queryKey: ["strapi", "services"],
+    queryFn: fetchServices,
+    enabled: isStrapiConfigured(),
+    staleTime: 60_000,
+  });
+  const { data: testimonialsData } = useQuery({
+    queryKey: ["strapi", "testimonials"],
+    queryFn: fetchTestimonials,
+    enabled: isStrapiConfigured(),
+    staleTime: 60_000,
+  });
+  const { data: faqsData, isLoading: faqsLoading } = useQuery({
+    queryKey: ["strapi", "faqs"],
+    queryFn: fetchFaqs,
+    enabled: isStrapiConfigured(),
+    staleTime: 60_000,
+  });
+
+  const homepage = homepageData ?? null;
+  const heroSlides = mapHomepageHeroSlides(homepage) ?? fallbackHeroSlides;
+  const servicesFromHome = mapHomepageServicesPreview(homepage);
+  const servicesFromApi = mapServicesPreview(servicesData ?? null);
+  const servicesPreview = servicesFromHome ?? servicesFromApi ?? fallbackServices;
+  const differentiators = mapDifferentiators(homepage) ?? fallbackDifferentiators;
+  const testimonials = mapTestimonials(testimonialsData ?? null) ?? fallbackTestimonials;
+  const faqs = mapFaqs(faqsData ?? null) ?? fallbackFaqs;
+  const whyChooseUsImageUrl = getWhyChooseUsImageUrl(homepage);
+
+  const services = servicesPreview.map((s) => ({
+    ...s,
+    icon: iconMap[s.icon as keyof typeof iconMap] ?? Building2,
+  }));
+
+  const servicesEyebrow = homepage?.servicesEyebrow ?? "Our Services";
+  const servicesTitle = homepage?.servicesTitle ?? "A Complete Business Ecosystem";
+  const servicesDescription = homepage?.servicesDescription ?? "From prestigious event spaces to professional virtual offices, we provide everything your business needs to project confidence and success.";
+  const whyEyebrow = homepage?.whyChooseUsEyebrow ?? "Why Choose Us";
+  const whyTitle = homepage?.whyChooseUsTitle ?? "Trusted by Industry Leaders";
+  const whyBody = homepage?.whyChooseUsBody ?? "We understand that your business environment reflects your professional standards. Visionary House provides the premium experience your reputation demands.";
+  const testimonialsEyebrow = homepage?.testimonialsEyebrow ?? "Testimonials";
+  const testimonialsTitle = homepage?.testimonialsTitle ?? "What Our Clients Say";
+  const faqEyebrow = homepage?.faqEyebrow ?? "FAQ";
+  const faqTitle = homepage?.faqTitle ?? "Frequently Asked Questions";
+  const faqDescription = homepage?.faqDescription ?? "Find answers to common questions about our services and facilities.";
+  const ctaTitle = homepage?.ctaTitle ?? "Ready to Elevate Your Business?";
+  const ctaDescription = homepage?.ctaDescription ?? "Experience the premium environment your business deserves. Schedule a visit or book your space today.";
+  const ctaPrimaryLabel = homepage?.ctaPrimaryLabel ?? "Book Now";
+  const ctaPrimaryHref = homepage?.ctaPrimaryHref ?? "/book";
+  const ctaSecondaryLabel = homepage?.ctaSecondaryLabel ?? "Schedule a Visit";
+  const ctaSecondaryHref = homepage?.ctaSecondaryHref ?? "/contact";
+  const serviceCtaLabel = homepage?.serviceCta ?? "View All Services";
+  const serviceCtaHref = homepage?.serviceCtaHref ?? "/services";
+  const whyStatNumber = homepage?.whyChooseUsStatNumber ?? "500+";
+  const whyStatLabel = homepage?.whyChooseUsStatLabel ?? "Visionary clients trust us";
+
+  const isLoading = isStrapiConfigured() && homepageLoading;
+  const isError = isStrapiConfigured() && homepageError;
+
   return (
     <Layout>
+      {isLoading && (
+        <div className="fixed top-0 left-0 right-0 z-50 h-1 bg-muted overflow-hidden">
+          <motion.div
+            className="h-full bg-accent"
+            initial={{ width: "0%" }}
+            animate={{ width: "70%" }}
+            transition={{ duration: 0.8, repeat: Infinity, repeatDelay: 0.2 }}
+            style={{ originX: 0 }}
+          />
+        </div>
+      )}
+      {isError && (
+        <div className="bg-amber-50 border-b border-amber-200 text-amber-900 text-center py-2 px-4 text-sm">
+          Unable to load latest content. Showing default content.
+        </div>
+      )}
       {/* Hero Carousel Section */}
       <section className="relative md:h-[calc(100vh-80px)] h-[calc(100vh-64px)] flex items-center justify-center overflow-hidden bg-charcoal">
         {/* Permanent Dark Background Layer */}
@@ -215,7 +240,7 @@ export default function Home() {
                         }}
                         style={{ willChange: 'transform, opacity' }}
                       >
-                        Welcome to Visionary House
+                        {slide.heading ?? "Welcome to Visionary House"}
                       </motion.p>
 
                       {/* Main Heading with Smooth Entrance */}
@@ -334,9 +359,9 @@ export default function Home() {
       <section className="section-padding bg-background">
         <div className="container-premium">
           <SectionHeader
-            eyebrow="Our Services"
-            title="A Complete Business Ecosystem"
-            description="From prestigious event spaces to professional virtual offices, we provide everything your business needs to project confidence and success."
+            eyebrow={servicesEyebrow}
+            title={servicesTitle}
+            description={servicesDescription}
           />
 
           <motion.div 
@@ -391,9 +416,9 @@ export default function Home() {
             viewport={{ once: false, amount: 0.3 }}
             transition={{ delay: 0.4, duration: 0.6 }}
           >
-            <Link href="/services">
+            <Link href={serviceCtaHref}>
               <Button variant="premium-outline" size="lg">
-                View All Services
+                {serviceCtaLabel}
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </Link>
@@ -412,14 +437,13 @@ export default function Home() {
               transition={{ duration: 0.6 }}
             >
               <p className="text-accent font-medium tracking-widest uppercase text-sm mb-4">
-                Why Choose Us
+                {whyEyebrow}
               </p>
               <h2 className="heading-section text-foreground mb-6">
-                Trusted by Industry Leaders
+                {whyTitle}
               </h2>
             <p className="text-body mb-8">
-              We understand that your business environment reflects your professional 
-              standards. Visionary House provides the premium experience your reputation demands.
+              {whyBody}
             </p>
               <motion.div 
                 className="grid sm:grid-cols-2 gap-4"
@@ -451,7 +475,7 @@ export default function Home() {
             >
               <div className="aspect-square rounded-lg overflow-hidden shadow-elevated relative">
                 <Image
-                  src="/assets/q2.jpg"
+                  src={whyChooseUsImageUrl}
                   alt="Premium professional lounge"
                   fill
                   sizes="(max-width: 1024px) 100vw, 50vw"
@@ -465,8 +489,8 @@ export default function Home() {
                 viewport={{ once: false, amount: 0.5 }}
                 transition={{ delay: 0.3, duration: 0.5 }}
               >
-                <p className="font-heading text-4xl md:text-5xl font-bold text-accent mb-1">500+</p>
-                <p className="text-sm text-primary-foreground/70">Visionary clients trust us</p>
+                <p className="font-heading text-4xl md:text-5xl font-bold text-accent mb-1">{whyStatNumber}</p>
+                <p className="text-sm text-primary-foreground/70">{whyStatLabel}</p>
               </motion.div>
             </motion.div>
           </div>
@@ -477,8 +501,8 @@ export default function Home() {
       <section className="section-padding bg-background">
         <div className="container-premium">
           <SectionHeader
-            eyebrow="Testimonials"
-            title="What Our Clients Say"
+            eyebrow={testimonialsEyebrow}
+            title={testimonialsTitle}
             titleClassName="text-foreground"
           />
 
@@ -515,13 +539,13 @@ export default function Home() {
         </div>
       </section>
 
-      {/* FAQ Section */}
+      {/* FAQ Section – data from Strapi FAQs API (GET /api/faqs) when Strapi is configured */}
       <section className="section-padding bg-secondary">
         <div className="container-premium">
           <SectionHeader
-            eyebrow="FAQ"
-            title="Frequently Asked Questions"
-            description="Find answers to common questions about our services and facilities."
+            eyebrow={faqEyebrow}
+            title={faqTitle}
+            description={faqDescription}
           />
 
           <motion.div 
@@ -531,35 +555,43 @@ export default function Home() {
             viewport={{ once: false, amount: 0.3 }}
             transition={{ delay: 0.2, duration: 0.6 }}
           >
-            <Accordion type="single" collapsible className="w-full">
-              {faqs.map((faq, index) => (
-                <AccordionItem key={index} value={`item-${index}`} className="border-border">
-                  <AccordionTrigger className="font-sans text-left hover:text-accent text-foreground font-medium">
-                    {faq.question}
-                  </AccordionTrigger>
-                  <AccordionContent className="text-body">
-                    {faq.answer}
-                  </AccordionContent>
-                </AccordionItem>
-              ))}
-            </Accordion>
+            {faqsLoading && isStrapiConfigured() ? (
+              <div className="space-y-3">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="h-14 rounded-lg bg-muted animate-pulse" />
+                ))}
+              </div>
+            ) : (
+              <Accordion type="single" collapsible className="w-full">
+                {faqs.map((faq, index) => (
+                  <AccordionItem key={faq.question ?? index} value={`item-${index}`} className="border-border">
+                    <AccordionTrigger className="font-sans text-left hover:text-accent text-foreground font-medium">
+                      {faq.question}
+                    </AccordionTrigger>
+                    <AccordionContent className="text-body">
+                      {faq.answer}
+                    </AccordionContent>
+                  </AccordionItem>
+                ))}
+              </Accordion>
+            )}
           </motion.div>
         </div>
       </section>
 
       <CtaSection
-        title="Ready to Elevate Your Business?"
-        description="Experience the premium environment your business deserves. Schedule a visit or book your space today."
+        title={ctaTitle}
+        description={ctaDescription}
         sectionClassName="py-24"
       >
-        <Link href="/book">
+        <Link href={ctaPrimaryHref}>
           <Button variant="gold" size="xl" className="bg-[#B08D39] text-[#FFF]">
-            Book Now
+            {ctaPrimaryLabel}
           </Button>
         </Link>
-        <Link href="/contact">
+        <Link href={ctaSecondaryHref}>
           <Button variant="premium-outline" size="xl">
-            Schedule a Visit
+            {ctaSecondaryLabel}
           </Button>
         </Link>
       </CtaSection>

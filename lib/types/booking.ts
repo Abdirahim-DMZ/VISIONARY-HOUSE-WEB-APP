@@ -65,13 +65,15 @@ export interface BookingFormData {
   phone: string;
   company?: string;
   eventType?: string; // id from eventTypes (drives serviceType + isMultiDay)
+  guestType?: string; // Government | NGO | Corporate (UI-only)
   serviceType: string;
   date: string;
   endDate?: string; // for multi-day events; same as date when single-day
   startTime: string;
   endTime: string;
   attendees?: string;
-  layoutId?: string;
+  roomSpace?: string; // small-meeting-room | lounge | main-hall | combined-hall (UI-only)
+  layoutId?: string; // hall layout when room is hall (UI-only)
   addOns: string[];
   message?: string;
 }

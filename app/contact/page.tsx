@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Mail, Phone, MapPin, Clock, MessageCircle, ArrowRight } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,33 +13,65 @@ import { PageHero, CtaSection } from "@/components/sections";
 import { toast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
 import { fadeInUp, staggerContainer } from "@/lib/constants/animations";
+import { fetchContactPage, isStrapiConfigured } from "@/lib/strapi";
+import { getContactPageHeroImageUrl } from "@/lib/strapi/mappers";
 
-const contactInfo = [
-  {
-    icon: MapPin,
-    title: "Address",
-    content: "123 Executive Boulevard,\nBusiness District, City 10001",
-  },
-  {
-    icon: Phone,
-    title: "Phone",
-    content: "+1 (234) 567-890",
-    href: "tel:+1234567890",
-  },
-  {
-    icon: Mail,
-    title: "Email",
-    content: "info@executivehub.com",
-    href: "mailto:info@executivehub.com",
-  },
-  {
-    icon: Clock,
-    title: "Business Hours",
-    content: "Monday – Friday: 8:00 AM – 8:00 PM\nSaturday: 9:00 AM – 5:00 PM",
-  },
+const defaultContactInfo = [
+  { icon: MapPin, title: "Address", content: "123 Executive Boulevard,\nBusiness District, City 10001", href: undefined as string | undefined },
+  { icon: Phone, title: "Phone", content: "+1 (234) 567-890", href: "tel:+1234567890" },
+  { icon: Mail, title: "Email", content: "info@executivehub.com", href: "mailto:info@executivehub.com" },
+  { icon: Clock, title: "Business Hours", content: "Monday – Friday: 8:00 AM – 8:00 PM\nSaturday: 9:00 AM – 5:00 PM", href: undefined as string | undefined },
 ];
 
+function whatsappHref(phone: string | null | undefined): string {
+  if (!phone?.trim()) return "https://wa.me/";
+  const digits = phone.replace(/\D/g, "");
+  return digits ? `https://wa.me/${digits}` : "https://wa.me/";
+}
+
 export default function Contact() {
+  const { data: contactPageData, isLoading: contactPageLoading, isError: contactPageError } = useQuery({
+    queryKey: ["strapi", "contact-page"],
+    queryFn: fetchContactPage,
+    enabled: isStrapiConfigured(),
+    staleTime: 60_000,
+  });
+
+  const heroEyebrow = contactPageData?.heroEyebrow ?? "Contact Us";
+  const heroTitle = contactPageData?.heroTitle ?? "Get in Touch";
+  const heroDescription = contactPageData?.heroDescription ?? "Have questions or need assistance? Our team is here to help. Reach out through any of the channels below.";
+  const heroImageSrc = getContactPageHeroImageUrl(contactPageData ?? null);
+
+  const contactInfo = useMemo(() => {
+    if (!contactPageData) return defaultContactInfo;
+    const addr = contactPageData.address?.trim();
+    const phone = contactPageData.contactPhoneNo?.trim();
+    const email = contactPageData.contactEmail?.trim();
+    const hours = contactPageData.bussinessHours?.trim();
+    if (!addr && !phone && !email && !hours) return defaultContactInfo;
+    return [
+      { icon: MapPin, title: "Address", content: addr || defaultContactInfo[0].content, href: undefined as string | undefined },
+      { icon: Phone, title: "Phone", content: phone || defaultContactInfo[1].content, href: phone ? `tel:${phone.replace(/\s/g, "")}` : defaultContactInfo[1].href },
+      { icon: Mail, title: "Email", content: email || defaultContactInfo[2].content, href: email ? `mailto:${email}` : defaultContactInfo[2].href },
+      { icon: Clock, title: "Business Hours", content: hours || defaultContactInfo[3].content, href: undefined as string | undefined },
+    ];
+  }, [contactPageData]);
+
+  const whatsappTitle = contactPageData?.whatsappTitle ?? "Quick Response";
+  const whatsappDescription = contactPageData?.whatsappDescription ?? "For immediate assistance, reach us directly via WhatsApp.";
+  const whatsappCtaLabel = contactPageData?.whatsappCtaLabel ?? "Chat on WhatsApp";
+  const whatsappLink = useMemo(() => whatsappHref(contactPageData?.whatsappNumber), [contactPageData?.whatsappNumber]);
+  const showWhatsApp = !!(contactPageData?.whatsappNumber?.trim() || contactPageData?.whatsappTitle || contactPageData?.whatsappDescription);
+
+  const mapEmbedUrl = contactPageData?.mapEmbedUrl?.trim() || "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3022.9663095343008!2d-74.00425878428698!3d40.74076794379132!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x89c259bf5c1654f3%3A0xc80f9cfce5383d5d!2sGoogle!5e0!3m2!1sen!2sus!4v1635959847927!5m2!1sen!2sus";
+  const ctaTitle = contactPageData?.ctaTitle ?? "Ready to Book Your Space?";
+  const ctaDescription = contactPageData?.ctaDescription ?? "Skip the inquiry and book your space directly through our reservation system.";
+  const ctaButtonLabel = contactPageData?.ctaButtonLabel ?? "Book Now";
+  const ctaButtonHref = contactPageData?.ctaButtonHref?.trim() || "/book";
+
+  const isLoading = isStrapiConfigured() && contactPageLoading;
+  const isError = isStrapiConfigured() && contactPageError;
+
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -68,11 +101,28 @@ export default function Contact() {
 
   return (
     <Layout>
+      {isLoading && (
+        <div className="fixed top-0 left-0 right-0 z-50 h-1 bg-muted overflow-hidden">
+          <motion.div
+            className="h-full bg-accent"
+            initial={{ width: "0%" }}
+            animate={{ width: "70%" }}
+            transition={{ duration: 0.8, repeat: Infinity, repeatDelay: 0.2 }}
+            style={{ originX: 0 }}
+          />
+        </div>
+      )}
+      {isError && (
+        <div className="bg-amber-50 border-b border-amber-200 text-amber-900 text-center py-2 px-4 text-sm">
+          Unable to load latest content. Showing default content.
+        </div>
+      )}
       <PageHero
-        eyebrow="Contact Us"
-        title="Get in Touch"
-        description="Have questions or need assistance? Our team is here to help. Reach out through any of the channels below."
-        backgroundImage="/assets/5.jpg"
+        eyebrow={heroEyebrow}
+        title={heroTitle}
+        description={heroDescription}
+        imageSrc={heroImageSrc}
+        imageAlt=""
         titleClassName="text-[#B7974B]"
         sectionClassName="py-32 md:py-40 overflow-hidden"
       />
@@ -126,30 +176,32 @@ export default function Contact() {
               </motion.div>
 
               {/* WhatsApp CTA */}
-              <motion.div 
-                className="mt-10 p-6 bg-secondary rounded-lg"
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: false, amount: 0.3 }}
-                transition={{ delay: 0.4, duration: 0.6 }}
-              >
-                <div className="flex items-center gap-3 mb-4">
-                  <MessageCircle className="h-6 w-6 text-accent" />
-                  <h3 className="font-medium text-foreground">Quick Response</h3>
-                </div>
-                <p className="text-sm text-muted-foreground mb-4">
-                  For immediate assistance, reach us directly via WhatsApp.
-                </p>
-                <a
-                  href="https://wa.me/1234567890"
-                  target="_blank"
-                  rel="noopener noreferrer"
+              {(showWhatsApp || !contactPageData) && (
+                <motion.div 
+                  className="mt-10 p-6 bg-secondary rounded-lg"
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: false, amount: 0.3 }}
+                  transition={{ delay: 0.4, duration: 0.6 }}
                 >
-                  <Button variant="gold" className="w-full">
-                    Chat on WhatsApp
-                  </Button>
-                </a>
-              </motion.div>
+                  <div className="flex items-center gap-3 mb-4">
+                    <MessageCircle className="h-6 w-6 text-accent" />
+                    <h3 className="font-medium text-foreground">{whatsappTitle}</h3>
+                  </div>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    {whatsappDescription}
+                  </p>
+                  <a
+                    href={whatsappLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <Button variant="gold" className="w-full">
+                      {whatsappCtaLabel}
+                    </Button>
+                  </a>
+                </motion.div>
+              )}
             </motion.div>
 
             {/* Contact Form */}
@@ -246,7 +298,7 @@ export default function Contact() {
             transition={{ duration: 0.6 }}
           >
             <iframe
-              src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3022.9663095343008!2d-74.00425878428698!3d40.74076794379132!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x89c259bf5c1654f3%3A0xc80f9cfce5383d5d!2sGoogle!5e0!3m2!1sen!2sus!4v1635959847927!5m2!1sen!2sus"
+              src={mapEmbedUrl}
               width="100%"
               height="100%"
               style={{ border: 0 }}
@@ -260,13 +312,13 @@ export default function Contact() {
       </section>
 
       <CtaSection
-        title="Ready to Book Your Space?"
-        description="Skip the inquiry and book your space directly through our reservation system."
+        title={ctaTitle}
+        description={ctaDescription}
         sectionClassName="section-padding bg-background"
       >
-        <Link href="/book">
+        <Link href={ctaButtonHref}>
           <Button variant="gold" size="xl">
-            Book Now
+            {ctaButtonLabel}
             <ArrowRight className="ml-2 h-5 w-5" />
           </Button>
         </Link>

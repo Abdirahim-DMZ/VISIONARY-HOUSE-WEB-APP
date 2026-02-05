@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,12 +18,43 @@ import { PageHero } from "@/components/sections";
 import { useToast } from "@/hooks/use-toast";
 import { Search, Calendar, Clock, MapPin, Mail, Phone } from "lucide-react";
 import { motion } from "framer-motion";
+import { fetchBookingSettings, isStrapiConfigured } from "@/lib/strapi";
+import { getBookingSettingsHeroImageUrl } from "@/lib/strapi/mappers";
 
 export default function Bookings() {
   const { toast } = useToast();
   const [referenceNumber, setReferenceNumber] = useState("");
   const [email, setEmail] = useState("");
   const [booking, setBooking] = useState<any>(null);
+
+  const { data: bookingSettingsData, isLoading: bookingSettingsLoading, isError: bookingSettingsError } = useQuery({
+    queryKey: ["strapi", "booking-settings"],
+    queryFn: fetchBookingSettings,
+    enabled: isStrapiConfigured(),
+    staleTime: 60_000,
+  });
+
+  const heroEyebrow = bookingSettingsData?.heroEyebrow ?? "My Bookings";
+  const heroTitle = bookingSettingsData?.heroTitle ?? "Manage Your Booking";
+  const heroDescription = bookingSettingsData?.heroDescription ?? "View, modify, or cancel your booking. Enter your reference number and email address below.";
+  const heroImageSrc = getBookingSettingsHeroImageUrl(bookingSettingsData ?? null);
+
+  const findSectionTitle = bookingSettingsData?.findBookingSectionTitle ?? "Find Your Booking";
+  const findSectionDescription = bookingSettingsData?.findBookingSectionDescription ?? "Enter your booking reference number and email address to view your booking details.";
+  const bookingRefLabel = bookingSettingsData?.bookingRefLabel ?? "Booking Reference Number *";
+  const bookingRefPlaceholder = bookingSettingsData?.bookingRefPlaceholder ?? "e.g., VH-2024-001234";
+  const emailLabel = bookingSettingsData?.emailLabel ?? "Email Address *";
+  const emailPlaceholder = bookingSettingsData?.emailPlaceholder ?? "your@email.com";
+
+  const ctaTitle = bookingSettingsData?.ctaTitle ?? "Need Help?";
+  const ctaDescription = bookingSettingsData?.ctaDescription ?? "Can't find your booking or need assistance? Our team is here to help.";
+  const ctaPrimaryLabel = bookingSettingsData?.ctaPrimaryLabel ?? "Contact Support";
+  const ctaPrimaryHref = bookingSettingsData?.ctaPrimaryHref?.trim() || "/contact";
+  const ctaSecondaryLabel = bookingSettingsData?.ctaSecondaryLabel ?? "Make a New Booking";
+  const ctaSecondaryHref = bookingSettingsData?.ctaSecondaryHref?.trim() || "/book";
+
+  const isLoading = isStrapiConfigured() && bookingSettingsLoading;
+  const isError = isStrapiConfigured() && bookingSettingsError;
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,11 +79,28 @@ export default function Bookings() {
   return (
     <Layout>
     <main className="min-h-screen">
+      {isLoading && (
+        <div className="fixed top-0 left-0 right-0 z-50 h-1 bg-muted overflow-hidden">
+          <motion.div
+            className="h-full bg-accent"
+            initial={{ width: "0%" }}
+            animate={{ width: "70%" }}
+            transition={{ duration: 0.8, repeat: Infinity, repeatDelay: 0.2 }}
+            style={{ originX: 0 }}
+          />
+        </div>
+      )}
+      {isError && (
+        <div className="bg-amber-50 border-b border-amber-200 text-amber-900 text-center py-2 px-4 text-sm">
+          Unable to load latest content. Showing default content.
+        </div>
+      )}
       <PageHero
-        eyebrow="My Bookings"
-        title="Manage Your Booking"
-        description="View, modify, or cancel your booking. Enter your reference number and email address below."
-        backgroundImage="/assets/3.jpg"
+        eyebrow={heroEyebrow}
+        title={heroTitle}
+        description={heroDescription}
+        imageSrc={heroImageSrc}
+        imageAlt=""
         sectionClassName="py-32 md:py-40 overflow-hidden"
         titleClassName="text-[#B7974B]"
       />
@@ -68,32 +117,31 @@ export default function Bookings() {
             >
               <Card>
                 <CardHeader>
-                  <CardTitle className="heading-card">Find Your Booking</CardTitle>
+                  <CardTitle className="heading-card">{findSectionTitle}</CardTitle>
                   <CardDescription className="text-body">
-                    Enter your booking reference number and email address to view
-                    your booking details.
+                    {findSectionDescription}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <form onSubmit={handleSearch} className="space-y-6">
                     <div className="space-y-2">
-                      <Label htmlFor="reference">Booking Reference Number *</Label>
+                      <Label htmlFor="reference">{bookingRefLabel}</Label>
                       <Input
                         id="reference"
                         value={referenceNumber}
                         onChange={(e) => setReferenceNumber(e.target.value)}
-                        placeholder="e.g., VH-2024-001234"
+                        placeholder={bookingRefPlaceholder}
                         required
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="email">Email Address *</Label>
+                      <Label htmlFor="email">{emailLabel}</Label>
                       <Input
                         id="email"
                         type="email"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        placeholder="your@email.com"
+                        placeholder={emailPlaceholder}
                         required
                       />
                     </div>
@@ -196,7 +244,7 @@ export default function Bookings() {
               viewport={{ once: false, amount: 0.3 }}
               transition={{ delay: 0.2, duration: 0.6 }}
             >
-              Need Help?
+              {ctaTitle}
             </motion.h2>
             <motion.p 
               className="text-body mb-6"
@@ -205,7 +253,7 @@ export default function Bookings() {
               viewport={{ once: false, amount: 0.3 }}
               transition={{ delay: 0.3, duration: 0.6 }}
             >
-              Can&apos;t find your booking or need assistance? Our team is here to help.
+              {ctaDescription}
             </motion.p>
             <motion.div 
               className="flex flex-col sm:flex-row gap-4 justify-center"
@@ -215,10 +263,10 @@ export default function Bookings() {
               transition={{ delay: 0.4, duration: 0.6 }}
             >
               <Button variant="outline" asChild>
-                <a href="/contact">Contact Support</a>
+                <a href={ctaPrimaryHref}>{ctaPrimaryLabel}</a>
               </Button>
               <Button variant="gold" asChild>
-                <a href="/book">Make a New Booking</a>
+                <a href={ctaSecondaryHref}>{ctaSecondaryLabel}</a>
               </Button>
             </motion.div>
           </motion.div>
