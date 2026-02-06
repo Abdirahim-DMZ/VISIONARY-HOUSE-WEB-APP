@@ -35,6 +35,7 @@ import 'swiper/css/autoplay';
 
 const iconMap = { Building2, Users, Briefcase, Video } as const;
 
+
 // Fallback data when Strapi is not configured or fetch fails
 const fallbackHeroSlides: MappedHeroSlide[] = [
   { title: "Where Business", highlight: "Excellence", subtitle: "Meets Premium Experience", description: "A complete business ecosystem designed for visionary founders, leaders, and enterprises seeking an environment that reflects their standard of excellence.", heading: "Welcome to Visionary House", image: "/assets/1.jpg" },
