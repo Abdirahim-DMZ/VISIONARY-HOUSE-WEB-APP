@@ -2,11 +2,27 @@ import { NextRequest, NextResponse } from "next/server";
 import { strapiUrl, getStrapiHeaders } from "@/lib/strapi/client";
 import { generateBookingReference } from "@/lib/utils/booking-utils";
 
+export type BookingResponse = {
+  id: number;
+  documentId: string;
+  referenceNumber: string;
+  date: string;
+  endDate?: string;
+  startTime: string;
+  endTime: string;
+  roomSpace?: string;
+  status: string;
+  attendees?: number;
+  customerName?: string;
+};
+
 export type CreateBookingBody = {
   customerName: string;
   customerEmail: string;
   customerPhone: string;
   companyName?: string;
+  guestType?: string;
+  /** Event type name/label (text field, not a relation) */
   eventType: string;
   /** Strapi service documentId or id */
   serviceId?: number;
@@ -17,17 +33,21 @@ export type CreateBookingBody = {
   startTime: string;
   endTime: string;
   attendees?: number;
-  layoutId?: number;
+  roomSpace?: string;
+  /** Layout ID for relation connection */
+  layout?: string | number;
+  /** Add-on IDs for relation connection */
   addOnIds?: number[];
   message?: string;
   totalPrice: number;
   currency?: string;
+  status?: string;
 };
 
 /**
  * POST /api/booking
- * Creates a booking in Strapi with status pending_payment and returns reference + bookingId.
- * Call this before opening Razorpay checkout.
+ * Creates a booking in Strapi with the specified status (default: pending_payment) and returns reference + bookingId.
+ * Pass status: "confirmed" to skip payment and create booking directly.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -37,6 +57,7 @@ export async function POST(request: NextRequest) {
       customerEmail,
       customerPhone,
       companyName,
+      guestType,
       eventType,
       serviceId: bodyServiceId,
       serviceSlug,
@@ -45,11 +66,13 @@ export async function POST(request: NextRequest) {
       startTime,
       endTime,
       attendees,
-      layoutId,
+      roomSpace,
+      layout,
       addOnIds,
       message,
       totalPrice,
       currency = "INR",
+      status = "pending_payment",
     } = body;
 
     if (!customerName || !customerEmail || !customerPhone || !date || !startTime || !endTime || totalPrice == null) {
@@ -82,33 +105,45 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Strapi v4/v5 create: POST /api/bookings with { data: { ... } }
+    // Strapi v5 create: POST /api/bookings with { data: { ... } }
+    // For relations, use { connect: [id] } format
     const payload: Record<string, unknown> = {
       referenceNumber,
       customerName,
       customerEmail,
       customerPhone,
       companyName: companyName || null,
-      eventType: eventType || null,
+      guestType: guestType || null,
+      eventType: eventType || null, // eventType is a text field, not a relation
       date,
       endDate: endDate || null,
       startTime,
       endTime,
       attendees: attendees ?? null,
+      roomSpace: roomSpace || null,
       message: message || null,
-      status: "pending_payment",
+      status: status || "pending_payment",
       totalPrice: Number(totalPrice),
       currency,
     };
 
+    // Service relation (many-to-one)
     if (serviceId != null && serviceId !== undefined) {
-      payload.service = serviceId;
+      payload.service = { connect: [serviceId] };
     }
-    if (layoutId != null) {
-      payload.layout = layoutId;
+    
+    // Layout relation (many-to-one)
+    if (layout != null) {
+      // Ensure layout value is a number
+      const layoutNum = typeof layout === 'string' && !isNaN(parseInt(layout, 10))
+        ? parseInt(layout, 10)
+        : layout;
+      payload.layout = { connect: [layoutNum] };
     }
+    
+    // AddOns relation (many-to-many)
     if (addOnIds?.length) {
-      payload.addOns = addOnIds;
+      payload.addOns = { connect: addOnIds };
     }
 
     const res = await fetch(strapiUrl("/api/bookings"), {
@@ -135,6 +170,71 @@ export async function POST(request: NextRequest) {
     });
   } catch (e) {
     console.error("Booking create error:", e);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}
+
+/**
+ * GET /api/booking?date=YYYY-MM-DD
+ * Fetches bookings for a specific date for availability checking
+ */
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const date = searchParams.get("date");
+
+    if (!date) {
+      return NextResponse.json(
+        { error: "Missing required parameter: date" },
+        { status: 400 }
+      );
+    }
+
+    const strapiBase = process.env.NEXT_PUBLIC_STRAPI_URL;
+    const token = process.env.STRAPI_API_TOKEN;
+    if (!strapiBase || !token) {
+      return NextResponse.json(
+        { error: "Strapi not configured" },
+        { status: 503 }
+      );
+    }
+
+    // Fetch bookings for the specified date (only confirmed bookings)
+    const url = strapiUrl(
+      `/api/bookings?filters[date][$eq]=${encodeURIComponent(date)}&filters[status][$in][0]=confirmed&filters[status][$in][1]=pending_payment&fields[0]=referenceNumber&fields[1]=date&fields[2]=endDate&fields[3]=startTime&fields[4]=endTime&fields[5]=roomSpace&fields[6]=status&fields[7]=attendees`
+    );
+
+    const res = await fetch(url, {
+      headers: getStrapiHeaders(),
+      next: { revalidate: 0 }, // Don't cache - need real-time data
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      console.error("Strapi fetch bookings error:", res.status, text);
+      return NextResponse.json(
+        { error: "Failed to fetch bookings", details: text },
+        { status: 502 }
+      );
+    }
+
+    const data = await res.json();
+    const bookings = (data?.data || []).map((item: any) => ({
+      id: item.id,
+      documentId: item.documentId,
+      referenceNumber: item.referenceNumber,
+      date: item.date,
+      endDate: item.endDate,
+      startTime: item.startTime,
+      endTime: item.endTime,
+      roomSpace: item.roomSpace,
+      status: item.status,
+      attendees: item.attendees,
+    }));
+
+    return NextResponse.json({ bookings });
+  } catch (e) {
+    console.error("Booking fetch error:", e);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

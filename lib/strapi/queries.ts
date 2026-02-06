@@ -20,6 +20,7 @@ import type {
   StrapiGalleryCategory,
   StrapiGalleryItem,
   StrapiBooking,
+  StrapiGuestType,
   BookingSettingsAttr,
   ServicePageAttr,
   GalleryPageAttr,
@@ -183,6 +184,18 @@ export async function fetchEventTypes(): Promise<StrapiEventType[]> {
   try {
     const res = await strapiFetch<StrapiCollectionResponse<StrapiEventType>>(
       `/api/event-types?${POPULATE_DEEP}&sort=sortOrder:asc`
+    );
+    return res?.data ?? [];
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchGuestTypes(): Promise<StrapiGuestType[]> {
+  if (!isStrapiConfigured()) return [];
+  try {
+    const res = await strapiFetch<StrapiCollectionResponse<StrapiGuestType>>(
+      `/api/guest-types?${POPULATE_DEEP}&sort=guestType:asc`
     );
     return res?.data ?? [];
   } catch {

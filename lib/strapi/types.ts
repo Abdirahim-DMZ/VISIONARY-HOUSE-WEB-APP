@@ -181,8 +181,9 @@ export interface ServiceLayoutAttr {
   name?: string | null;
   capacity?: number | null;
   description?: string | null;
-  image?: { data: StrapiMedia | null };
+  image?: StrapiMedia | { data: StrapiMedia | null } | null;
   sortOrder?: number | null;
+  serviceLayout?: string | null;
   service?: { data: StrapiService | null };
 }
 
@@ -199,7 +200,8 @@ export interface AddOnAttr {
   price?: number | null;
   category?: string | null;
   subcategory?: string | null;
-  image?: { data: StrapiMedia | null };
+  image?: StrapiMedia | { data: StrapiMedia | null } | null;
+  mainCategory?: string | null;
   sortOrder?: number | null;
 }
 
@@ -221,6 +223,17 @@ export interface StrapiEventType {
   id: number;
   documentId: string;
   attributes: EventTypeAttr & { createdAt?: string; updatedAt?: string; publishedAt?: string | null };
+}
+
+// ---- Guest Type (collection) ----
+export interface GuestTypeAttr {
+  guestType?: string | null;
+}
+
+export interface StrapiGuestType {
+  id: number;
+  documentId: string;
+  attributes: GuestTypeAttr & { createdAt?: string; updatedAt?: string; publishedAt?: string | null };
 }
 
 // ---- Testimonial (collection) ----

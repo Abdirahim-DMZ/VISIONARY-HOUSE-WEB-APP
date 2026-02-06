@@ -35,11 +35,11 @@ import {
 import { Layout } from "@/components/layout/layout";
 import { PageHero } from "@/components/sections";
 import { useToast } from "@/hooks/use-toast";
-import { 
-  ArrowRight, 
-  Calendar as CalendarIcon, 
-  Clock, 
-  Users, 
+import {
+  ArrowRight,
+  Calendar as CalendarIcon,
+  Clock,
+  Users,
   DollarSign,
   CheckCircle2,
   Info,
@@ -48,12 +48,12 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-import { 
-  serviceTypeNames, 
-  bookingAddOns, 
+import {
+  serviceTypeNames,
+  bookingAddOns,
   serviceLayouts,
   bookingConfig,
-  eventTypes 
+  eventTypes
 } from "@/lib/data/booking-config";
 import {
   calculateBookingPrice,
@@ -62,13 +62,13 @@ import {
   generateBookingReference,
   getTotalDurationMinutes
 } from "@/lib/utils/booking-utils";
-import type { BookingFormData, BookingAddOn } from "@/lib/types/booking";
-import { fetchBookPage, isStrapiConfigured } from "@/lib/strapi";
-import { getBookPageHeroImageUrl, mapBookPageFeatures } from "@/lib/strapi/mappers";
+import type { BookingFormData, BookingAddOn, ServiceLayout } from "@/lib/types/booking";
+import { fetchBookPage, fetchAddOns, fetchEventTypes, fetchServiceLayouts, fetchGuestTypes, isStrapiConfigured } from "@/lib/strapi";
+import { getBookPageHeroImageUrl, mapBookPageFeatures, mapStrapiAddOns, mapStrapiEventTypes, mapStrapiServiceLayouts, mapStrapiGuestTypes } from "@/lib/strapi/mappers";
 import coffee from '../../public/assets/coffee.jpg'
 
-// Visionary House room matching (UI-only)
-const GUEST_TYPES = ["Government", "NGO", "Corporate"] as const;
+// Visionary House room matching (UI-only) — fallback when APIs not used
+const GUEST_TYPES_FALLBACK = ["Government", "NGO", "Corporate"] as const;
 
 const ROOM_SPACE_OPTIONS: { id: string; name: string }[] = [
   { id: "small-meeting-room", name: "Small Meeting Room" },
@@ -241,6 +241,48 @@ export default function Book() {
     staleTime: 60_000,
   });
 
+  const { data: apiAddOns = [] } = useQuery({
+    queryKey: ["strapi", "add-ons"],
+    queryFn: fetchAddOns,
+    enabled: isStrapiConfigured(),
+    staleTime: 60_000,
+  });
+  const { data: apiEventTypes = [] } = useQuery({
+    queryKey: ["strapi", "event-types"],
+    queryFn: fetchEventTypes,
+    enabled: isStrapiConfigured(),
+    staleTime: 60_000,
+  });
+  const { data: apiServiceLayouts = [] } = useQuery({
+    queryKey: ["strapi", "service-layouts"],
+    queryFn: () => fetchServiceLayouts(),
+    enabled: isStrapiConfigured(),
+    staleTime: 60_000,
+  });
+  const { data: apiGuestTypes = [] } = useQuery({
+    queryKey: ["strapi", "guest-types"],
+    queryFn: fetchGuestTypes,
+    enabled: isStrapiConfigured(),
+    staleTime: 60_000,
+  });
+
+  const addOnsList = useMemo(() => {
+    const mapped = mapStrapiAddOns(apiAddOns);
+    return mapped.length > 0 ? mapped : bookingAddOns;
+  }, [apiAddOns]);
+  const eventTypesList = useMemo(() => {
+    const mapped = mapStrapiEventTypes(apiEventTypes);
+    return mapped.length > 0 ? mapped : eventTypes;
+  }, [apiEventTypes]);
+  const serviceLayoutsMap = useMemo(() => {
+    const mapped = mapStrapiServiceLayouts(apiServiceLayouts);
+    return Object.keys(mapped).length > 0 ? mapped : serviceLayouts;
+  }, [apiServiceLayouts]);
+  const guestTypesList = useMemo(() => {
+    const mapped = mapStrapiGuestTypes(apiGuestTypes);
+    return mapped.length > 0 ? mapped : [...GUEST_TYPES_FALLBACK];
+  }, [apiGuestTypes]);
+
   const heroEyebrow = bookPageData?.heroEyebrow ?? "Reserve Your Space";
   const heroTitle = bookPageData?.heroTitle ?? "Book Your Premium Environment";
   const heroDescription = bookPageData?.heroDescription ?? "Reserve your ideal business environment in just a few steps. Professional spaces designed for visionary minds.";
@@ -271,7 +313,7 @@ export default function Book() {
   const emailRef = useRef<HTMLInputElement>(null);
   const phoneRef = useRef<HTMLInputElement>(null);
   const attendeesRef = useRef<HTMLInputElement>(null);
-  
+
   const [formData, setFormData] = useState<BookingFormData>({
     name: "",
     email: "",
@@ -291,7 +333,61 @@ export default function Book() {
     message: "",
   });
 
-  const selectedEventType = eventTypes.find((e) => e.id === formData.eventType);
+  // Fetch existing bookings for selected date to check availability
+  const { data: dateBookingsData } = useQuery({
+    queryKey: ["bookings", formData.date],
+    queryFn: async () => {
+      if (!formData.date) return { bookings: [] };
+      const res = await fetch(`/api/booking?date=${encodeURIComponent(formData.date)}`);
+      if (!res.ok) return { bookings: [] };
+      return await res.json();
+    },
+    enabled: Boolean(formData.date && isStrapiConfigured()),
+    staleTime: 0, // Always fetch fresh data for availability
+    refetchOnMount: true,
+    refetchOnWindowFocus: true,
+  });
+
+  const existingBookings = useMemo(() => dateBookingsData?.bookings || [], [dateBookingsData]);
+
+  // Check for time slot conflicts with existing bookings
+  const availabilityStatus = useMemo(() => {
+    if (!formData.date || !formData.startTime || !formData.endTime || existingBookings.length === 0) {
+      return { available: true, conflicts: [], message: null };
+    }
+
+    const startMinutes = timeToMinutes(formData.startTime);
+    const endMinutes = timeToMinutes(formData.endTime);
+
+    // Filter conflicts by room if room is selected
+    const relevantBookings = formData.roomSpace
+      ? existingBookings.filter((b: any) => b.roomSpace === formData.roomSpace)
+      : existingBookings;
+
+    const conflicts = relevantBookings.filter((booking: any) => {
+      const bookingStart = timeToMinutes(booking.startTime);
+      const bookingEnd = timeToMinutes(booking.endTime);
+      
+      // Check if times overlap
+      return (startMinutes < bookingEnd && endMinutes > bookingStart);
+    });
+
+    if (conflicts.length === 0) {
+      return { available: true, conflicts: [], message: null };
+    }
+
+    // Generate detailed conflict message
+    const roomName = formData.roomSpace ? ROOM_SPACE_LABELS[formData.roomSpace] || formData.roomSpace : "this space";
+    const conflictTimes = conflicts.map((c: any) => `${c.startTime} - ${c.endTime}`).join(", ");
+    
+    const message = formData.roomSpace
+      ? `${roomName} is already booked for ${conflictTimes} on this date. Please select a different time slot or room.`
+      : `Time slots ${conflictTimes} are already booked on this date. Please select a different time.`;
+
+    return { available: false, conflicts, message };
+  }, [formData.date, formData.startTime, formData.endTime, formData.roomSpace, existingBookings]);
+
+  const selectedEventType = eventTypesList.find((e) => e.id === formData.eventType);
   const isMultiDay = selectedEventType?.isMultiDay ?? false;
 
   // Sync endDate (Date) from formData.endDate for calendar display
@@ -315,12 +411,12 @@ export default function Book() {
           formData.serviceType,
           totalMinutes,
           formData.addOns,
-          bookingAddOns
+          addOnsList
         );
         setTotalPrice(price);
       }
     }
-  }, [formData.serviceType, formData.date, formData.endDate, formData.startTime, formData.endTime, formData.addOns, isMultiDay]);
+  }, [formData.serviceType, formData.date, formData.endDate, formData.startTime, formData.endTime, formData.addOns, isMultiDay, addOnsList]);
 
   // Validate time slot: only require end after start (no min/max duration restriction)
   useEffect(() => {
@@ -364,14 +460,15 @@ export default function Book() {
       setFormData((prev) => ({ ...prev, roomSpace: "", layoutId: "" }));
       return;
     }
-    if (formData.roomSpace === "main-hall" || formData.roomSpace === "combined-hall") {
-      const layoutOpts = getAvailableLayoutsForHall(formData.roomSpace, count);
-      const layoutStillValid = formData.layoutId && layoutOpts.some((l) => l.id === formData.layoutId);
-      if (!layoutStillValid) {
-        setFormData((prev) => ({ ...prev, layoutId: "" }));
-      }
+    // Clear layoutId if the currently selected layout is no longer valid for the selected room/capacity
+    // This check works for ALL rooms (main-hall, lounge, small-meeting-room, etc.)
+    if (formData.layoutId) {
+      // The availableLayouts will be computed based on roomSpace and attendees
+      // We need to check if the current layoutId is still valid
+      // Note: We can't use the availableLayouts useMemo here directly as it would create a circular dependency
+      // So we'll defer this check to a separate useEffect that runs after availableLayouts is computed
     }
-  }, [formData.attendees, formData.roomSpace, formData.layoutId]);
+  }, [formData.attendees, formData.roomSpace]);
 
   const handleChange = (
       e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
@@ -399,7 +496,13 @@ export default function Book() {
 
           let totalCapacity: number | undefined;
           if (layoutsForCapacity.length > 0 && formData.serviceType) {
-            const layouts = serviceLayouts[formData.serviceType] || [];
+            const allLayouts = serviceLayoutsMap[formData.serviceType] || [];
+            const layouts = formData.roomSpace
+              ? allLayouts.filter((l: ServiceLayout & { roomSpace?: string }) => {
+                  if (!l.roomSpace) return true;
+                  return l.roomSpace === formData.roomSpace;
+                })
+              : allLayouts;
             const capacities = layouts
                 .filter((l) => layoutsForCapacity.includes(l.id))
                 .map((l) => l.capacity);
@@ -459,7 +562,7 @@ export default function Book() {
 
 
   const handleEventTypeChange = (value: string) => {
-    const event = eventTypes.find((e) => e.id === value);
+    const event = eventTypesList.find((e) => e.id === value);
     if (!event) return;
     setFormData((prev) => ({
       ...prev,
@@ -506,11 +609,10 @@ export default function Book() {
   const handleLayoutDialogSave = () => {
     setSelectedLayoutIds(dialogLayoutIds);
     const selectedId = dialogLayoutIds[0] ?? "";
-    const isHallMode = formData.roomSpace === "main-hall" || formData.roomSpace === "combined-hall";
-    const hallLayoutId = isHallMode && selectedId ? (SERVICE_LAYOUT_TO_HALL[selectedId] ?? selectedId) : selectedId;
+    // Store the layout ID directly (works for both API numeric IDs and static string IDs)
     setFormData((current) => ({
       ...current,
-      layoutId: hallLayoutId,
+      layoutId: selectedId,
     }));
     setIsLayoutDialogOpen(false);
     setLayoutSearchQuery("");
@@ -541,6 +643,15 @@ export default function Book() {
   const [selectedLayoutIds, setSelectedLayoutIds] = useState<string[]>([]);
   const [dialogLayoutIds, setDialogLayoutIds] = useState<string[]>([]);
   const [attendeesError, setAttendeesError] = useState<string | null>(null);
+
+  // Sync selectedLayoutIds with formData.layoutId
+  useEffect(() => {
+    if (formData.layoutId) {
+      setSelectedLayoutIds([formData.layoutId]);
+    } else {
+      setSelectedLayoutIds([]);
+    }
+  }, [formData.layoutId]);
 
   // Minutes restricted to 00, 15, 30, 45 only
   const MINUTES_QUARTER = [0, 15, 30, 45];
@@ -629,9 +740,9 @@ export default function Book() {
       const yOffset = -150; // Offset for sticky header
       const element = ref.current;
       const y = element.getBoundingClientRect().top + window.pageYOffset + yOffset;
-      
+
       window.scrollTo({ top: y, behavior: 'smooth' });
-      
+
       // Focus the element after scrolling
       setTimeout(() => {
         element.focus();
@@ -643,7 +754,7 @@ export default function Book() {
     if (step === 1) {
       const errors: Record<string, boolean> = {};
       let firstInvalidField: React.RefObject<HTMLElement> | null = null;
-      
+
       if (!formData.eventType || !formData.serviceType) {
         errors.serviceType = true;
         if (!firstInvalidField) firstInvalidField = serviceTypeRef;
@@ -690,7 +801,7 @@ export default function Book() {
           firstInvalidField = attendeesRef as unknown as React.RefObject<HTMLElement>;
         }
       }
-      
+
       if (Object.keys(errors).length > 0) {
         setFieldErrors(errors);
         const toastDescriptionStep1 = pastTimeErrorStep1
@@ -708,13 +819,16 @@ export default function Book() {
         }
         return false;
       }
-      
-      if (!isAvailable) {
+
+      if (!finalAvailability) {
         const timeErrors: Record<string, boolean> = {
           startTime: true,
           endTime: true,
         };
         setFieldErrors(timeErrors);
+        const errorMessage = !availabilityStatus.available 
+          ? availabilityStatus.message || "Time slot is not available"
+          : "End time must be after start time";
         toast({
           title: "Invalid Time Slot",
           description: validationErrors[0] || "Please select a valid time slot",
@@ -724,7 +838,7 @@ export default function Book() {
         return false;
       }
     }
-    
+
     if (step === 2) {
       const errors: Record<string, boolean> = {};
       let firstInvalidField: React.RefObject<HTMLElement> | null = null;
@@ -815,7 +929,7 @@ export default function Book() {
         errors.attendees = true;
         if (!firstInvalidField && attendeesRef) firstInvalidField = attendeesRef as unknown as React.RefObject<HTMLElement>;
       }
-      if (!isAvailable) {
+      if (!finalAvailability) {
         errors.startTime = true;
         errors.endTime = true;
         if (!firstInvalidField) firstInvalidField = startTimeRef;
@@ -884,123 +998,76 @@ export default function Book() {
     e.preventDefault();
     if (!validateStep(3)) return;
 
-    const razorpayKeyId = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
-    const strapiUrl = process.env.NEXT_PUBLIC_STRAPI_URL;
-
-    if (!razorpayKeyId) {
-      // No payment: confirm locally only
-      const ref = generateBookingReference();
-      setBookingReference(ref);
-      setShowConfirmation(true);
-      return;
-    }
-
     setIsSubmitting(true);
     setPaymentError(null);
-    let ref = generateBookingReference();
-    let bookingId: string | number | undefined;
 
     try {
-      // 1) Create booking in Strapi (if configured)
-      if (strapiUrl) {
-        const bookingRes = await fetch("/api/booking", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            customerName: formData.name,
-            customerEmail: formData.email,
-            customerPhone: formData.phone,
-            companyName: formData.company || undefined,
-            eventType: formData.eventType,
-            serviceSlug: formData.serviceType,
-            date: formData.date,
-            endDate: formData.endDate || undefined,
-            startTime: formData.startTime,
-            endTime: formData.endTime,
-            attendees: formData.attendees ? parseInt(formData.attendees, 10) : undefined,
-            layoutId: formData.layoutId || undefined,
-            addOnIds: formData.addOns?.length ? undefined : undefined,
-            message: formData.message || undefined,
-            totalPrice,
-            currency: "INR",
-          }),
-        });
-        const bookingJson = await bookingRes.json();
-        if (bookingRes.ok && bookingJson.referenceNumber) {
-          ref = bookingJson.referenceNumber;
-          bookingId = bookingJson.bookingId;
-        }
-      }
+      // Find the selected event type to get its label/name
+      const selectedEventType = eventTypesList.find((e) => e.id === formData.eventType);
+      const eventTypeName = selectedEventType?.label || formData.eventType || "";
 
-      // 2) Create Razorpay order (amount in paise for INR)
-      const amountPaise = Math.round(totalPrice * 100);
-      const orderRes = await fetch("/api/razorpay/create-order", {
+      // Create booking directly without payment
+      const bookingRes = await fetch("/api/booking", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          amount: amountPaise,
+          customerName: formData.name,
+          customerEmail: formData.email,
+          customerPhone: formData.phone,
+          companyName: formData.company || undefined,
+          guestType: formData.guestType || undefined,
+          eventType: eventTypeName, // Send event type name/label instead of ID
+          serviceSlug: formData.serviceType,
+          date: formData.date,
+          endDate: formData.endDate || undefined,
+          startTime: formData.startTime,
+          endTime: formData.endTime,
+          attendees: formData.attendees ? parseInt(formData.attendees, 10) : undefined,
+          roomSpace: formData.roomSpace || undefined,
+          layout: formData.layoutId ? (isNaN(parseInt(formData.layoutId, 10)) ? formData.layoutId : parseInt(formData.layoutId, 10)) : undefined,
+          addOnIds: formData.addOns?.length ? formData.addOns.map(id => parseInt(id, 10)) : undefined,
+          message: formData.message || undefined,
+          totalPrice,
           currency: "INR",
-          receipt: ref,
-          referenceNumber: ref,
+          status: "confirmed",
         }),
       });
-      const orderJson = await orderRes.json();
-      if (!orderRes.ok) {
-        setPaymentError(orderJson.error || "Failed to create payment order");
-        setIsSubmitting(false);
+
+      const bookingJson = await bookingRes.json();
+
+      if (!bookingRes.ok) {
+        setPaymentError(bookingJson.error || "Failed to create booking");
+        toast({
+          title: "Booking Failed",
+          description: bookingJson.error || "Failed to create booking. Please try again.",
+          variant: "destructive",
+        });
         return;
       }
-      const { orderId, keyId } = orderJson;
 
-      // 3) Load Razorpay and open checkout
-      await loadRazorpayScript();
-      const Razorpay = (window as unknown as {
-        Razorpay: new (options: unknown) => { open: () => void; on: (event: string, handler: () => void) => void };
-      }).Razorpay;
-      await new Promise<void>((resolve, reject) => {
-        const options = {
-          key: keyId,
-          amount: amountPaise,
-          currency: "INR",
-          name: "Visionary House",
-          description: "Booking payment",
-          order_id: orderId,
-          handler: async (response: { razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string }) => {
-            try {
-              const verifyRes = await fetch("/api/razorpay/verify-payment", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  razorpay_order_id: response.razorpay_order_id,
-                  razorpay_payment_id: response.razorpay_payment_id,
-                  razorpay_signature: response.razorpay_signature,
-                  bookingId,
-                  referenceNumber: ref,
-                }),
-              });
-              const verifyJson = await verifyRes.json();
-              if (verifyRes.ok && verifyJson.success) {
-                setBookingReference(ref);
-                setShowConfirmation(true);
-              } else {
-                setPaymentError(verifyJson.error || "Payment verification failed");
-              }
-            } catch {
-              setPaymentError("Payment verification failed");
-            }
-            resolve();
-          },
-          modal: { ondismiss: () => resolve() },
-        };
-        const rzp = new Razorpay(options);
-        rzp.on("payment.failed", () => {
-          setPaymentError("Payment failed or was cancelled");
-          resolve();
+      if (bookingJson.success && bookingJson.referenceNumber) {
+        setBookingReference(bookingJson.referenceNumber);
+        setShowConfirmation(true);
+        toast({
+          title: "Booking Confirmed!",
+          description: `Your booking has been confirmed. Reference: ${bookingJson.referenceNumber}`,
         });
-        rzp.open();
-      });
+      } else {
+        setPaymentError("Failed to create booking");
+        toast({
+          title: "Booking Failed",
+          description: "Failed to create booking. Please try again.",
+          variant: "destructive",
+        });
+      }
     } catch (err) {
-      setPaymentError(err instanceof Error ? err.message : "Something went wrong");
+      const errorMessage = err instanceof Error ? err.message : "Something went wrong";
+      setPaymentError(errorMessage);
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -1047,9 +1114,51 @@ export default function Book() {
       ? getAvailableLayoutsForHall(formData.roomSpace, participantCount)
       : [];
 
-  const availableLayouts = formData.serviceType
-    ? serviceLayouts[formData.serviceType] || []
+  // Get layouts from service type and filter by room space + capacity
+  const availableLayoutsAll = formData.serviceType
+    ? serviceLayoutsMap[formData.serviceType] || []
     : [];
+
+  // Filter by room space and participant capacity dynamically
+  const availableLayouts = availableLayoutsAll.filter((l: ServiceLayout & { roomSpace?: string }) => {
+    // 1. Filter by room space if selected
+    if (formData.roomSpace) {
+      // If layout has roomSpace defined, it must match the selected room
+      if (l.roomSpace) {
+        // Strict match: only show layouts that belong to the selected room
+        if (l.roomSpace !== formData.roomSpace) {
+          return false;
+        }
+      }
+      // If layout has no roomSpace defined (static fallback), don't show it when a room is selected
+      // This ensures ONLY layouts from the API with matching roomSpace are shown
+      else {
+        return false;
+      }
+    }
+
+    // 2. Filter by participant capacity if attendees entered
+    if (isValidParticipantCount && !participantsExceedMax) {
+      // Only show layouts that can accommodate the participant count
+      if (l.capacity < participantCount) {
+        return false;
+      }
+    }
+
+    return true;
+  });
+
+  // Clear layoutId if the currently selected layout is no longer in availableLayouts
+  // This ensures only valid layouts can be selected based on room and capacity filters
+  useEffect(() => {
+    if (formData.layoutId && formData.roomSpace) {
+      const isLayoutStillValid = availableLayouts.some((l) => l.id === formData.layoutId);
+      if (!isLayoutStillValid) {
+        setFormData((prev) => ({ ...prev, layoutId: "" }));
+        setSelectedLayoutIds([]);
+      }
+    }
+  }, [availableLayouts, formData.layoutId, formData.roomSpace]);
 
   const selectedService = formData.serviceType
     ? serviceTypeNames[formData.serviceType]
@@ -1059,7 +1168,7 @@ export default function Book() {
     selectedLayoutIds.includes(l.id)
   );
 
-  const selectedAddOns = bookingAddOns.filter((a) => formData.addOns.includes(a.id));
+  const selectedAddOns = addOnsList.filter((a) => formData.addOns.includes(a.id));
 
   const totalAttendeesCapacity =
     selectedLayouts.length > 0
@@ -1083,6 +1192,9 @@ export default function Book() {
   const serviceRatePerHour = duration > 0 ? serviceCost / duration : 0;
 
   const FEATURE_ICONS = [Clock, Users, CheckCircle2] as const;
+
+  // Update isAvailable based on both validation and real-time availability
+  const finalAvailability = isAvailable && availabilityStatus.available;
 
   return (
     <Layout>
@@ -1127,7 +1239,7 @@ export default function Book() {
               Your booking has been successfully confirmed. We&apos;ve sent a confirmation email to {formData.email}
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="space-y-4 py-4">
             <div className="bg-cream rounded-lg p-6 space-y-3">
               <p className="text-sm text-muted-foreground text-center">Your Booking Reference</p>
@@ -1157,7 +1269,7 @@ export default function Book() {
           </div>
 
           <div className="flex flex-col gap-3">
-            <Button 
+            <Button
               onClick={handleCloseConfirmation}
               variant="gold"
               size="lg"
@@ -1165,7 +1277,7 @@ export default function Book() {
             >
               Done
             </Button>
-            <Button 
+            <Button
               variant="outline"
               size="lg"
               className="w-full h-12"
@@ -1199,6 +1311,16 @@ export default function Book() {
             <DialogTitle>Choose a Layout</DialogTitle>
             <DialogDescription>
               Select one layout to see capacity and setup details. Click an image to select.
+              {formData.roomSpace && (
+                <span className="block mt-1 text-accent font-medium">
+                  Showing layouts for: {ROOM_SPACE_LABELS[formData.roomSpace] || formData.roomSpace}
+                </span>
+              )}
+              {isValidParticipantCount && (
+                <span className="block mt-1 text-accent font-medium">
+                  Filtered for {participantCount} participant{participantCount !== 1 ? 's' : ''}
+                </span>
+              )}
             </DialogDescription>
           </DialogHeader>
 
@@ -1210,6 +1332,16 @@ export default function Book() {
                   <Info className="h-4 w-4" />
                   <AlertDescription>
                     No hall is available for more than 70 participants.
+                  </AlertDescription>
+                </Alert>
+              );
+            }
+            if (availableLayouts.length === 0 && formData.roomSpace) {
+              return (
+                <Alert className="border-amber-200 bg-amber-50 text-amber-900 mb-4">
+                  <Info className="h-4 w-4" />
+                  <AlertDescription>
+                    No layouts available for the selected room{isValidParticipantCount ? ` and participant count` : ''}. Try adjusting your filters.
                   </AlertDescription>
                 </Alert>
               );
@@ -1234,6 +1366,7 @@ export default function Book() {
           {/* Filtered Layouts Grid with Scroll - Show only 2 rows */}
           <div className="overflow-y-auto pr-3 max-h-[420px] custom-scrollbar">
             {(() => {
+              // Apply search filter
               let filteredLayouts = availableLayouts.filter((layout) => {
                 if (!layoutSearchQuery.trim()) return true;
                 const query = layoutSearchQuery.toLowerCase();
@@ -1244,13 +1377,11 @@ export default function Book() {
                 );
               });
 
-              const isHallMode = formData.roomSpace === "main-hall" || formData.roomSpace === "combined-hall";
-              if (isHallMode && !participantsExceedMax) {
+              // Optional: Filter by participant capacity if attendees are specified
+              if (isValidParticipantCount && !participantsExceedMax) {
                 filteredLayouts = filteredLayouts.filter((layout) => {
-                  const hallLayoutId = SERVICE_LAYOUT_TO_HALL[layout.id];
-                  if (!hallLayoutId || !formData.roomSpace) return false;
-                  const capacity = HALL_LAYOUT_CAPACITIES[formData.roomSpace]?.[hallLayoutId] ?? 0;
-                  return capacity >= participantCount;
+                  // Show layouts that can accommodate the participant count
+                  return layout.capacity >= participantCount;
                 });
               }
 
@@ -1392,7 +1523,7 @@ export default function Book() {
       {/* Progress Steps - on mobile scrolls with content (no sticky) to avoid layering/bleed; on desktop stays sticky */}
       <section className="bg-white border-b shadow-md md:sticky md:top-20 md:z-30 md:isolate">
         <div className="container-premium py-6">
-          <motion.div 
+          <motion.div
             className="flex items-center justify-center gap-2 sm:gap-4"
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -1439,7 +1570,7 @@ export default function Book() {
         <div className="container-premium">
           <div className="grid lg:grid-cols-3 gap-8">
             {/* Main Form */}
-            <motion.div 
+            <motion.div
               className="lg:col-span-2"
               initial={{ opacity: 0, x: -20 }}
               whileInView={{ opacity: 1, x: 0 }}
@@ -1462,65 +1593,6 @@ export default function Book() {
                         </div>
 
                         <div className="space-y-6">
-                          {/* Number of Participants */}
-                          <div className="space-y-2">
-                            <Label htmlFor="attendees" className="text-base font-medium flex items-center gap-2">
-                              <Users className="h-4 w-4 text-accent" />
-                              Number of Participants *
-                            </Label>
-                            <Input
-                              ref={attendeesRef}
-                              id="attendees"
-                              name="attendees"
-                              type="text"
-                              value={formData.attendees}
-                              onChange={handleChange}
-                              placeholder="Enter number of participants"
-                              className={cn(
-                                "h-14 text-base border-2 hover:border-accent/50 focus:border-accent transition-colors",
-                                (fieldErrors.attendees || attendeesError) && "border-red-500 hover:border-red-600 focus:border-red-600"
-                              )}
-                              min="1"
-                            />
-                            {totalAttendeesCapacity !== undefined && selectedLayouts.length > 0 && !formData.roomSpace && (
-                              <p className="text-xs text-muted-foreground">
-                                Capacity for selected layout:{" "}
-                                <span className="font-semibold">
-                                  {totalAttendeesCapacity} guests
-                                </span>
-                              </p>
-                            )}
-                            {(fieldErrors.attendees || attendeesError) && (
-                              <p className="text-xs text-red-600">
-                                {attendeesError ?? "Please enter the expected number of participants."}
-                              </p>
-                            )}
-                          </div>
-
-                          {/* Guest Type */}
-                          <div className="space-y-2">
-                            <Label htmlFor="guestType" className="text-base font-medium">
-                              Guest Type
-                            </Label>
-                            <Select
-                              value={formData.guestType ?? ""}
-                              onValueChange={(value) => setFormData((prev) => ({ ...prev, guestType: value }))}
-                            >
-                              <SelectTrigger
-                                id="guestType"
-                                className="h-14 text-base border-2 hover:border-accent/50 focus:border-accent transition-colors"
-                              >
-                                <SelectValue placeholder="Select guest type" />
-                              </SelectTrigger>
-                              <SelectContent className="shadow-elevated overflow-y-auto w-[var(--radix-select-trigger-width)] sm:w-auto">
-                                {GUEST_TYPES.map((type) => (
-                                  <SelectItem key={type} value={type} className="text-base py-3">
-                                    {type}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
 
                           {/* Event Type */}
                           <div className="space-y-2">
@@ -1542,7 +1614,7 @@ export default function Book() {
                                 <SelectValue placeholder="Choose your event type (small or large)" />
                               </SelectTrigger>
                               <SelectContent className="shadow-elevated  overflow-y-auto w-[var(--radix-select-trigger-width)] sm:w-auto">
-                                {eventTypes.map((event) => (
+                                {eventTypesList.map((event) => (
                                     <SelectItem key={event.id} value={event.id} className="text-base py-3">
                                       <div className="flex items-center justify-between gap-3">
                                         <div className="flex items-center gap-3">
@@ -1561,6 +1633,192 @@ export default function Book() {
                               </SelectContent>
                             </Select>
                           </div>
+
+                          {/* Guest Type */}
+                          <div className="space-y-2">
+                            <Label htmlFor="guestType" className="text-base font-medium">
+                              Guest Type
+                            </Label>
+                            <Select
+                              value={formData.guestType ?? ""}
+                              onValueChange={(value) => setFormData((prev) => ({ ...prev, guestType: value }))}
+                            >
+                              <SelectTrigger
+                                id="guestType"
+                                className="h-14 text-base border-2 hover:border-accent/50 focus:border-accent transition-colors"
+                              >
+                                <SelectValue placeholder="Select guest type" />
+                              </SelectTrigger>
+                              <SelectContent className="shadow-elevated overflow-y-auto w-[var(--radix-select-trigger-width)] sm:w-auto">
+                                {guestTypesList.map((type) => (
+                                  <SelectItem key={type} value={type} className="text-base py-3">
+                                    {type}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          {/* Number of Participants */}
+                          <div className="space-y-2">
+                            <Label htmlFor="attendees" className="text-base font-medium flex items-center gap-2">
+                              <Users className="h-4 w-4 text-accent" />
+                              Number of Participants *
+                            </Label>
+                            <Input
+                                ref={attendeesRef}
+                                id="attendees"
+                                name="attendees"
+                                type="text"
+                                value={formData.attendees}
+                                onChange={handleChange}
+                                placeholder="Enter number of participants"
+                                className={cn(
+                                    "h-14 text-base border-2 hover:border-accent/50 focus:border-accent transition-colors",
+                                    (fieldErrors.attendees || attendeesError) && "border-red-500 hover:border-red-600 focus:border-red-600"
+                                )}
+                                min="1"
+                            />
+                            {totalAttendeesCapacity !== undefined && selectedLayouts.length > 0 && !formData.roomSpace && (
+                                <p className="text-xs text-muted-foreground">
+                                  Capacity for selected layout:{" "}
+                                  <span className="font-semibold">
+                                  {totalAttendeesCapacity} guests
+                                </span>
+                                </p>
+                            )}
+                            {(fieldErrors.attendees || attendeesError) && (
+                                <p className="text-xs text-red-600">
+                                  {attendeesError ?? "Please enter the expected number of participants."}
+                                </p>
+                            )}
+                          </div>
+
+                          {/* Message when participants exceed 70 */}
+                          {participantsExceedMax && (
+                              <Alert className="border-amber-200 bg-amber-50 text-amber-900">
+                                <Info className="h-4 w-4" />
+                                <AlertDescription>
+                                  No hall or room is available for more than 70 participants.
+                                </AlertDescription>
+                              </Alert>
+                          )}
+
+                          {/* Room/Space — visibility by participant count; hidden when > 70 */}
+                          {!participantsExceedMax && availableRoomSpaces.length > 0 && (
+                              <div className="space-y-2">
+                                <Label htmlFor="roomSpace" className="text-base font-medium">
+                                  Room / Space
+                                </Label>
+                                <Select
+                                    value={formData.roomSpace ?? ""}
+                                    onValueChange={handleRoomSpaceChange}
+                                >
+                                  <SelectTrigger
+                                      id="roomSpace"
+                                      className="h-14 text-base border-2 hover:border-accent/50 focus:border-accent transition-colors"
+                                  >
+                                    <SelectValue placeholder="Select room or space" />
+                                  </SelectTrigger>
+                                  <SelectContent className="shadow-elevated overflow-y-auto w-[var(--radix-select-trigger-width)] sm:w-auto">
+                                    {availableRoomSpaces.map((room) => (
+                                        <SelectItem key={room.id} value={room.id} className="text-base py-3">
+                                          {room.name}
+                                        </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                {formData.roomSpace === "combined-hall" && (
+                                    <p className="text-xs text-muted-foreground">
+                                      Combined Hall supports the largest groups (up to 70 theatre style).
+                                    </p>
+                                )}
+                                {availableRoomSpaces.some((r) => r.id === "combined-hall") && !formData.roomSpace && (
+                                    <p className="text-xs text-muted-foreground">
+                                      Combined Hall supports the largest groups (up to 70 theatre style).
+                                    </p>
+                                )}
+                                {isLoungeSelected && (
+                                    <>
+                                      <p className="text-xs text-muted-foreground italic">
+                                        Lounge is a shared space; longer bookings may require admin approval.
+                                      </p>
+                                      <Badge variant="outline" className="text-amber-700 border-amber-300 bg-amber-50">
+                                        May Require Admin Approval
+                                      </Badge>
+                                    </>
+                                )}
+                              </div>
+                          )}
+
+                            {/* Layout — show for any selected room with available layouts */}
+                            {formData.roomSpace &&
+                              availableLayouts.length > 0 && (
+                              <div className="space-y-3">
+                                <Label className="text-base font-medium">
+                                  Layout
+                                </Label>
+                                <button
+                                  type="button"
+                                  onClick={() => setIsLayoutDialogOpen(true)}
+                                  className={cn(
+                                    "flex h-14 w-full items-center justify-between rounded-md border-2 bg-background px-4 text-left text-base transition-colors hover:border-accent/50 focus:border-accent focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 cursor-pointer",
+                                    formData.layoutId && "border-accent/30"
+                                  )}
+                                >
+                                  <span className={formData.layoutId ? "text-foreground" : "text-muted-foreground"}>
+                                    {formData.layoutId
+                                      ? (availableLayouts.find(l => l.id === formData.layoutId)?.name || "Layout selected")
+                                      : "Choose layout"}
+                                  </span>
+                                  <MapPin className="h-5 w-5 shrink-0 text-accent" />
+                                </button>
+
+                                {/* Selected Layout Details Display */}
+                                {formData.layoutId && (() => {
+                                  const selectedLayout = availableLayouts.find(l => l.id === formData.layoutId);
+                                  if (!selectedLayout) return null;
+                                  return (
+                                    <motion.div
+                                      initial={{ opacity: 0, y: -10 }}
+                                      animate={{ opacity: 1, y: 0 }}
+                                      className="rounded-lg border-2 border-accent/20 bg-accent/5 p-4"
+                                    >
+                                      <div className="flex gap-4">
+                                        {selectedLayout.image && (
+                                          <div className="relative w-24 h-24 rounded-md overflow-hidden flex-shrink-0">
+                                            <Image
+                                              src={selectedLayout.image}
+                                              alt={selectedLayout.name}
+                                              fill
+                                              className="object-cover"
+                                              sizes="96px"
+                                            />
+                                          </div>
+                                        )}
+                                        <div className="flex-1 min-w-0">
+                                          <div className="flex items-start justify-between gap-2 mb-1">
+                                            <h4 className="font-semibold text-base text-foreground">
+                                              {selectedLayout.name}
+                                            </h4>
+                                            <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0" />
+                                          </div>
+                                          <div className="flex items-center gap-2 mb-2">
+                                            <Badge variant="outline" className="text-xs border-accent/40 bg-background">
+                                              <Users className="h-3 w-3 mr-1" />
+                                              Capacity: {selectedLayout.capacity} people
+                                            </Badge>
+                                          </div>
+                                          <p className="text-sm text-muted-foreground leading-relaxed">
+                                            {selectedLayout.description}
+                                          </p>
+                                        </div>
+                                      </div>
+                                    </motion.div>
+                                  );
+                                })()}
+                              </div>
+                            )}
 
                           {/* Date & Time - Multi-day: row1 Start Date + Start Time, row2 End Date + End Time; Single-day: Date then Start/End time */}
                           <div className="space-y-6">
@@ -2122,90 +2380,7 @@ export default function Book() {
                               </>
                             )}
 
-                            {/* Message when participants exceed 70 */}
-                            {participantsExceedMax && (
-                              <Alert className="border-amber-200 bg-amber-50 text-amber-900">
-                                <Info className="h-4 w-4" />
-                                <AlertDescription>
-                                  No hall or room is available for more than 70 participants.
-                                </AlertDescription>
-                              </Alert>
-                            )}
 
-                            {/* Room/Space — visibility by participant count; hidden when > 70 */}
-                            {!participantsExceedMax && availableRoomSpaces.length > 0 && (
-                              <div className="space-y-2">
-                                <Label htmlFor="roomSpace" className="text-base font-medium">
-                                  Room / Space
-                                </Label>
-                                <Select
-                                  value={formData.roomSpace ?? ""}
-                                  onValueChange={handleRoomSpaceChange}
-                                >
-                                  <SelectTrigger
-                                    id="roomSpace"
-                                    className="h-14 text-base border-2 hover:border-accent/50 focus:border-accent transition-colors"
-                                  >
-                                    <SelectValue placeholder="Select room or space" />
-                                  </SelectTrigger>
-                                  <SelectContent className="shadow-elevated overflow-y-auto w-[var(--radix-select-trigger-width)] sm:w-auto">
-                                    {availableRoomSpaces.map((room) => (
-                                      <SelectItem key={room.id} value={room.id} className="text-base py-3">
-                                        {room.name}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                                {formData.roomSpace === "combined-hall" && (
-                                  <p className="text-xs text-muted-foreground">
-                                    Combined Hall supports the largest groups (up to 70 theatre style).
-                                  </p>
-                                )}
-                                {availableRoomSpaces.some((r) => r.id === "combined-hall") && !formData.roomSpace && (
-                                  <p className="text-xs text-muted-foreground">
-                                    Combined Hall supports the largest groups (up to 70 theatre style).
-                                  </p>
-                                )}
-                                {isLoungeSelected && (
-                                  <>
-                                    <p className="text-xs text-muted-foreground italic">
-                                      Lounge is a shared space; longer bookings may require admin approval.
-                                    </p>
-                                    <Badge variant="outline" className="text-amber-700 border-amber-300 bg-amber-50">
-                                      May Require Admin Approval
-                                    </Badge>
-                                  </>
-                                )}
-                              </div>
-                            )}
-
-                            {/* Layout — only after valid participant count and hall selected; opens "Choose a Layout" popup */}
-                            {isHallSelected &&
-                              formData.roomSpace &&
-                              isValidParticipantCount &&
-                              !participantsExceedMax &&
-                              availableLayoutsForHall.length > 0 && (
-                              <div className="space-y-2">
-                                <Label className="text-base font-medium">
-                                  Layout
-                                </Label>
-                                <button
-                                  type="button"
-                                  onClick={() => setIsLayoutDialogOpen(true)}
-                                  className={cn(
-                                    "flex h-14 w-full items-center justify-between rounded-md border-2 bg-background px-4 text-left text-base transition-colors hover:border-accent/50 focus:border-accent focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 cursor-pointer",
-                                    formData.layoutId && "border-accent/30"
-                                  )}
-                                >
-                                  <span className={formData.layoutId ? "text-foreground" : "text-muted-foreground"}>
-                                    {formData.layoutId
-                                      ? getLayoutDisplayLabel(formData.roomSpace ?? "", formData.layoutId)
-                                      : "Choose layout"}
-                                  </span>
-                                  <MapPin className="h-5 w-5 shrink-0 text-accent" />
-                                </button>
-                              </div>
-                            )}
 
                             {/* Legacy Layout / Setup — only when no room/space options exist (e.g. no participant count); never show layout before room is selected when room flow is active */}
                             {availableLayouts.length > 0 && !formData.roomSpace && isValidParticipantCount && availableRoomSpaces.length === 0 && (
@@ -2227,6 +2402,49 @@ export default function Book() {
                                   </span>
                                   <MapPin className="h-5 w-5 shrink-0 text-accent" />
                                 </button>
+
+                                {/* Selected Layout Details Display (Legacy) */}
+                                {selectedLayouts.length === 1 && (() => {
+                                  const selectedLayout = selectedLayouts[0];
+                                  return (
+                                    <motion.div
+                                      initial={{ opacity: 0, y: -10 }}
+                                      animate={{ opacity: 1, y: 0 }}
+                                      className="rounded-lg border-2 border-accent/20 bg-accent/5 p-4"
+                                    >
+                                      <div className="flex gap-4">
+                                        {selectedLayout.image && (
+                                          <div className="relative w-24 h-24 rounded-md overflow-hidden flex-shrink-0">
+                                            <Image
+                                              src={selectedLayout.image}
+                                              alt={selectedLayout.name}
+                                              fill
+                                              className="object-cover"
+                                              sizes="96px"
+                                            />
+                                          </div>
+                                        )}
+                                        <div className="flex-1 min-w-0">
+                                          <div className="flex items-start justify-between gap-2 mb-1">
+                                            <h4 className="font-semibold text-base text-foreground">
+                                              {selectedLayout.name}
+                                            </h4>
+                                            <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0" />
+                                          </div>
+                                          <div className="flex items-center gap-2 mb-2">
+                                            <Badge variant="outline" className="text-xs border-accent/40 bg-background">
+                                              <Users className="h-3 w-3 mr-1" />
+                                              Capacity: {selectedLayout.capacity} people
+                                            </Badge>
+                                          </div>
+                                          <p className="text-sm text-muted-foreground leading-relaxed">
+                                            {selectedLayout.description}
+                                          </p>
+                                        </div>
+                                      </div>
+                                    </motion.div>
+                                  );
+                                })()}
 
                                 {selectedLayouts.length > 0 && (
                                   <div className="flex flex-wrap gap-2">
@@ -2259,7 +2477,17 @@ export default function Book() {
                             </Alert>
                           )}
 
-                          {isAvailable && formData.startTime && formData.endTime && validationErrors.length === 0 && (
+                          {/* Real-time Availability Status */}
+                          {!availabilityStatus.available && availabilityStatus.message && formData.startTime && formData.endTime && validationErrors.length === 0 && (
+                            <Alert variant="destructive">
+                              <Info className="h-4 w-4" />
+                              <AlertDescription>
+                                {availabilityStatus.message}
+                              </AlertDescription>
+                            </Alert>
+                          )}
+
+                          {finalAvailability && formData.startTime && formData.endTime && validationErrors.length === 0 && (
                             <Alert className="bg-green-50 text-green-900 border-green-200">
                               <CheckCircle2 className="h-4 w-4" />
                               <AlertDescription>
@@ -2406,7 +2634,7 @@ export default function Book() {
                             <div className="space-y-6 max-h-[28rem] overflow-y-auto pr-2 custom-scrollbar">
                               {/* Food — Breakfast, Lunch */}
                               {(() => {
-                                const foodItems = bookingAddOns.filter(
+                                const foodItems = addOnsList.filter(
                                   (a) => a.category === 'catering' && (a.subcategory === 'breakfast' || a.subcategory === 'lunch')
                                 );
                                 if (foodItems.length === 0) return null;
@@ -2453,7 +2681,7 @@ export default function Book() {
                               })()}
                               {/* Refreshments — Snacks, Beverages */}
                               {(() => {
-                                const refreshmentItems = bookingAddOns.filter(
+                                const refreshmentItems = addOnsList.filter(
                                   (a) => a.category === 'catering' && (a.subcategory === 'snacks' || a.subcategory === 'beverages')
                                 );
                                 if (refreshmentItems.length === 0) return null;
@@ -2500,7 +2728,7 @@ export default function Book() {
                               })()}
                               {/* Equipment */}
                               {(() => {
-                                const items = bookingAddOns.filter((a) => a.category === 'equipment');
+                                const items = addOnsList.filter((a) => a.category === 'equipment');
                                 if (items.length === 0) return null;
                                 return (
                                   <div className="space-y-3">
@@ -2523,7 +2751,7 @@ export default function Book() {
                               })()}
                               {/* Services */}
                               {(() => {
-                                const items = bookingAddOns.filter((a) => a.category === 'services');
+                                const items = addOnsList.filter((a) => a.category === 'services');
                                 if (items.length === 0) return null;
                                 return (
                                   <div className="space-y-3">
@@ -2613,11 +2841,11 @@ export default function Book() {
                                   )}
                                 </div>
                               )}
-                              {isHallSelected && formData.layoutId && (
+                              {formData.layoutId && formData.roomSpace && (
                                 <div>
                                   <p className="text-muted-foreground mb-1">Layout</p>
                                   <p className="font-medium">
-                                    {getLayoutDisplayLabel(formData.roomSpace ?? "", formData.layoutId)}
+                                    {availableLayouts.find(l => l.id === formData.layoutId)?.name || "Layout selected"}
                                   </p>
                                 </div>
                               )}
@@ -2756,7 +2984,7 @@ export default function Book() {
             </motion.div>
 
             {/* Sidebar Summary */}
-            <motion.div 
+            <motion.div
               className="lg:col-span-1"
               initial={{ opacity: 0, x: 20 }}
               whileInView={{ opacity: 1, x: 0 }}
@@ -2786,11 +3014,11 @@ export default function Book() {
                                 <span className="font-medium">{ROOM_SPACE_LABELS[formData.roomSpace] ?? formData.roomSpace}</span>
                               </div>
                             )}
-                            {isHallSelected && formData.layoutId && (
+                            {formData.layoutId && formData.roomSpace && (
                               <div className="flex justify-between items-baseline">
                                 <span className="text-muted-foreground">Layout</span>
                                 <span className="font-medium text-right">
-                                  {getLayoutDisplayLabel(formData.roomSpace ?? "", formData.layoutId)}
+                                  {availableLayouts.find(l => l.id === formData.layoutId)?.name || "Layout selected"}
                                 </span>
                               </div>
                             )}
@@ -2960,7 +3188,7 @@ export default function Book() {
       {/* Features Section */}
       <section className="py-16 bg-white">
         <div className="container-premium">
-          <motion.div 
+          <motion.div
             className="grid md:grid-cols-3 gap-8"
             initial="initial"
             whileInView="animate"

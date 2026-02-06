@@ -4,7 +4,8 @@
  */
 
 import { getMediaUrl, type StrapiMedia } from "./types";
-import type { HomepageAttr, AboutPageAttr, ServicePageAttr, GalleryPageAttr, ContactPageAttr, BookingSettingsAttr, BookPageAttr, StrapiService, StrapiTestimonial, StrapiFaq } from "./types";
+import type { HomepageAttr, AboutPageAttr, ServicePageAttr, GalleryPageAttr, ContactPageAttr, BookingSettingsAttr, BookPageAttr, StrapiService, StrapiTestimonial, StrapiFaq, StrapiAddOn, StrapiEventType, StrapiServiceLayout, StrapiGuestType } from "./types";
+import type { BookingAddOn, ServiceLayout } from "@/lib/types/booking";
 
 const STRAPI_BASE = process.env.NEXT_PUBLIC_STRAPI_URL || "";
 
@@ -279,4 +280,112 @@ export function mapFaqs(list: StrapiFaq[] | null): MappedFaq[] | null {
     question: f.question ?? f.attributes?.question ?? "",
     answer: f.answer ?? f.attributes?.answer ?? "",
   }));
+}
+
+// ---- Booking form: Add-on, Event Type, Service Layout, Guest Type ----
+function getAttr<T extends { attributes?: any }>(item: T): NonNullable<T["attributes"]> | T {
+  return (item as any).attributes ?? item;
+}
+
+function getDirectImageUrl(img: StrapiMedia | { data?: StrapiMedia | null } | null | undefined): string {
+  if (!img) return "";
+  // Strapi v5: image is directly the media object with url
+  if (typeof img === "object" && "url" in img && typeof img.url === "string") {
+    return img.url;
+  }
+  // Strapi v4: image is { data: { url } }
+  return getImageUrl(img as { data?: StrapiMedia | null }, "");
+}
+
+export function mapStrapiAddOns(items: StrapiAddOn[]): BookingAddOn[] {
+  if (!items?.length) return [];
+  return items.map((item) => {
+    const a: any = getAttr(item);
+    const category = (a?.category as BookingAddOn["category"]) ?? "equipment";
+    return {
+      id: String(item.id ?? item.documentId ?? ""),
+      name: a?.name ?? "",
+      description: a?.description ?? "",
+      price: Number(a?.price) || 0,
+      category: ["catering", "equipment", "services"].includes(category) ? category : "equipment",
+      subcategory: a?.subcategory as BookingAddOn["subcategory"] | undefined,
+      img: getDirectImageUrl(a?.image as StrapiMedia | null),
+    };
+  });
+}
+
+export interface ServiceLayoutWithRoom extends ServiceLayout {
+  roomSpace?: string;
+}
+
+export interface MappedEventType {
+  id: string;
+  label: string;
+  serviceType: string;
+  isMultiDay: boolean;
+}
+
+export function mapStrapiEventTypes(items: StrapiEventType[]): MappedEventType[] {
+  if (!items?.length) return [];
+  return items.map((item) => {
+    const a: any = getAttr(item);
+    // No service relation in API, default to event-space for all
+    return {
+      id: String(item.id ?? item.documentId ?? ""),
+      label: a?.label ?? "",
+      serviceType: "event-space",
+      isMultiDay: Boolean(a?.isMultiDay),
+    };
+  });
+}
+
+// Map serviceLayout string field to service slug (event-space, lounge, etc.)
+// Store room info in the layout object itself for filtering
+function serviceLayoutToSlug(layoutName: string | null | undefined): string {
+  if (!layoutName) return "event-space";
+  const lower = layoutName.toLowerCase();
+  if (lower.includes("lounge")) return "lounge";
+  if (lower.includes("small meeting") || lower.includes("main hall") || lower.includes("combined hall")) return "event-space";
+  return "event-space";
+}
+
+export function mapStrapiServiceLayouts(items: StrapiServiceLayout[]): Record<string, ServiceLayoutWithRoom[]> {
+  if (!items?.length) return {};
+  const byService: Record<string, ServiceLayoutWithRoom[]> = {};
+  for (const item of items) {
+    const a:any = getAttr(item);
+    const layoutName = (a as { serviceLayout?: string }).serviceLayout;
+    const key = serviceLayoutToSlug(layoutName);
+    
+    // Determine room space from layout name for filtering
+    let roomSpace: string | undefined;
+    if (layoutName) {
+      const lower = layoutName.toLowerCase();
+      if (lower.includes("small meeting")) roomSpace = "small-meeting-room";
+      else if (lower.includes("lounge")) roomSpace = "lounge";
+      else if (lower.includes("main hall")) roomSpace = "main-hall";
+      else if (lower.includes("combined hall")) roomSpace = "combined-hall";
+    }
+    
+    if (!byService[key]) byService[key] = [];
+    byService[key].push({
+      id: String(item.id ?? item.documentId ?? ""),
+      name: a?.name ?? "",
+      capacity: Number(a?.capacity) || 0,
+      description: a?.description ?? "",
+      image: getDirectImageUrl(a?.image as StrapiMedia | null),
+      roomSpace,
+    });
+  }
+  return byService;
+}
+
+export function mapStrapiGuestTypes(items: StrapiGuestType[]): string[] {
+  if (!items?.length) return [];
+  return items
+    .map((item) => {
+      const a:any = getAttr(item);
+      return a?.guestType ?? "";
+    })
+    .filter(Boolean);
 }
