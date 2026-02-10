@@ -156,6 +156,13 @@ const HALL_LAYOUT_LABELS: Record<string, string> = {
   theatre: "Theatre",
 };
 
+// Image paths for hall layouts (used when showing layout modal for Main Hall / Combined Hall fallback)
+const HALL_LAYOUT_IMAGES: Record<string, string> = {
+  "u-shape": "/assets/5.jpg",
+  meeting: "/assets/1.jpg",
+  theatre: "/assets/2.jpg",
+};
+
 function getLayoutDisplayLabel(roomSpace: string, layoutId: string): string {
   const name = HALL_LAYOUT_LABELS[layoutId] ?? layoutId;
   const cap = HALL_LAYOUT_CAPACITIES[roomSpace]?.[layoutId];
@@ -242,7 +249,6 @@ export default function Book() {
     enabled: isStrapiConfigured(),
     staleTime: 60_000,
   });
-
   const { data: apiAddOns = [] } = useQuery({
     queryKey: ["strapi", "add-ons"],
     queryFn: fetchAddOns,
@@ -294,6 +300,9 @@ export default function Book() {
   const heroTitle = bookPageData?.heroTitle ?? "Book Your Premium Environment";
   const heroDescription = bookPageData?.heroDescription ?? "Reserve your ideal business environment in just a few steps. Professional spaces designed for visionary minds.";
   const heroImageSrc = getBookPageHeroImageUrl(bookPageData ?? null);
+  const helpCard = {
+    title: heroTitle,
+  }
   const bookPageFeatures = useMemo(() => {
     const mapped = mapBookPageFeatures(bookPageData ?? null);
     if (mapped.length > 0) return mapped;
@@ -341,21 +350,26 @@ export default function Book() {
   });
 
   // Fetch existing bookings for selected date to check availability
-  const { data: dateBookingsData } = useQuery({
+  const { data: dateBookingsData, isError: bookingsApiError } = useQuery({
     queryKey: ["bookings", formData.date],
     queryFn: async () => {
       if (!formData.date) return { bookings: [] };
       const res = await fetch(`/api/booking?date=${encodeURIComponent(formData.date)}`);
-      if (!res.ok) return { bookings: [] };
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        throw new Error(errBody?.error || `Availability check failed (${res.status})`);
+      }
       return await res.json();
     },
     enabled: Boolean(formData.date && isStrapiConfigured()),
     staleTime: 0, // Always fetch fresh data for availability
     refetchOnMount: true,
     refetchOnWindowFocus: true,
+    retry: false, // Avoid repeated 401/502 retries
   });
 
   const existingBookings = useMemo(() => dateBookingsData?.bookings || [], [dateBookingsData]);
+  const availabilityLoadFailed = Boolean(isStrapiConfigured() && formData.date && bookingsApiError);
 
   // Check for time slot conflicts with existing bookings
   const availabilityStatus = useMemo(() => {
@@ -1108,9 +1122,14 @@ export default function Book() {
 
             const verifyJson = await verifyRes.json();
             if (!verifyRes.ok || !verifyJson.success) {
+              const details = typeof verifyJson.details === "string" ? verifyJson.details : "";
+              const isCredentialsError = verifyRes.status === 502 && /401|Unauthorized|invalid credentials/i.test(details);
+              const description = isCredentialsError
+                ? "Your payment was successful, but we couldn't save your booking in our system. Please contact us with your payment details and email so we can confirm your booking."
+                : (verifyJson.error || "We couldn't confirm your booking. Please contact support.");
               toast({
-                title: "Payment verification failed",
-                description: verifyJson.error || "We couldn't confirm your booking. Please contact support.",
+                title: verifyRes.status === 502 ? "Booking save failed" : "Payment verification failed",
+                description,
                 variant: "destructive",
               });
               return;
@@ -1204,7 +1223,7 @@ export default function Book() {
     : [];
 
   // Filter by room space and participant capacity dynamically
-  const availableLayouts = availableLayoutsAll.filter((l: ServiceLayout & { roomSpace?: string }) => {
+  let availableLayouts = availableLayoutsAll.filter((l: ServiceLayout & { roomSpace?: string }) => {
     // 1. Filter by room space if selected
     if (formData.roomSpace) {
       // If layout has roomSpace defined, it must match the selected room
@@ -1231,6 +1250,23 @@ export default function Book() {
 
     return true;
   });
+
+  // Fallback (dummy data): only when there is genuinely no layout data from the source—
+  // i.e. original data length is 0 before any filters. Do NOT use dummy data when filters
+  // have been applied and the filtered result is empty (that should show "no matching data").
+  const useHallFallbackLayouts =
+    isHallSelected &&
+    formData.roomSpace &&
+    availableLayoutsAll.length === 0 &&
+    availableLayoutsForHall.length > 0;
+
+  if (useHallFallbackLayouts) {
+    availableLayouts = availableLayoutsForHall.map((l) => ({
+      ...l,
+      description: getLayoutDisplayLabel(formData.roomSpace!, l.id),
+      image: HALL_LAYOUT_IMAGES[l.id] ?? undefined,
+    }));
+  }
 
   // Clear layoutId if the currently selected layout is no longer in availableLayouts
   // This ensures only valid layouts can be selected based on room and capacity filters
@@ -2608,6 +2644,15 @@ export default function Book() {
                               </AlertDescription>
                             </Alert>
                           )}
+
+                          {availabilityLoadFailed && (
+                            <Alert className="border-amber-200 bg-amber-50 text-amber-900">
+                              <Info className="h-4 w-4" />
+                              <AlertDescription>
+                                We couldn&apos;t load availability from the server. You can still proceed; we&apos;ll confirm your slot when processing your booking.
+                              </AlertDescription>
+                            </Alert>
+                          )}
                         </div>
 
                         <div className="flex justify-end pt-6">
@@ -3274,16 +3319,16 @@ export default function Book() {
                 {/* Help Card */}
                 <Card className="bg-gradient-gold text-white border-0">
                   <CardHeader>
-                    <CardTitle className="heading-card text-white">Need Assistance?</CardTitle>
+                    <CardTitle className="heading-card text-white">{bookPageData?.helpCard?.title || "Need Assistance?"}</CardTitle>
                     <CardDescription className="text-body text-white/90">
-                      Our team is here to help
+                      {bookPageData?.helpCard?.description || "Our team is here to help"}
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-3 text-sm">
-                    <p>Call us: (123) 456-7890</p>
-                    <p>Email: bookings@visionaryhouse.com</p>
+                    <p>Call us: {bookPageData?.helpCard?.phoneNumber || "(123) 456-7890"}</p>
+                    <p>Email: {bookPageData?.helpCard?.email || "bookings@visionaryhouse.com"}</p>
                     <Button variant="outline" asChild>
-                      <a href="/contact">Contact Support</a>
+                      <a href={bookPageData?.helpCard?.ctaHref || "/contact"}>{bookPageData?.helpCard?.ctaLabel || "Contact Support"}</a>
                     </Button>
                   </CardContent>
                 </Card>
@@ -3314,7 +3359,7 @@ export default function Book() {
               return (
                 <motion.div
                   key={item.title || index}
-                  className="text-center"
+                  className="text-center !opacity-100"
                   variants={{
                     initial: { opacity: 0, y: 20 },
                     animate: { opacity: 1, y: 0, transition: { duration: 0.6 } }

@@ -4,7 +4,7 @@
  */
 
 import { getMediaUrl, type StrapiMedia } from "./types";
-import type { HomepageAttr, AboutPageAttr, ServicePageAttr, GalleryPageAttr, ContactPageAttr, BookingSettingsAttr, BookPageAttr, StrapiService, StrapiTestimonial, StrapiFaq, StrapiAddOn, StrapiEventType, StrapiServiceLayout, StrapiGuestType } from "./types";
+import type { HomepageAttr, AboutPageAttr, ServicePageAttr, GalleryPageAttr, ContactPageAttr, BookingSettingsAttr, BookPageAttr, PoliciesPageAttr, StrapiService, StrapiTestimonial, StrapiFaq, StrapiAddOn, StrapiEventType, StrapiServiceLayout, StrapiGuestType } from "./types";
 import type { BookingAddOn, ServiceLayout } from "@/lib/types/booking";
 
 const STRAPI_BASE = process.env.NEXT_PUBLIC_STRAPI_URL || "";
@@ -190,6 +190,32 @@ export function getContactPageHeroImageUrl(attr: ContactPageAttr | null): string
   const media = attr?.heroBackgroundImage;
   if (!media) return "/assets/5.jpg";
   return getImageUrl(media as { data?: StrapiMedia | null } | StrapiMedia, "/assets/5.jpg");
+}
+
+// ---- Policies page ----
+export function getPoliciesPageHeroImageUrl(attr: PoliciesPageAttr | null): string {
+  const media = attr?.heroBackgroundImage;
+  if (!media) return "/assets/4.jpg";
+  return getImageUrl(media as { data?: StrapiMedia | null } | StrapiMedia, "/assets/4.jpg");
+}
+
+export interface MappedPolicy {
+  policyId: string;
+  title: string;
+  content: { heading: string; description: string }[];
+}
+
+export function mapPoliciesPagePolicies(attr: PoliciesPageAttr | null): MappedPolicy[] {
+  const list = attr?.policies;
+  if (!list?.length) return [];
+  return list.map((p) => ({
+    policyId: (p.policyId ?? String(p.id ?? "")).trim() || "policy",
+    title: p.title ?? "",
+    content: (p.content ?? []).map((c) => ({
+      heading: c.heading ?? "",
+      description: c.description ?? "",
+    })),
+  })).filter((p) => p.title || p.content.some((c) => c.heading || c.description));
 }
 
 // ---- Booking Settings page (hero + CTA) ----

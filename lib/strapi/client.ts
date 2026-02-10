@@ -1,23 +1,26 @@
 /**
  * Strapi REST API client.
- * Base URL from env; used for all Strapi fetches.
+ * Base URL and token read from env at runtime so API routes always use current credentials.
  */
 
-const STRAPI_URL = process.env.NEXT_PUBLIC_STRAPI_URL || "";
-const STRAPI_TOKEN = process.env.STRAPI_API_TOKEN || "";
+function getStrapiBaseUrl(): string {
+  return (process.env.NEXT_PUBLIC_STRAPI_URL || "").trim().replace(/\/$/, "");
+}
 
 export const strapiUrl = (path: string) => {
-  const base = STRAPI_URL.replace(/\/$/, "");
+  const base = getStrapiBaseUrl();
   const p = path.startsWith("/") ? path : `/${path}`;
   return `${base}${p}`;
 };
 
+/** Read token at call time so server-side requests always use current env (avoids 401 from stale/missing token). Token is trimmed to avoid copy-paste whitespace. */
 export function getStrapiHeaders(): HeadersInit {
+  const token = (process.env.STRAPI_API_TOKEN || "").trim();
   const headers: HeadersInit = {
     "Content-Type": "application/json",
   };
-  if (STRAPI_TOKEN) {
-    (headers as Record<string, string>)["Authorization"] = `Bearer ${STRAPI_TOKEN}`;
+  if (token) {
+    (headers as Record<string, string>)["Authorization"] = `Bearer ${token}`;
   }
   return headers;
 }
@@ -39,5 +42,5 @@ export async function strapiFetch<T>(
 }
 
 export function isStrapiConfigured(): boolean {
-  return Boolean(STRAPI_URL);
+  return Boolean(getStrapiBaseUrl());
 }

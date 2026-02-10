@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { strapiUrl, getStrapiHeaders } from "@/lib/strapi/client";
+import { strapiUrl } from "@/lib/strapi/client";
 import { generateBookingReference } from "@/lib/utils/booking-utils";
 
 export type BookingResponse = {
@@ -90,8 +90,8 @@ export async function POST(request: NextRequest) {
     }
 
     const referenceNumber = generateBookingReference();
-    const strapiBase = process.env.NEXT_PUBLIC_STRAPI_URL;
-    const token = process.env.STRAPI_API_TOKEN;
+    const strapiBase = (process.env.NEXT_PUBLIC_STRAPI_URL || "").trim().replace(/\/$/, "");
+    const token = (process.env.STRAPI_API_TOKEN || "").trim();
     if (!strapiBase || !token) {
       return NextResponse.json(
         { error: "Strapi not configured (NEXT_PUBLIC_STRAPI_URL, STRAPI_API_TOKEN)" },
@@ -99,11 +99,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const strapiHeaders: HeadersInit = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    };
+
     let serviceId = bodyServiceId;
     if (serviceId == null && serviceSlug) {
       const listRes = await fetch(
         strapiUrl(`/api/services?filters[slug][$eq]=${encodeURIComponent(serviceSlug)}&fields[0]=documentId&fields[1]=id`),
-        { headers: getStrapiHeaders() }
+        { headers: strapiHeaders }
       );
       if (listRes.ok) {
         const list = await listRes.json();
@@ -124,7 +129,7 @@ export async function POST(request: NextRequest) {
         if (!Number.isNaN(idNum)) {
           const layoutRes = await fetch(
             strapiUrl(`/api/service-layouts?filters[id][$eq]=${idNum}&fields[0]=documentId&fields[1]=id`),
-            { headers: getStrapiHeaders() }
+            { headers: strapiHeaders }
           );
           if (layoutRes.ok) {
             const layoutList = await layoutRes.json();
@@ -149,7 +154,7 @@ export async function POST(request: NextRequest) {
         const inParams = numericIds.map((id, i) => `filters[id][$in][${i}]=${id}`).join("&");
         const addOnRes = await fetch(
           strapiUrl(`/api/add-ons?${inParams}&fields[0]=documentId&fields[1]=id`),
-          { headers: getStrapiHeaders() }
+          { headers: strapiHeaders }
         );
         if (addOnRes.ok) {
           const addOnList = await addOnRes.json();
@@ -191,9 +196,9 @@ export async function POST(request: NextRequest) {
       payload.service = { connect: [serviceId] };
     }
 
-    // Layout relation (many-to-one) – Strapi v5 requires documentId in connect
+    // Layout relation (manyToMany in Strapi, field name is "layouts") – Strapi v5 requires documentId in connect
     if (layoutDocumentId) {
-      payload.layout = { connect: [layoutDocumentId] };
+      payload.layouts = { connect: [layoutDocumentId] };
     }
 
     // AddOns relation (many-to-many) – Strapi v5 requires documentIds in connect
@@ -203,15 +208,19 @@ export async function POST(request: NextRequest) {
 
     const res = await fetch(strapiUrl("/api/bookings"), {
       method: "POST",
-      headers: getStrapiHeaders(),
+      headers: strapiHeaders,
       body: JSON.stringify({ data: payload }),
     });
 
     if (!res.ok) {
       const text = await res.text();
       console.error("Strapi create booking error:", res.status, text);
+      const is401 = res.status === 401;
+      const userMessage = is401
+        ? "Strapi rejected the API token. In Strapi Admin go to Settings → API Tokens, create a Full access token (or Custom with Bookings/Services access), copy it into .env.local as STRAPI_API_TOKEN, then restart the Next.js dev server."
+        : "Failed to create booking";
       return NextResponse.json(
-        { error: "Failed to create booking", details: text },
+        { error: userMessage, details: text },
         { status: 502 }
       );
     }
@@ -245,8 +254,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const strapiBase = process.env.NEXT_PUBLIC_STRAPI_URL;
-    const token = process.env.STRAPI_API_TOKEN;
+    const strapiBase = (process.env.NEXT_PUBLIC_STRAPI_URL || "").trim().replace(/\/$/, "");
+    const token = (process.env.STRAPI_API_TOKEN || "").trim();
     if (!strapiBase || !token) {
       return NextResponse.json(
         { error: "Strapi not configured" },
@@ -254,21 +263,30 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const strapiHeaders: HeadersInit = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    };
+
     // Fetch bookings for the specified date (only confirmed bookings)
     const url = strapiUrl(
       `/api/bookings?filters[date][$eq]=${encodeURIComponent(date)}&filters[status][$in][0]=confirmed&filters[status][$in][1]=pending_payment&fields[0]=referenceNumber&fields[1]=date&fields[2]=endDate&fields[3]=startTime&fields[4]=endTime&fields[5]=roomSpace&fields[6]=status&fields[7]=attendees`
     );
 
     const res = await fetch(url, {
-      headers: getStrapiHeaders(),
+      headers: strapiHeaders,
       next: { revalidate: 0 }, // Don't cache - need real-time data
     });
 
     if (!res.ok) {
       const text = await res.text();
       console.error("Strapi fetch bookings error:", res.status, text);
+      const is401 = res.status === 401;
+      const userMessage = is401
+        ? "Strapi rejected the API token. In Strapi Admin go to Settings → API Tokens, create a Full access token, copy it into .env.local as STRAPI_API_TOKEN, then restart the Next.js dev server."
+        : "Failed to fetch bookings";
       return NextResponse.json(
-        { error: "Failed to fetch bookings", details: text },
+        { error: userMessage, details: text },
         { status: 502 }
       );
     }
