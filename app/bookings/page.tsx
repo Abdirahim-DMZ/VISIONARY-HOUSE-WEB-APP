@@ -18,7 +18,7 @@ import { PageHero } from "@/components/sections";
 import { useToast } from "@/hooks/use-toast";
 import { Search, Calendar, Clock, MapPin, Mail, Phone } from "lucide-react";
 import { motion } from "framer-motion";
-import { fetchBookingSettings, isStrapiConfigured } from "@/lib/strapi";
+import { fetchBookingSettings, findBookingByReference, isStrapiConfigured } from "@/lib/strapi";
 import { getBookingSettingsHeroImageUrl } from "@/lib/strapi/mappers";
 
 export default function Bookings() {
@@ -56,9 +56,9 @@ export default function Bookings() {
   const isLoading = isStrapiConfigured() && bookingSettingsLoading;
   const isError = isStrapiConfigured() && bookingSettingsError;
 
-  const handleSearch = (e: React.FormEvent) => {
+  const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!referenceNumber || !email) {
       toast({
         title: "Missing Information",
@@ -68,12 +68,52 @@ export default function Bookings() {
       return;
     }
 
-    // Simulate booking lookup
-    toast({
-      title: "Booking Not Found",
-      description: "No booking found with the provided details. Please check your reference number and email.",
-      variant: "destructive",
-    });
+    try {
+      const result = await findBookingByReference(referenceNumber.trim(), email.trim());
+
+      if (!result) {
+        setBooking(null);
+        toast({
+          title: "Booking Not Found",
+          description: "No booking found with the provided details. Please check your reference number and email.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const raw: any = result;
+      const attrs = (raw.attributes ?? raw) || {};
+      const serviceAttrs = attrs.service?.data?.attributes ?? {};
+
+      setBooking({
+        referenceNumber: attrs.referenceNumber ?? raw.referenceNumber ?? "",
+        customerName: attrs.customerName ?? raw.customerName ?? "",
+        customerEmail: attrs.customerEmail ?? raw.customerEmail ?? "",
+        customerPhone: attrs.customerPhone ?? raw.customerPhone ?? "",
+        companyName: attrs.companyName ?? raw.companyName ?? "",
+        date: attrs.date ?? raw.date ?? "",
+        endDate: attrs.endDate ?? raw.endDate ?? "",
+        startTime: attrs.startTime ?? raw.startTime ?? "",
+        endTime: attrs.endTime ?? raw.endTime ?? "",
+        attendees: attrs.attendees ?? raw.attendees ?? null,
+        message: attrs.message ?? raw.message ?? "",
+        status: attrs.status ?? raw.status ?? "",
+        totalPrice: attrs.totalPrice ?? raw.totalPrice ?? null,
+        currency: attrs.currency ?? raw.currency ?? "",
+        eventType: attrs.eventType ?? raw.eventType ?? "",
+        guestType: attrs.guestType ?? raw.guestType ?? "",
+        roomSpace: attrs.roomSpace ?? raw.roomSpace ?? "",
+        serviceType: attrs.eventType ?? raw.eventType ?? serviceAttrs.name ?? "",
+      });
+    } catch (error) {
+      console.error("Error finding booking:", error);
+      setBooking(null);
+      toast({
+        title: "Error",
+        description: "Something went wrong while looking up your booking. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -166,7 +206,9 @@ export default function Bookings() {
                     <div className="flex items-center justify-between">
                       <CardTitle className="heading-card">Booking Details</CardTitle>
                       <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                        Confirmed
+                        {booking.status
+                          ? booking.status.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())
+                          : "Confirmed"}
                       </Badge>
                     </div>
                     <CardDescription className="text-body">Reference: {booking.referenceNumber}</CardDescription>
@@ -213,11 +255,6 @@ export default function Bookings() {
                           </div>
                         </div>
                       </div>
-                    </div>
-
-                    <div className="flex gap-4 pt-4 border-t">
-                      <Button variant="outline">Modify Booking</Button>
-                      <Button variant="destructive">Cancel Booking</Button>
                     </div>
                   </CardContent>
                 </Card>

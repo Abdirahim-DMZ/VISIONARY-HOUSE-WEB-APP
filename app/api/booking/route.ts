@@ -34,14 +34,18 @@ export type CreateBookingBody = {
   endTime: string;
   attendees?: number;
   roomSpace?: string;
-  /** Layout ID for relation connection */
+  /** Layout: numeric id or Strapi documentId (string) for relation */
   layout?: string | number;
-  /** Add-on IDs for relation connection */
-  addOnIds?: number[];
+  /** Add-ons: numeric ids and/or Strapi documentIds for relation */
+  addOnIds?: (number | string)[];
   message?: string;
   totalPrice: number;
   currency?: string;
   status?: string;
+  /** Set when creating booking after successful payment */
+  razorpayOrderId?: string;
+  razorpayPaymentId?: string;
+  paidAt?: string;
 };
 
 /**
@@ -73,6 +77,9 @@ export async function POST(request: NextRequest) {
       totalPrice,
       currency = "INR",
       status = "pending_payment",
+      razorpayOrderId,
+      razorpayPaymentId,
+      paidAt,
     } = body;
 
     if (!customerName || !customerEmail || !customerPhone || !date || !startTime || !endTime || totalPrice == null) {
@@ -105,8 +112,56 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Strapi v5 requires documentId for relations (not numeric id). Resolve layout and addOns to documentIds.
+    let layoutDocumentId: string | null = null;
+    if (layout != null && layout !== undefined && layout !== "") {
+      const layoutVal = typeof layout === "string" ? layout.trim() : String(layout);
+      const isLikelyDocumentId = /^[a-z0-9]{20,}$/i.test(layoutVal) && !/^\d+$/.test(layoutVal);
+      if (isLikelyDocumentId) {
+        layoutDocumentId = layoutVal;
+      } else {
+        const idNum = typeof layout === "number" ? layout : parseInt(layoutVal, 10);
+        if (!Number.isNaN(idNum)) {
+          const layoutRes = await fetch(
+            strapiUrl(`/api/service-layouts?filters[id][$eq]=${idNum}&fields[0]=documentId&fields[1]=id`),
+            { headers: getStrapiHeaders() }
+          );
+          if (layoutRes.ok) {
+            const layoutList = await layoutRes.json();
+            const layoutDoc = layoutList?.data?.[0];
+            layoutDocumentId = layoutDoc?.documentId ?? null;
+          }
+        }
+      }
+    }
+
+    let addOnDocumentIds: string[] = [];
+    if (addOnIds?.length) {
+      const documentIdCandidates = addOnIds.filter(
+        (x): x is string => typeof x === "string" && /^[a-z0-9]{20,}$/i.test(x) && !/^\d+$/.test(x)
+      );
+      const numericIds: number[] = [];
+      for (const x of addOnIds) {
+        if (typeof x === "number" && !Number.isNaN(x)) numericIds.push(x);
+        else if (typeof x === "string" && /^\d+$/.test(x)) numericIds.push(parseInt(x, 10));
+      }
+      if (numericIds.length > 0) {
+        const inParams = numericIds.map((id, i) => `filters[id][$in][${i}]=${id}`).join("&");
+        const addOnRes = await fetch(
+          strapiUrl(`/api/add-ons?${inParams}&fields[0]=documentId&fields[1]=id`),
+          { headers: getStrapiHeaders() }
+        );
+        if (addOnRes.ok) {
+          const addOnList = await addOnRes.json();
+          const items = addOnList?.data ?? [];
+          addOnDocumentIds = items.map((item: { documentId?: string }) => item?.documentId).filter(Boolean);
+        }
+      }
+      addOnDocumentIds = [...addOnDocumentIds, ...documentIdCandidates];
+    }
+
     // Strapi v5 create: POST /api/bookings with { data: { ... } }
-    // For relations, use { connect: [id] } format
+    // For relations use connect: [documentId] (array of documentId strings)
     const payload: Record<string, unknown> = {
       referenceNumber,
       customerName,
@@ -127,23 +182,23 @@ export async function POST(request: NextRequest) {
       currency,
     };
 
-    // Service relation (many-to-one)
+    if (razorpayOrderId) payload.razorpayOrderId = razorpayOrderId;
+    if (razorpayPaymentId) payload.razorpayPaymentId = razorpayPaymentId;
+    if (paidAt) payload.paidAt = paidAt;
+
+    // Service relation (many-to-one) – Strapi v5 accepts id or documentId for connect
     if (serviceId != null && serviceId !== undefined) {
       payload.service = { connect: [serviceId] };
     }
-    
-    // Layout relation (many-to-one)
-    if (layout != null) {
-      // Ensure layout value is a number
-      const layoutNum = typeof layout === 'string' && !isNaN(parseInt(layout, 10))
-        ? parseInt(layout, 10)
-        : layout;
-      payload.layout = { connect: [layoutNum] };
+
+    // Layout relation (many-to-one) – Strapi v5 requires documentId in connect
+    if (layoutDocumentId) {
+      payload.layout = { connect: [layoutDocumentId] };
     }
-    
-    // AddOns relation (many-to-many)
-    if (addOnIds?.length) {
-      payload.addOns = { connect: addOnIds };
+
+    // AddOns relation (many-to-many) – Strapi v5 requires documentIds in connect
+    if (addOnDocumentIds.length > 0) {
+      payload.addOns = { connect: addOnDocumentIds };
     }
 
     const res = await fetch(strapiUrl("/api/bookings"), {

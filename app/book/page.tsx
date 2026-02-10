@@ -44,7 +44,9 @@ import {
   CheckCircle2,
   Info,
   MapPin,
-  Search
+  Search,
+  Copy,
+  Check
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -229,10 +231,10 @@ export default function Book() {
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [bookingReference, setBookingReference] = useState("");
+  const [referenceCopied, setReferenceCopied] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, boolean>>({});
   const [emailErrorMessage, setEmailErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [paymentError, setPaymentError] = useState<string | null>(null);
 
   const { data: bookPageData, isLoading: bookPageLoading, isError: bookPageError } = useQuery({
     queryKey: ["strapi", "book-from-page"],
@@ -282,6 +284,11 @@ export default function Book() {
     const mapped = mapStrapiGuestTypes(apiGuestTypes);
     return mapped.length > 0 ? mapped : [...GUEST_TYPES_FALLBACK];
   }, [apiGuestTypes]);
+
+  const getEventTypeName = () => {
+    const selectedEventType = eventTypesList.find((e) => e.id === formData.eventType);
+    return selectedEventType?.label || formData.eventType || "";
+  };
 
   const heroEyebrow = bookPageData?.heroEyebrow ?? "Reserve Your Space";
   const heroTitle = bookPageData?.heroTitle ?? "Book Your Premium Environment";
@@ -999,70 +1006,146 @@ export default function Book() {
     if (!validateStep(3)) return;
 
     setIsSubmitting(true);
-    setPaymentError(null);
 
     try {
-      // Find the selected event type to get its label/name
-      const selectedEventType = eventTypesList.find((e) => e.id === formData.eventType);
-      const eventTypeName = selectedEventType?.label || formData.eventType || "";
+      const eventTypeName = getEventTypeName();
 
-      // Create booking directly without payment
-      const bookingRes = await fetch("/api/booking", {
+      // 1) Create Razorpay order only (booking is created after payment success)
+      const orderRes = await fetch("/api/razorpay/create-order", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          customerName: formData.name,
-          customerEmail: formData.email,
-          customerPhone: formData.phone,
-          companyName: formData.company || undefined,
-          guestType: formData.guestType || undefined,
-          eventType: eventTypeName, // Send event type name/label instead of ID
-          serviceSlug: formData.serviceType,
-          date: formData.date,
-          endDate: formData.endDate || undefined,
-          startTime: formData.startTime,
-          endTime: formData.endTime,
-          attendees: formData.attendees ? parseInt(formData.attendees, 10) : undefined,
-          roomSpace: formData.roomSpace || undefined,
-          layout: formData.layoutId ? (isNaN(parseInt(formData.layoutId, 10)) ? formData.layoutId : parseInt(formData.layoutId, 10)) : undefined,
-          addOnIds: formData.addOns?.length ? formData.addOns.map(id => parseInt(id, 10)) : undefined,
-          message: formData.message || undefined,
-          totalPrice,
+          amount: Math.round(totalPrice * 100), // amount in paise
           currency: "INR",
-          status: "confirmed",
+          receipt: `order-${Date.now()}`,
         }),
       });
 
-      const bookingJson = await bookingRes.json();
-
-      if (!bookingRes.ok) {
-        setPaymentError(bookingJson.error || "Failed to create booking");
+      const orderJson = await orderRes.json();
+      if (!orderRes.ok || !orderJson.orderId || !orderJson.keyId) {
         toast({
-          title: "Booking Failed",
-          description: bookingJson.error || "Failed to create booking. Please try again.",
+          title: "Payment Error",
+          description: orderJson.error || "Unable to start payment. Please try again.",
           variant: "destructive",
         });
         return;
       }
 
-      if (bookingJson.success && bookingJson.referenceNumber) {
-        setBookingReference(bookingJson.referenceNumber);
-        setShowConfirmation(true);
+      // 2) Build booking payload for after payment (same shape as POST /api/booking)
+      const addOnIds = (formData.addOns?.length
+        ? formData.addOns
+            .map((selectedId) => {
+              const match = apiAddOns.find(
+                (a) => String(a.id) === selectedId || a.documentId === selectedId
+              );
+              return match?.id;
+            })
+            .filter((id): id is number => typeof id === "number")
+        : []) as number[];
+
+      const bookingPayload = {
+        customerName: formData.name,
+        customerEmail: formData.email,
+        customerPhone: formData.phone,
+        companyName: formData.company || undefined,
+        guestType: formData.guestType || undefined,
+        eventType: eventTypeName,
+        serviceSlug: formData.serviceType,
+        date: formData.date,
+        endDate: formData.endDate || undefined,
+        startTime: formData.startTime,
+        endTime: formData.endTime,
+        attendees: formData.attendees ? parseInt(formData.attendees, 10) : undefined,
+        roomSpace: formData.roomSpace || undefined,
+        layout: formData.layoutId
+          ? isNaN(parseInt(formData.layoutId, 10))
+            ? formData.layoutId
+            : parseInt(formData.layoutId, 10)
+          : undefined,
+        addOnIds,
+        message: formData.message || undefined,
+        totalPrice,
+        currency: "INR",
+      };
+
+      // 3) Load Razorpay checkout and open default Checkout UI
+      await loadRazorpayScript();
+      const RazorpayConstructor = (window as unknown as { Razorpay?: any }).Razorpay;
+      if (!RazorpayConstructor) {
         toast({
-          title: "Booking Confirmed!",
-          description: `Your booking has been confirmed. Reference: ${bookingJson.referenceNumber}`,
-        });
-      } else {
-        setPaymentError("Failed to create booking");
-        toast({
-          title: "Booking Failed",
-          description: "Failed to create booking. Please try again.",
+          title: "Error",
+          description: "Payment could not be loaded. Please try again.",
           variant: "destructive",
         });
+        return;
       }
+
+      const options = {
+        key: orderJson.keyId,
+        amount: orderJson.amount,
+        currency: orderJson.currency,
+        name: "Visionary House",
+        description: eventTypeName || "Booking Payment",
+        order_id: orderJson.orderId,
+        prefill: {
+          name: formData.name,
+          email: formData.email,
+          contact: formData.phone,
+        },
+        theme: { color: "#B7974B" },
+        handler: async (response: any) => {
+          try {
+            const verifyRes = await fetch("/api/razorpay/verify-payment", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+                booking: bookingPayload,
+              }),
+            });
+
+            const verifyJson = await verifyRes.json();
+            if (!verifyRes.ok || !verifyJson.success) {
+              toast({
+                title: "Payment verification failed",
+                description: verifyJson.error || "We couldn't confirm your booking. Please contact support.",
+                variant: "destructive",
+              });
+              return;
+            }
+
+            setBookingReference(verifyJson.referenceNumber || "");
+            setShowConfirmation(true);
+            toast({
+              title: "Booking confirmed",
+              description: `Your booking has been confirmed. Reference: ${verifyJson.referenceNumber || ""}`,
+            });
+          } catch (error) {
+            const msg = error instanceof Error ? error.message : "Something went wrong. Please contact support.";
+            toast({
+              title: "Error",
+              description: msg,
+              variant: "destructive",
+            });
+          }
+        },
+        modal: {
+          ondismiss: () => {
+            toast({
+              title: "Payment cancelled",
+              description: "Your booking was not confirmed because payment was cancelled.",
+              variant: "destructive",
+            });
+          },
+        },
+      };
+
+      const razorpayInstance = new RazorpayConstructor(options);
+      razorpayInstance.open();
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Something went wrong";
-      setPaymentError(errorMessage);
       toast({
         title: "Error",
         description: errorMessage,
@@ -1075,6 +1158,7 @@ export default function Book() {
 
   const handleCloseConfirmation = () => {
     setShowConfirmation(false);
+    setReferenceCopied(false);
     setTimeout(() => {
       setFormData({
         name: "",
@@ -1243,10 +1327,39 @@ export default function Book() {
           <div className="space-y-4 py-4">
             <div className="bg-cream rounded-lg p-6 space-y-3">
               <p className="text-sm text-muted-foreground text-center">Your Booking Reference</p>
-              <div className="bg-white border-2 border-accent rounded-lg p-4">
+              <div className="bg-white border-2 border-accent rounded-lg p-4 flex items-center justify-center gap-2 flex-wrap">
                 <p className="text-2xl font-heading font-bold text-accent text-center tracking-wider">
                   {bookingReference}
                 </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0 h-9 gap-1.5 border-accent text-accent hover:bg-accent/10"
+                  onClick={async () => {
+                    if (!bookingReference) return;
+                    try {
+                      await navigator.clipboard.writeText(bookingReference);
+                      setReferenceCopied(true);
+                      toast({ title: "Copied!", description: "Booking reference copied to clipboard." });
+                      setTimeout(() => setReferenceCopied(false), 2000);
+                    } catch {
+                      toast({ title: "Copy failed", description: "Could not copy to clipboard.", variant: "destructive" });
+                    }
+                  }}
+                >
+                  {referenceCopied ? (
+                    <>
+                      <Check className="h-4 w-4" />
+                      Copied
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="h-4 w-4" />
+                      Copy
+                    </>
+                  )}
+                </Button>
               </div>
               <p className="text-xs text-muted-foreground text-center">
                 Please save this reference number for your records
@@ -2960,11 +3073,6 @@ export default function Book() {
                           >
                             Back
                           </Button>
-                          {paymentError && (
-                            <Alert variant="destructive" className="mb-4">
-                              <AlertDescription>{paymentError}</AlertDescription>
-                            </Alert>
-                          )}
                           <Button
                             type="submit"
                             variant="gold"

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { strapiUrl, getStrapiHeaders } from "@/lib/strapi/client";
+import type { CreateBookingBody } from "@/app/api/booking/route";
 
 const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET;
 
@@ -8,6 +9,9 @@ export type VerifyPaymentBody = {
   razorpay_order_id: string;
   razorpay_payment_id: string;
   razorpay_signature: string;
+  /** When creating booking after payment: full booking payload. If provided, we verify then create booking (no update). */
+  booking?: CreateBookingBody;
+  /** When updating existing booking: bookingId or referenceNumber */
   bookingId?: string | number;
   referenceNumber?: string;
 };
@@ -37,7 +41,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = (await request.json()) as VerifyPaymentBody;
-    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, bookingId, referenceNumber } = body;
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, booking: bookingPayload, bookingId, referenceNumber } = body;
 
     if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
       return NextResponse.json(
@@ -56,6 +60,39 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid payment signature" }, { status: 400 });
     }
 
+    // Create booking after payment: verify then call booking API with payload + payment details
+    if (bookingPayload) {
+      const base = request.headers.get("x-forwarded-proto") && request.headers.get("x-forwarded-host")
+        ? `${request.headers.get("x-forwarded-proto")}://${request.headers.get("x-forwarded-host")}`
+        : new URL(request.url).origin;
+      const bookingRes = await fetch(`${base}/api/booking`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...bookingPayload,
+          status: "confirmed",
+          razorpayOrderId: razorpay_order_id,
+          razorpayPaymentId: razorpay_payment_id,
+          paidAt: new Date().toISOString(),
+        }),
+      });
+      const bookingJson = await bookingRes.json();
+      if (!bookingRes.ok) {
+        console.error("Booking create after payment error:", bookingRes.status, bookingJson);
+        return NextResponse.json(
+          { error: bookingJson?.error || "Failed to confirm booking" },
+          { status: 502 }
+        );
+      }
+      return NextResponse.json({
+        success: true,
+        message: "Payment verified and booking confirmed",
+        referenceNumber: bookingJson.referenceNumber,
+        bookingId: bookingJson.bookingId,
+      });
+    }
+
+    // Update existing booking (legacy flow)
     const strapiBase = process.env.NEXT_PUBLIC_STRAPI_URL;
     const token = process.env.STRAPI_API_TOKEN;
     if (!strapiBase || !token) {
@@ -65,7 +102,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Find booking by referenceNumber (preferred) or bookingId
     let docId: string | number | null = bookingId ?? null;
     if (!docId && referenceNumber) {
       const listRes = await fetch(
@@ -88,7 +124,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Strapi v5 uses documentId for update; v4 may use id. Try documentId first.
     const updateRes = await fetch(strapiUrl(`/api/bookings/${docId}`), {
       method: "PUT",
       headers: getStrapiHeaders(),

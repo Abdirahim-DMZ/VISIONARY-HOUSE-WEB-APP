@@ -15,6 +15,19 @@ import { motion } from "framer-motion";
 import { fadeInUp, staggerContainer } from "@/lib/constants/animations";
 import { fetchContactPage, isStrapiConfigured } from "@/lib/strapi";
 import { getContactPageHeroImageUrl } from "@/lib/strapi/mappers";
+import { cn } from "@/lib/utils";
+
+// Email: local@domain.tld (RFC-style, common chars only)
+const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+const isValidEmail = (v: string) => v.trim().length > 0 && EMAIL_REGEX.test(v.trim());
+
+// Phone: required; 7–15 digits (E.164), works for any country
+const isValidPhone = (v: string) => {
+  if (!v?.trim()) return false;
+  const digits = v.replace(/\D/g, "");
+  const hasValidChars = /^[\d\s+\-().]+$/.test(v.trim());
+  return digits.length >= 7 && digits.length <= 15 && hasValidChars;
+};
 
 const defaultContactInfo = [
   { icon: MapPin, title: "Address", content: "123 Executive Boulevard,\nBusiness District, City 10001", href: undefined as string | undefined },
@@ -79,24 +92,77 @@ export default function Contact() {
     subject: "",
     message: "",
   });
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+    if (fieldErrors[name]) setFieldErrors((prev) => ({ ...prev, [name]: "" }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const validateForm = (): boolean => {
+    const err: Record<string, string> = {};
+    const name = formData.name.trim();
+    if (!name) err.name = "Please enter your full name.";
+    else if (name.length < 2) err.name = "Name must be at least 2 characters.";
+    if (!formData.email.trim()) err.email = "Please enter your email address.";
+    else if (!isValidEmail(formData.email)) err.email = "Please enter a valid email address (e.g. name@example.com).";
+    if (!formData.phone.trim()) err.phone = "Please enter your phone number.";
+    else if (!isValidPhone(formData.phone)) err.phone = "Please enter a valid phone number (7–15 digits).";
+    const subject = formData.subject.trim();
+    if (!subject) err.subject = "Please enter a subject.";
+    else if (subject.length < 3) err.subject = "Subject must be at least 3 characters.";
+    const message = formData.message.trim();
+    if (!message) err.message = "Please enter your message.";
+    else if (message.length < 10) err.message = "Message must be at least 10 characters.";
+    setFieldErrors(err);
+    return Object.keys(err).length === 0;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    toast({
-      title: "Message Sent",
-      description: "Thank you for contacting us. We'll respond within 24 hours.",
-    });
-    setFormData({
-      name: "",
-      email: "",
-      phone: "",
-      subject: "",
-      message: "",
-    });
+    if (!validateForm()) {
+      toast({ title: "Please fix the errors", description: "Check the fields marked in red.", variant: "destructive" });
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      const res = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: formData.name,
+          email: formData.email,
+          phone: formData.phone || undefined,
+          subject: formData.subject,
+          message: formData.message,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast({
+          title: "Could not send message",
+          description: data?.error || "Please try again later.",
+          variant: "destructive",
+        });
+        return;
+      }
+      toast({
+        title: "Message Sent",
+        description: "Thank you for contacting us. We'll respond within 24 hours.",
+      });
+      setFormData({ name: "", email: "", phone: "", subject: "", message: "" });
+      setFieldErrors({});
+    } catch {
+      toast({
+        title: "Something went wrong",
+        description: "Please try again later.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -223,9 +289,10 @@ export default function Contact() {
                         name="name"
                         value={formData.name}
                         onChange={handleChange}
-                        required
                         placeholder="John Smith"
+                        className={cn(fieldErrors.name && "border-red-500 focus-visible:ring-red-500")}
                       />
+                      {fieldErrors.name && <p className="text-xs text-red-500">{fieldErrors.name}</p>}
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="email">Email Address *</Label>
@@ -235,14 +302,15 @@ export default function Contact() {
                         type="email"
                         value={formData.email}
                         onChange={handleChange}
-                        required
                         placeholder="john@company.com"
+                        className={cn(fieldErrors.email && "border-red-500 focus-visible:ring-red-500")}
                       />
+                      {fieldErrors.email && <p className="text-xs text-red-500">{fieldErrors.email}</p>}
                     </div>
                   </div>
                   <div className="grid md:grid-cols-2 gap-6">
                     <div className="space-y-2">
-                      <Label htmlFor="phone">Phone Number</Label>
+                      <Label htmlFor="phone">Phone Number *</Label>
                       <Input
                         id="phone"
                         name="phone"
@@ -250,7 +318,9 @@ export default function Contact() {
                         value={formData.phone}
                         onChange={handleChange}
                         placeholder="+1 (234) 567-890"
+                        className={cn(fieldErrors.phone && "border-red-500 focus-visible:ring-red-500")}
                       />
+                      {fieldErrors.phone && <p className="text-xs text-red-500">{fieldErrors.phone}</p>}
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="subject">Subject *</Label>
@@ -259,9 +329,10 @@ export default function Contact() {
                         name="subject"
                         value={formData.subject}
                         onChange={handleChange}
-                        required
                         placeholder="How can we help?"
+                        className={cn(fieldErrors.subject && "border-red-500 focus-visible:ring-red-500")}
                       />
+                      {fieldErrors.subject && <p className="text-xs text-red-500">{fieldErrors.subject}</p>}
                     </div>
                   </div>
                   <div className="space-y-2">
@@ -271,13 +342,14 @@ export default function Contact() {
                       name="message"
                       value={formData.message}
                       onChange={handleChange}
-                      required
                       placeholder="Please describe your inquiry in detail..."
                       rows={6}
+                      className={cn(fieldErrors.message && "border-red-500 focus-visible:ring-red-500")}
                     />
+                    {fieldErrors.message && <p className="text-xs text-red-500">{fieldErrors.message}</p>}
                   </div>
-                  <Button type="submit" variant="gold" size="lg">
-                    Send Message
+                  <Button type="submit" variant="gold" size="lg" disabled={isSubmitting}>
+                    {isSubmitting ? "Sending…" : "Send Message"}
                     <ArrowRight className="ml-2 h-4 w-4" />
                   </Button>
                 </form>
