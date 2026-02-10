@@ -304,6 +304,33 @@ export interface ContactPageAttr {
   ctaButtonHref?: string | null;
 }
 
+// ---- Policies Page (single type) ----
+// API: heroEyebrow, heroTitle, heroDescription, heroBackgroundImage; policies[] (policyId, title, content[] { heading, description }); ctaTitle, ctaDescription, ctaDescriptionHighlight, lastUpdated
+export interface PoliciesPageContentItem {
+  id?: number;
+  heading?: string | null;
+  description?: string | null;
+}
+
+export interface PoliciesPagePolicyItem {
+  id?: number;
+  policyId?: string | null;
+  title?: string | null;
+  content?: PoliciesPageContentItem[];
+}
+
+export interface PoliciesPageAttr {
+  heroEyebrow?: string | null;
+  heroTitle?: string | null;
+  heroDescription?: string | null;
+  heroBackgroundImage?: { data: StrapiMedia | null } | StrapiMedia | null;
+  policies?: PoliciesPagePolicyItem[];
+  ctaTitle?: string | null;
+  ctaDescription?: string | null;
+  ctaDescriptionHighlight?: string | null;
+  lastUpdated?: string | null;
+}
+
 // ---- Gallery Page (single type) ----
 // API returns flat: heroEyebrow, heroTitle, heroDescription, heroImage (direct media), image[] (each: id, description, category, image as direct media)
 export interface GalleryPageImageItem {
@@ -395,6 +422,7 @@ export interface BookPageAttr {
   heroDescription?: string | null;
   heroImage?: { data: StrapiMedia | null } | StrapiMedia | null;
   feature?: BookPageFeatureItem[];
+  helpCard?:any;
 }
 
 // ---- Booking Settings (single type) ----

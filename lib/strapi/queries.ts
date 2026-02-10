@@ -26,6 +26,7 @@ import type {
   GalleryPageAttr,
   ContactPageAttr,
   BookPageAttr,
+  PoliciesPageAttr,
 } from "./types";
 
 const POPULATE_DEEP = "populate=*"; // adjust for nested relations if needed, e.g. populate[image]=*
@@ -117,7 +118,7 @@ export async function fetchBookPage(): Promise<BookPageAttr | null> {
   if (!isStrapiConfigured()) return null;
   try {
     const res = await strapiFetch<StrapiSingleResponse<{ id: number; attributes?: BookPageAttr } & Partial<BookPageAttr>>>(
-      `/api/book-from-page?populate[heroImage][populate]=true&populate[feature][populate]=true`
+      `/api/book-from-page?populate[heroImage][populate]=true&populate[feature][populate]=true&populate[helpCard][populate]=true`
     );
     const raw = res?.data;
     if (!raw) return null;
@@ -136,6 +137,22 @@ export async function fetchBookingSettings(): Promise<BookingSettingsAttr | null
     const raw = res?.data;
     if (!raw) return null;
     return (raw as { attributes?: BookingSettingsAttr }).attributes ?? (raw as BookingSettingsAttr);
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchPoliciesPage(): Promise<PoliciesPageAttr | null> {
+  if (!isStrapiConfigured()) return null;
+  try {
+    const res = await strapiFetch<
+      StrapiSingleResponse<{ id: number; attributes?: PoliciesPageAttr } & Partial<PoliciesPageAttr>>
+    >(
+      `/api/policies-page?populate[heroBackgroundImage][populate]=true&populate[policies][populate][content]=true`
+    );
+    const raw = res?.data;
+    if (!raw) return null;
+    return (raw as { attributes?: PoliciesPageAttr }).attributes ?? (raw as PoliciesPageAttr);
   } catch {
     return null;
   }
