@@ -33,7 +33,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Layout } from "@/components/layout/layout";
-import { PageHero } from "@/components/sections";
+import { PageHero, PageHeroSkeleton } from "@/components/sections";
 import { useToast } from "@/hooks/use-toast";
 import {
   ArrowRight,
@@ -251,47 +251,56 @@ export default function Book() {
     enabled: isStrapiConfigured(),
     staleTime: 60_000,
   });
-  const { data: apiAddOns = [] } = useQuery({
+  const { data: apiAddOns = [], isLoading: addOnsLoading, isError: addOnsError } = useQuery({
     queryKey: ["strapi", "add-ons"],
     queryFn: fetchAddOns,
     enabled: isStrapiConfigured(),
     staleTime: 60_000,
   });
-  const { data: apiEventTypes = [] } = useQuery({
+  const { data: apiEventTypes = [], isLoading: eventTypesLoading, isError: eventTypesError } = useQuery({
     queryKey: ["strapi", "event-types"],
     queryFn: fetchEventTypes,
     enabled: isStrapiConfigured(),
     staleTime: 60_000,
   });
-  const { data: apiServiceLayouts = [] } = useQuery({
+  const { data: apiServiceLayouts = [], isLoading: serviceLayoutsLoading, isError: serviceLayoutsError } = useQuery({
     queryKey: ["strapi", "service-layouts"],
     queryFn: () => fetchServiceLayouts(),
     enabled: isStrapiConfigured(),
     staleTime: 60_000,
   });
-  const { data: apiGuestTypes = [] } = useQuery({
+  const { data: apiGuestTypes = [], isLoading: guestTypesLoading, isError: guestTypesError } = useQuery({
     queryKey: ["strapi", "guest-types"],
     queryFn: fetchGuestTypes,
     enabled: isStrapiConfigured(),
     staleTime: 60_000,
   });
 
+  const strapiConfigured = isStrapiConfigured();
   const addOnsList = useMemo(() => {
     const mapped = mapStrapiAddOns(apiAddOns);
+    if (strapiConfigured && addOnsLoading) return [];
+    if (strapiConfigured && addOnsError) return bookingAddOns;
     return mapped.length > 0 ? mapped : bookingAddOns;
-  }, [apiAddOns]);
+  }, [apiAddOns, strapiConfigured, addOnsError, addOnsLoading]);
   const eventTypesList = useMemo(() => {
     const mapped = mapStrapiEventTypes(apiEventTypes);
+    if (strapiConfigured && eventTypesLoading) return [];
+    if (strapiConfigured && eventTypesError) return eventTypes;
     return mapped.length > 0 ? mapped : eventTypes;
-  }, [apiEventTypes]);
+  }, [apiEventTypes, strapiConfigured, eventTypesError, eventTypesLoading]);
   const serviceLayoutsMap = useMemo(() => {
     const mapped = mapStrapiServiceLayouts(apiServiceLayouts);
+    if (strapiConfigured && serviceLayoutsLoading) return {};
+    if (strapiConfigured && serviceLayoutsError) return serviceLayouts;
     return Object.keys(mapped).length > 0 ? mapped : serviceLayouts;
-  }, [apiServiceLayouts]);
+  }, [apiServiceLayouts, strapiConfigured, serviceLayoutsError, serviceLayoutsLoading]);
   const guestTypesList = useMemo(() => {
     const mapped = mapStrapiGuestTypes(apiGuestTypes);
+    if (strapiConfigured && guestTypesLoading) return [];
+    if (strapiConfigured && guestTypesError) return [...GUEST_TYPES_FALLBACK];
     return mapped.length > 0 ? mapped : [...GUEST_TYPES_FALLBACK];
-  }, [apiGuestTypes]);
+  }, [apiGuestTypes, strapiConfigured, guestTypesError, guestTypesLoading]);
 
   const getEventTypeName = () => {
     const selectedEventType = eventTypesList.find((e) => e.id === formData.eventType);
@@ -308,12 +317,20 @@ export default function Book() {
   const bookPageFeatures = useMemo(() => {
     const mapped = mapBookPageFeatures(bookPageData ?? null);
     if (mapped.length > 0) return mapped;
+    if (strapiConfigured && bookPageError) {
+      return [
+        { title: "Instant Confirmation", description: "Receive booking confirmation and details immediately via email" },
+        { title: "Dedicated Support", description: "Personal assistance throughout your booking and event" },
+        { title: "Flexible Modifications", description: "Easy booking changes up to 48 hours before your event" },
+      ];
+    }
+    if (strapiConfigured && bookPageLoading) return [];
     return [
       { title: "Instant Confirmation", description: "Receive booking confirmation and details immediately via email" },
       { title: "Dedicated Support", description: "Personal assistance throughout your booking and event" },
       { title: "Flexible Modifications", description: "Easy booking changes up to 48 hours before your event" },
     ];
-  }, [bookPageData]);
+  }, [bookPageData, strapiConfigured, bookPageError, bookPageLoading]);
   const isLoadingBookPage = isStrapiConfigured() && bookPageLoading;
   const isErrorBookPage = isStrapiConfigured() && bookPageError;
 
@@ -1342,6 +1359,9 @@ export default function Book() {
           Unable to load latest content. Showing default content.
         </div>
       )}
+      {isLoadingBookPage ? (
+        <PageHeroSkeleton sectionClassName="py-32 md:py-28" />
+      ) : (
       <PageHero
         eyebrow={heroEyebrow}
         title={heroTitle}
@@ -1351,6 +1371,7 @@ export default function Book() {
         sectionClassName="py-32 md:py-28"
         titleClassName="text-[#B7974B]"
       />
+      )}
 
       {/* Confirming booking (shown immediately after payment success while API completes) */}
       <Dialog open={isConfirmingBooking} onOpenChange={(open) => { if (!open) return; }}>

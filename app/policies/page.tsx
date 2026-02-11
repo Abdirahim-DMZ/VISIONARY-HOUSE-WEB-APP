@@ -3,7 +3,8 @@
 import { useRef, useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Layout } from "@/components/layout/layout";
-import { PageHero } from "@/components/sections";
+import { PageHero, PageHeroSkeleton } from "@/components/sections";
+import { Skeleton } from "@/components/ui/skeleton";
 import { motion, useInView } from "framer-motion";
 import { fetchPoliciesPage, isStrapiConfigured } from "@/lib/strapi";
 import { getPoliciesPageHeroImageUrl, mapPoliciesPagePolicies } from "@/lib/strapi/mappers";
@@ -109,20 +110,22 @@ const defaultPolicies = [
 ];
 
 export default function Policies() {
-  const { data: policiesPageData } = useQuery({
+  const { data: policiesPageData, isLoading: policiesLoading, isError: policiesError } = useQuery({
     queryKey: ["strapi", "policies-page"],
     queryFn: fetchPoliciesPage,
     enabled: isStrapiConfigured(),
     staleTime: 60_000,
   });
 
+  const isLoading = isStrapiConfigured() && policiesLoading;
+  const isError = isStrapiConfigured() && policiesError;
   const heroEyebrow = policiesPageData?.heroEyebrow ?? "Legal";
   const heroTitle = policiesPageData?.heroTitle ?? "Policies & Terms";
   const heroDescription =
     policiesPageData?.heroDescription ??
     "Transparency is fundamental to trust. Review our policies to understand how we operate and protect your interests.";
   const heroBackgroundImage = getPoliciesPageHeroImageUrl(policiesPageData ?? null);
-  const policies = (() => {
+  const policies = isError ? defaultPolicies : (() => {
     const mapped = mapPoliciesPagePolicies(policiesPageData ?? null);
     return mapped.length > 0 ? mapped : defaultPolicies;
   })();
@@ -186,6 +189,14 @@ export default function Policies() {
 
   return (
     <Layout>
+      {isError && (
+        <div className="bg-amber-50 border-b border-amber-200 text-amber-900 text-center py-2 px-4 text-sm">
+          Unable to load latest content. Showing default content.
+        </div>
+      )}
+      {isLoading ? (
+        <PageHeroSkeleton sectionClassName="py-32 md:py-40 overflow-hidden" />
+      ) : (
       <PageHero
         eyebrow={heroEyebrow}
         title={heroTitle}
@@ -195,8 +206,20 @@ export default function Policies() {
         titleClassName="text-primary-foreground"
         eyebrowClassName="text-accent font-medium tracking-widest uppercase text-sm mb-4"
       />
+      )}
 
-      {/* Quick Navigation */}
+      {/* Quick Navigation - show skeleton while loading */}
+      {isLoading ? (
+      <section className="py-8 bg-secondary border-b border-border">
+        <div className="container-premium">
+          <div className="flex flex-wrap justify-center gap-4">
+            {[1, 2, 3, 4].map((i) => (
+              <Skeleton key={i} className="h-10 w-32" />
+            ))}
+          </div>
+        </div>
+      </section>
+      ) : (
       <section ref={navSectionRef} className="py-8 bg-secondary border-b border-border">
         <div className="container-premium">
           <motion.div
@@ -220,8 +243,33 @@ export default function Policies() {
           </motion.div>
         </div>
       </section>
+      )}
 
-      {/* Policies Content */}
+      {/* Policies Content - show skeleton while loading */}
+      {isLoading ? (
+      <section className="section-padding bg-background min-h-[400px]">
+        <div className="container-premium">
+          <div className="max-w-4xl mx-auto space-y-16">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="space-y-4">
+                <div className="flex items-center gap-4">
+                  <Skeleton className="h-10 w-10 rounded-full" />
+                  <Skeleton className="h-10 w-64" />
+                </div>
+                <div className="space-y-4 pl-14">
+                  {[1, 2, 3].map((j) => (
+                    <div key={j}>
+                      <Skeleton className="h-6 w-48 mb-2" />
+                      <Skeleton className="h-4 w-full" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+      ) : (
       <section ref={policiesSectionRef} className="section-padding bg-background min-h-[400px]">
         <div className="container-premium">
           <div className="max-w-4xl mx-auto space-y-16">
@@ -267,6 +315,7 @@ export default function Policies() {
           </div>
         </div>
       </section>
+      )}
 
       {/* Contact for Questions */}
       <section ref={contactSectionRef} className="py-16 bg-secondary">

@@ -14,12 +14,23 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Layout } from "@/components/layout/layout";
-import { PageHero } from "@/components/sections";
+import { PageHero, PageHeroSkeleton } from "@/components/sections";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { Search, Calendar, Clock, MapPin, Mail, Phone } from "lucide-react";
 import { motion } from "framer-motion";
 import { fetchBookingSettings, findBookingByReference, isStrapiConfigured } from "@/lib/strapi";
 import { getBookingSettingsHeroImageUrl } from "@/lib/strapi/mappers";
+
+function formatTime12h(timeStr: string): string {
+  if (!timeStr?.trim()) return timeStr ?? "";
+  const parts = timeStr.trim().split(":");
+  const hours = parseInt(parts[0], 10) || 0;
+  const minutes = parts[1] ? parseInt(parts[1], 10) || 0 : 0;
+  const ampm = hours >= 12 ? "PM" : "AM";
+  const h12 = hours % 12 || 12;
+  return `${h12}:${minutes.toString().padStart(2, "0")} ${ampm}`;
+}
 
 export default function Bookings() {
   const { toast } = useToast();
@@ -135,6 +146,9 @@ export default function Bookings() {
           Unable to load latest content. Showing default content.
         </div>
       )}
+      {isLoading ? (
+        <PageHeroSkeleton sectionClassName="py-32 md:py-40 overflow-hidden" />
+      ) : (
       <PageHero
         eyebrow={heroEyebrow}
         title={heroTitle}
@@ -144,8 +158,24 @@ export default function Bookings() {
         sectionClassName="py-32 md:py-40 overflow-hidden"
         titleClassName="text-[#B7974B]"
       />
+      )}
 
-      {/* Search Section */}
+      {/* Search Section - show skeleton while loading */}
+      {isLoading ? (
+      <section className="section-padding">
+        <div className="container-premium">
+          <div className="max-w-2xl mx-auto">
+            <div className="p-6 rounded-lg border space-y-6">
+              <Skeleton className="h-8 w-64" />
+              <Skeleton className="h-5 w-full" />
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-12 w-full" />
+            </div>
+          </div>
+        </div>
+      </section>
+      ) : (
       <section className="section-padding">
         <div className="container-premium">
           <div className="max-w-2xl mx-auto">
@@ -221,7 +251,7 @@ export default function Bookings() {
                           <div>
                             <p className="font-medium">Date & Time</p>
                             <p className="text-sm text-muted-foreground">
-                              {booking.date} • {booking.startTime} - {booking.endTime}
+                              {booking.date} • {formatTime12h(booking.startTime)} - {formatTime12h(booking.endTime)}
                             </p>
                           </div>
                         </div>
@@ -263,6 +293,7 @@ export default function Bookings() {
           </div>
         </div>
       </section>
+      )}
 
       {/* Help Section */}
       <section className="bg-secondary py-16">

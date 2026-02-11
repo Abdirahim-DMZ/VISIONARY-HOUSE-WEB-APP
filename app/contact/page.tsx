@@ -9,13 +9,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Layout } from "@/components/layout/layout";
-import { PageHero, CtaSection } from "@/components/sections";
+import { PageHero, CtaSection, PageHeroSkeleton } from "@/components/sections";
 import { toast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
 import { fadeInUp, staggerContainer } from "@/lib/constants/animations";
 import { fetchContactPage, isStrapiConfigured } from "@/lib/strapi";
 import { getContactPageHeroImageUrl } from "@/lib/strapi/mappers";
 import { cn } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
 
 // Email: local@domain.tld (RFC-style, common chars only)
 const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
@@ -50,13 +51,15 @@ export default function Contact() {
     staleTime: 60_000,
   });
 
+  const isLoading = isStrapiConfigured() && contactPageLoading;
+  const isError = isStrapiConfigured() && contactPageError;
   const heroEyebrow = contactPageData?.heroEyebrow ?? "Contact Us";
   const heroTitle = contactPageData?.heroTitle ?? "Get in Touch";
   const heroDescription = contactPageData?.heroDescription ?? "Have questions or need assistance? Our team is here to help. Reach out through any of the channels below.";
   const heroImageSrc = getContactPageHeroImageUrl(contactPageData ?? null);
 
   const contactInfo = useMemo(() => {
-    if (!contactPageData) return defaultContactInfo;
+    if (!contactPageData) return isError ? defaultContactInfo : [];
     const addr = contactPageData.address?.trim();
     const phone = contactPageData.contactPhoneNo?.trim();
     const email = contactPageData.contactEmail?.trim();
@@ -68,7 +71,7 @@ export default function Contact() {
       { icon: Mail, title: "Email", content: email || defaultContactInfo[2].content, href: email ? `mailto:${email}` : defaultContactInfo[2].href },
       { icon: Clock, title: "Business Hours", content: hours || defaultContactInfo[3].content, href: undefined as string | undefined },
     ];
-  }, [contactPageData]);
+  }, [contactPageData, isError]);
 
   const whatsappTitle = contactPageData?.whatsappTitle ?? "Quick Response";
   const whatsappDescription = contactPageData?.whatsappDescription ?? "For immediate assistance, reach us directly via WhatsApp.";
@@ -81,9 +84,6 @@ export default function Contact() {
   const ctaDescription = contactPageData?.ctaDescription ?? "Skip the inquiry and book your space directly through our reservation system.";
   const ctaButtonLabel = contactPageData?.ctaButtonLabel ?? "Book Now";
   const ctaButtonHref = contactPageData?.ctaButtonHref?.trim() || "/book";
-
-  const isLoading = isStrapiConfigured() && contactPageLoading;
-  const isError = isStrapiConfigured() && contactPageError;
 
   const [formData, setFormData] = useState({
     name: "",
@@ -183,6 +183,9 @@ export default function Contact() {
           Unable to load latest content. Showing default content.
         </div>
       )}
+      {isLoading ? (
+        <PageHeroSkeleton sectionClassName="py-32 md:py-40 overflow-hidden" />
+      ) : (
       <PageHero
         eyebrow={heroEyebrow}
         title={heroTitle}
@@ -192,8 +195,41 @@ export default function Contact() {
         titleClassName="text-[#B7974B]"
         sectionClassName="py-32 md:py-40 overflow-hidden"
       />
+      )}
 
-      {/* Contact Content */}
+      {/* Contact Content - show skeleton while loading */}
+      {isLoading ? (
+      <section className="section-padding bg-background">
+        <div className="container-premium">
+          <div className="grid lg:grid-cols-3 gap-12">
+            <div className="lg:col-span-1 space-y-8">
+              <Skeleton className="h-8 w-48" />
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="flex gap-4">
+                  <Skeleton className="h-12 w-12 rounded-lg shrink-0" />
+                  <div className="flex-1 space-y-2">
+                    <Skeleton className="h-5 w-24" />
+                    <Skeleton className="h-4 w-full" />
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="lg:col-span-2">
+              <div className="p-6 rounded-lg border space-y-6">
+                <Skeleton className="h-8 w-48" />
+                <div className="grid md:grid-cols-2 gap-6">
+                  {[1, 2, 3, 4, 5].map((i) => (
+                    <Skeleton key={i} className="h-10 w-full" />
+                  ))}
+                </div>
+                <Skeleton className="h-32 w-full" />
+                <Skeleton className="h-12 w-32" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+      ) : (
       <section className="section-padding bg-background">
         <div className="container-premium">
           <div className="grid lg:grid-cols-3 gap-12">
@@ -358,6 +394,7 @@ export default function Contact() {
           </div>
         </div>
       </section>
+      )}
 
       {/* Map Section */}
       <section className="bg-secondary">

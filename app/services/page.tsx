@@ -5,9 +5,10 @@ import Image from "next/image";
 import { ArrowRight, Check, Building2, Users, Briefcase, Video } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Layout } from "@/components/layout/layout";
-import { PageHero, CtaSection } from "@/components/sections";
+import { PageHero, CtaSection, PageHeroSkeleton } from "@/components/sections";
 import { motion } from "framer-motion";
 import { fadeInUp, staggerContainer } from "@/lib/constants/animations";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { fetchServicePage, isStrapiConfigured } from "@/lib/strapi";
 import { getServicePageHeroImageUrl, mapServicePageComponents } from "@/lib/strapi/mappers";
@@ -36,13 +37,16 @@ export default function Services() {
     staleTime: 60_000,
   });
 
+  const isLoading = isStrapiConfigured() && servicePageLoading;
+  const isError = isStrapiConfigured() && servicePageError;
+
   const heroEyebrow = servicePageData?.heroEyebrow ?? "Our Services";
   const heroTitle = servicePageData?.heroTitle ?? "Everything Your Business Needs";
   const heroDescription = servicePageData?.heroDescription ?? "From event hosting to virtual presence, we provide comprehensive solutions designed for professional businesses.";
   const heroImageSrc = getServicePageHeroImageUrl(servicePageData ?? null);
 
   const componentsFromApi = mapServicePageComponents(servicePageData ?? null);
-  const services = componentsFromApi.length > 0 ? componentsFromApi : fallbackServices;
+  const services = isError ? fallbackServices : (componentsFromApi.length > 0 ? componentsFromApi : fallbackServices);
 
   const ctaTitle = servicePageData?.ctaTitle ?? "Need a Custom Solution?";
   const ctaDescription = servicePageData?.ctaDescription ?? "Our team can create bespoke packages tailored to your specific business requirements. Contact us to discuss your needs.";
@@ -50,9 +54,6 @@ export default function Services() {
   const ctaPrimaryHref = servicePageData?.ctaPrimaryHref ?? "/contact";
   const ctaSecondaryLabel = servicePageData?.ctaSecondaryLabel ?? "Book Standard Service";
   const ctaSecondaryHref = servicePageData?.ctaSecondaryHref ?? "/book";
-
-  const isLoading = isStrapiConfigured() && servicePageLoading;
-  const isError = isStrapiConfigured() && servicePageError;
 
   return (
     <Layout>
@@ -72,6 +73,9 @@ export default function Services() {
           Unable to load latest content. Showing default content.
         </div>
       )}
+      {isLoading ? (
+        <PageHeroSkeleton sectionClassName="py-32 md:py-40 overflow-hidden" />
+      ) : (
       <PageHero
         eyebrow={heroEyebrow}
         title={heroTitle}
@@ -81,8 +85,30 @@ export default function Services() {
         titleClassName="text-[#B7974B]"
         sectionClassName="py-32 md:py-40 overflow-hidden"
       />
+      )}
 
-      {/* Services Detail Sections */}
+      {/* Services Detail Sections - show skeleton while loading */}
+      {isLoading ? (
+        <section className="section-padding bg-background">
+          <div className="container-premium">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className={`py-16 ${i % 2 === 0 ? "bg-background" : "bg-secondary"}`}>
+                <div className="container-premium">
+                  <div className="grid lg:grid-cols-2 gap-16 items-center">
+                    <div className="space-y-4">
+                      <Skeleton className="h-4 w-32" />
+                      <Skeleton className="h-10 w-64" />
+                      <Skeleton className="h-5 w-full" />
+                    </div>
+                    <Skeleton className="aspect-[4/3] rounded-lg" />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : (
+      <>
       {services.map((service, index) => {
         const Icon =
             SERVICE_ICON_MAP[service.id] ??
@@ -179,6 +205,9 @@ export default function Services() {
             </section>
         );
       })}
+      </>
+      )}
+
       <CtaSection
         title={ctaTitle}
         description={ctaDescription}

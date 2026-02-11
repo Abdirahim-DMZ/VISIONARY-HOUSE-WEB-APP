@@ -7,7 +7,8 @@ import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 
 import { Layout } from "@/components/layout/layout";
-import { PageHero } from "@/components/sections";
+import { PageHero, PageHeroSkeleton } from "@/components/sections";
+import { Skeleton } from "@/components/ui/skeleton";
 import { fetchGalleryPage, isStrapiConfigured } from "@/lib/strapi";
 import {
   getGalleryPageHeroImageUrl,
@@ -63,10 +64,12 @@ export default function Gallery() {
     }));
   }, [galleryPageData]);
 
+  const isLoadingFlag = isStrapiConfigured() && isLoading;
+  const isErrorFlag = isStrapiConfigured() && isError;
   const galleryItems =
-      mappedGalleryItems.length > 0
-          ? mappedGalleryItems
-          : fallbackGalleryItems;
+      isErrorFlag
+          ? fallbackGalleryItems
+          : (mappedGalleryItems.length > 0 ? mappedGalleryItems : fallbackGalleryItems);
 
   const filteredItems =
       activeCategory === "All"
@@ -75,23 +78,15 @@ export default function Gallery() {
 
   return (
       <Layout>
-        {isStrapiConfigured() && isLoading && (
-            <div className="fixed top-0 left-0 right-0 z-50 h-1 bg-muted overflow-hidden">
-              <motion.div
-                  className="h-full bg-accent"
-                  initial={{ width: "0%" }}
-                  animate={{ width: "70%" }}
-                  transition={{ duration: 0.8, repeat: Infinity }}
-              />
-            </div>
-        )}
-
-        {isStrapiConfigured() && isError && (
+        {isErrorFlag && (
             <div className="bg-amber-50 border-b border-amber-200 text-amber-900 text-center py-2 text-sm">
               Unable to load latest content. Showing default gallery.
             </div>
         )}
 
+        {isLoadingFlag ? (
+            <PageHeroSkeleton sectionClassName="py-32 md:py-40 overflow-hidden" />
+        ) : (
         <PageHero
             eyebrow={heroEyebrow}
             title={heroTitle}
@@ -101,7 +96,25 @@ export default function Gallery() {
             titleClassName="text-[#B7974B]"
             sectionClassName="py-32 md:py-40 overflow-hidden"
         />
+        )}
 
+        {/* Gallery section - show skeleton while loading */}
+        {isLoadingFlag ? (
+        <section className="section-padding bg-background">
+          <div className="container-premium">
+            <div className="flex flex-wrap justify-center gap-3 mb-12">
+              {CATEGORIES.map((c) => (
+                <Skeleton key={c} className="h-10 w-24 rounded-full" />
+              ))}
+            </div>
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {[1, 2, 3, 4, 5, 6].map((i) => (
+                <Skeleton key={i} className="aspect-[4/3] rounded-lg" />
+              ))}
+            </div>
+          </div>
+        </section>
+        ) : (
         <section className="section-padding bg-background">
           <div className="container-premium">
             <motion.div
@@ -159,6 +172,7 @@ export default function Gallery() {
             </div>
           </div>
         </section>
+        )}
 
         {selectedImage && (
             <motion.div

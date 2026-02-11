@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Layout } from "@/components/layout/layout";
 import { SectionHeader, CtaSection } from "@/components/sections";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Skeleton } from "@/components/ui/skeleton";
 import { motion, AnimatePresence } from "framer-motion";
 import { fadeInUp, staggerContainer } from "@/lib/constants/animations";
 import { useState, useEffect } from "react";
@@ -83,19 +84,19 @@ export default function Home() {
     enabled: isStrapiConfigured(),
     staleTime: 60_000,
   });
-  const { data: servicesData } = useQuery({
+  const { data: servicesData, isLoading: servicesLoading, isError: servicesError } = useQuery({
     queryKey: ["strapi", "services"],
     queryFn: fetchServices,
     enabled: isStrapiConfigured(),
     staleTime: 60_000,
   });
-  const { data: testimonialsData } = useQuery({
+  const { data: testimonialsData, isLoading: testimonialsLoading, isError: testimonialsError } = useQuery({
     queryKey: ["strapi", "testimonials"],
     queryFn: fetchTestimonials,
     enabled: isStrapiConfigured(),
     staleTime: 60_000,
   });
-  const { data: faqsData, isLoading: faqsLoading } = useQuery({
+  const { data: faqsData, isLoading: faqsLoading, isError: faqsError } = useQuery({
     queryKey: ["strapi", "faqs"],
     queryFn: fetchFaqs,
     enabled: isStrapiConfigured(),
@@ -103,13 +104,18 @@ export default function Home() {
   });
 
   const homepage = homepageData ?? null;
-  const heroSlides = mapHomepageHeroSlides(homepage) ?? fallbackHeroSlides;
   const servicesFromHome = mapHomepageServicesPreview(homepage);
   const servicesFromApi = mapServicesPreview(servicesData ?? null);
+  const strapiConfigured = isStrapiConfigured();
+  const isLoading = strapiConfigured && homepageLoading;
+  const isError = strapiConfigured && homepageError;
+  const heroSlides = isError ? fallbackHeroSlides : (mapHomepageHeroSlides(homepage) || fallbackHeroSlides);
   const servicesPreview = servicesFromHome ?? servicesFromApi ?? fallbackServices;
-  const differentiators = mapDifferentiators(homepage) ?? fallbackDifferentiators;
-  const testimonials = mapTestimonials(testimonialsData ?? null) ?? fallbackTestimonials;
-  const faqs = mapFaqs(faqsData ?? null) ?? fallbackFaqs;
+  const differentiators = isError ? fallbackDifferentiators : (mapDifferentiators(homepage) || fallbackDifferentiators);
+  const testimonialsErrorFlag = strapiConfigured && testimonialsError;
+  const faqsErrorFlag = strapiConfigured && faqsError;
+  const testimonials = testimonialsErrorFlag ? fallbackTestimonials : (mapTestimonials(testimonialsData ?? null) || fallbackTestimonials);
+  const faqs = faqsErrorFlag ? fallbackFaqs : (mapFaqs(faqsData ?? null) || fallbackFaqs);
   const whyChooseUsImageUrl = getWhyChooseUsImageUrl(homepage);
 
   const services = servicesPreview.map((s) => ({
@@ -139,9 +145,6 @@ export default function Home() {
   const whyStatNumber = homepage?.whyChooseUsStatNumber ?? "500+";
   const whyStatLabel = homepage?.whyChooseUsStatLabel ?? "Visionary clients trust us";
 
-  const isLoading = isStrapiConfigured() && homepageLoading;
-  const isError = isStrapiConfigured() && homepageError;
-
   return (
     <Layout>
       {isLoading && (
@@ -160,7 +163,22 @@ export default function Home() {
           Unable to load latest content. Showing default content.
         </div>
       )}
-      {/* Hero Carousel Section */}
+      {/* Hero Carousel Section - show skeleton while loading */}
+      {isLoading ? (
+        <section className="relative md:h-[calc(100vh-80px)] h-[calc(100vh-64px)] flex items-center justify-center overflow-hidden bg-charcoal">
+          <div className="absolute inset-0 bg-gradient-hero opacity-90 z-0" />
+          <div className="relative z-10 container-premium text-center text-primary-foreground">
+            <Skeleton className="h-4 w-24 mx-auto mb-4 bg-primary-foreground/20" />
+            <Skeleton className="h-14 w-full max-w-2xl mx-auto mb-6 bg-primary-foreground/20" />
+            <Skeleton className="h-14 w-3/4 max-w-xl mx-auto mb-6 bg-primary-foreground/20" />
+            <Skeleton className="h-6 w-full max-w-lg mx-auto mb-10 bg-primary-foreground/20" />
+            <div className="flex gap-4 justify-center">
+              <Skeleton className="h-12 w-40 bg-primary-foreground/20" />
+              <Skeleton className="h-12 w-40 bg-primary-foreground/20" />
+            </div>
+          </div>
+        </section>
+      ) : (
       <section className="relative md:h-[calc(100vh-80px)] h-[calc(100vh-64px)] flex items-center justify-center overflow-hidden bg-charcoal">
         {/* Permanent Dark Background Layer */}
         <div className="absolute inset-0 bg-gradient-hero opacity-90 z-0" />
@@ -353,8 +371,34 @@ export default function Home() {
           ))}
         </Swiper>
       </section>
+      )}
 
-      {/* Services Preview Section */}
+      {/* Services Preview Section - show skeleton while loading */}
+      {strapiConfigured && (homepageLoading || servicesLoading) ? (
+        <section className="section-padding bg-background">
+          <div className="container-premium">
+            <div className="mb-12">
+              <Skeleton className="h-4 w-20 mb-2" />
+              <Skeleton className="h-10 w-96 mb-2" />
+              <Skeleton className="h-5 w-full max-w-2xl" />
+            </div>
+            <div className="grid md:grid-cols-2 gap-8">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="space-y-4">
+                  <Skeleton className="aspect-[16/10] w-full rounded-md" />
+                  <div className="flex gap-4">
+                    <Skeleton className="h-12 w-12 rounded-lg" />
+                    <div className="flex-1">
+                      <Skeleton className="h-6 w-32 mb-2" />
+                      <Skeleton className="h-4 w-full" />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      ) : (
       <section className="section-padding bg-background">
         <div className="container-premium">
           <SectionHeader
@@ -424,8 +468,28 @@ export default function Home() {
           </motion.div>
         </div>
       </section>
+      )}
 
-      {/* Why Choose Us Section */}
+      {/* Why Choose Us Section - show skeleton while loading */}
+      {strapiConfigured && homepageLoading ? (
+        <section className="section-padding bg-secondary">
+          <div className="container-premium">
+            <div className="grid lg:grid-cols-2 gap-16 items-center">
+              <div className="space-y-4">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-10 w-72" />
+                <Skeleton className="h-5 w-full max-w-md" />
+                <div className="grid sm:grid-cols-2 gap-4 pt-4">
+                  {[1, 2, 3, 4, 5, 6].map((i) => (
+                    <Skeleton key={i} className="h-5 w-full" />
+                  ))}
+                </div>
+              </div>
+              <Skeleton className="aspect-square rounded-lg" />
+            </div>
+          </div>
+        </section>
+      ) : (
       <section className="section-padding bg-secondary">
         <div className="container-premium">
           <div className="grid lg:grid-cols-2 gap-16 items-center">
@@ -495,8 +559,30 @@ export default function Home() {
           </div>
         </div>
       </section>
+      )}
 
-      {/* Testimonials Section */}
+      {/* Testimonials Section - show skeleton while loading */}
+      {strapiConfigured && testimonialsLoading ? (
+        <section className="section-padding bg-background">
+          <div className="container-premium">
+            <div className="mb-12">
+              <Skeleton className="h-4 w-24 mb-2" />
+              <Skeleton className="h-10 w-64" />
+            </div>
+            <div className="grid md:grid-cols-3 gap-8">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="space-y-4 p-6 rounded-lg border">
+                  <Skeleton className="h-8 w-8" />
+                  <Skeleton className="h-5 w-full" />
+                  <Skeleton className="h-5 w-full" />
+                  <Skeleton className="h-4 w-24 mt-4" />
+                  <Skeleton className="h-4 w-32" />
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      ) : (
       <section className="section-padding bg-background">
         <div className="container-premium">
           <SectionHeader
@@ -537,6 +623,7 @@ export default function Home() {
           </motion.div>
         </div>
       </section>
+      )}
 
       {/* FAQ Section – data from Strapi FAQs API (GET /api/faqs) when Strapi is configured */}
       <section className="section-padding bg-secondary">

@@ -5,9 +5,10 @@ import Image from "next/image";
 import { ArrowRight, Award, Shield, Users, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Layout } from "@/components/layout/layout";
-import { PageHero, CtaSection } from "@/components/sections";
+import { PageHero, CtaSection, PageHeroSkeleton } from "@/components/sections";
 import { motion } from "framer-motion";
 import { fadeInUp, staggerContainer } from "@/lib/constants/animations";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { fetchAboutPage, isStrapiConfigured } from "@/lib/strapi";
 import { getAboutHeroImageUrl, getAboutStoryImageUrl, mapAboutStoryParagraphs, mapAboutStats, mapAboutValues } from "@/lib/strapi/mappers";
@@ -42,22 +43,24 @@ export default function About() {
         staleTime: 60_000,
     });
 
+    const isLoading = isStrapiConfigured() && aboutLoading;
+    const isError = isStrapiConfigured() && aboutError;
     const heroEyebrow = aboutData?.heroEyebrow ?? "About Us";
     const heroTitle = aboutData?.heroTitle ?? "The Complete Business Ecosystem";
     const heroDescription = aboutData?.heroDescription ?? "Visionary House is where ambition meets sophistication—a premium business environment designed for those who demand excellence.";
     const heroImageSrc = getAboutHeroImageUrl(aboutData ?? null);
     const storyEyebrow = aboutData?.storyEyebrow ?? "Our Story";
     const storyTitle = aboutData?.storyTitle ?? "Built for Business Leaders";
-    const storyParagraphs = mapAboutStoryParagraphs(aboutData ?? null).length > 0 ? mapAboutStoryParagraphs(aboutData ?? null) : fallbackStoryParagraphs;
+    const storyParagraphs = isError ? fallbackStoryParagraphs : (mapAboutStoryParagraphs(aboutData ?? null).length > 0 ? mapAboutStoryParagraphs(aboutData ?? null) : fallbackStoryParagraphs);
     const storyCta = aboutData?.storyCta ?? "Explore Our Services";
     const storyCtaHref = aboutData?.storyCtaHref ?? "/services";
     const storyImageSrc = getAboutStoryImageUrl(aboutData ?? null);
 
     const statsFromApi = mapAboutStats(aboutData ?? null);
-    const stats = statsFromApi.length > 0 ? statsFromApi : fallbackStats;
+    const stats = isError ? fallbackStats : (statsFromApi.length > 0 ? statsFromApi : fallbackStats);
 
     const valuesFromApi = mapAboutValues(aboutData ?? null);
-    const values = valuesFromApi.length > 0 ? valuesFromApi : fallbackValues;
+    const values = isError ? fallbackValues : (valuesFromApi.length > 0 ? valuesFromApi : fallbackValues);
 
     const valuesEyebrow = aboutData?.valuesEyebrow ?? "Our Values";
     const valuesTitle = aboutData?.valuesTitle ?? "The Principles That Guide Us";
@@ -70,9 +73,6 @@ export default function About() {
     const ctaPrimaryHref = aboutData?.ctaPrimaryHref ?? "/contact";
     const ctaSecondaryLabel = aboutData?.ctaSecondaryLabel ?? "Book Now";
     const ctaSecondaryHref = aboutData?.ctaSecondaryHref ?? "/book";
-
-    const isLoading = isStrapiConfigured() && aboutLoading;
-    const isError = isStrapiConfigured() && aboutError;
 
     return (
         <Layout>
@@ -92,6 +92,9 @@ export default function About() {
                     Unable to load latest content. Showing default content.
                 </div>
             )}
+            {isLoading ? (
+                <PageHeroSkeleton sectionClassName="py-32 md:py-40 overflow-hidden" />
+            ) : (
             <PageHero
                 eyebrow={heroEyebrow}
                 title={heroTitle}
@@ -101,8 +104,25 @@ export default function About() {
                 sectionClassName="py-32 md:py-40 overflow-hidden"
                 titleClassName="text-[#B7974B]"
             />
+            )}
 
-            {/* Our Story Section */}
+            {/* Our Story Section - show skeleton while loading */}
+            {isLoading ? (
+            <section className="section-padding bg-background">
+                <div className="container-premium">
+                    <div className="grid lg:grid-cols-2 gap-16 items-center">
+                        <div className="space-y-4">
+                            <Skeleton className="h-4 w-24" />
+                            <Skeleton className="h-10 w-64" />
+                            <Skeleton className="h-5 w-full max-w-2xl" />
+                            <Skeleton className="h-5 w-full max-w-2xl" />
+                            <Skeleton className="h-5 w-3/4 max-w-xl" />
+                        </div>
+                        <Skeleton className="aspect-[4/5] rounded-lg" />
+                    </div>
+                </div>
+            </section>
+            ) : (
             <section className="section-padding bg-background">
                 <div className="container-premium">
                     <div className="grid lg:grid-cols-2 gap-16 items-center">
@@ -165,8 +185,23 @@ export default function About() {
                     </div>
                 </div>
             </section>
+            )}
 
-            {/* Stats Section */}
+            {/* Stats Section - show skeleton while loading */}
+            {isLoading ? (
+            <section className="py-16 bg-secondary">
+                <div className="container-premium">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+                        {[1, 2, 3, 4].map((i) => (
+                            <div key={i} className="text-center">
+                                <Skeleton className="h-12 w-20 mx-auto mb-2" />
+                                <Skeleton className="h-4 w-24 mx-auto" />
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </section>
+            ) : (
             <section className="py-16 bg-secondary">
                 <div className="container-premium">
                     <motion.div 
@@ -191,8 +226,29 @@ export default function About() {
                     </motion.div>
                 </div>
             </section>
+            )}
 
-            {/* Our Values Section */}
+            {/* Our Values Section - show skeleton while loading */}
+            {isLoading ? (
+            <section className="section-padding bg-background">
+                <div className="container-premium">
+                    <div className="text-center mb-16">
+                        <Skeleton className="h-4 w-20 mx-auto mb-4" />
+                        <Skeleton className="h-10 w-80 mx-auto mb-6" />
+                        <Skeleton className="h-5 w-full max-w-2xl mx-auto" />
+                    </div>
+                    <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+                        {[1, 2, 3, 4].map((i) => (
+                            <div key={i} className="p-6 rounded-lg border space-y-4">
+                                <Skeleton className="h-16 w-16 rounded-full mx-auto" />
+                                <Skeleton className="h-6 w-24 mx-auto" />
+                                <Skeleton className="h-4 w-full" />
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </section>
+            ) : (
             <section className="section-padding bg-background">
                 <div className="container-premium">
                     <motion.div
@@ -241,8 +297,19 @@ export default function About() {
                     </motion.div>
                 </div>
             </section>
+            )}
 
-            {/* Mission Section */}
+            {/* Mission Section - show skeleton while loading */}
+            {isLoading ? (
+            <section className="section-padding bg-primary">
+                <div className="container-premium">
+                    <div className="max-w-3xl mx-auto text-center">
+                        <Skeleton className="h-4 w-20 mx-auto mb-4 bg-primary-foreground/20" />
+                        <Skeleton className="h-12 w-full max-w-2xl mx-auto mb-8 bg-primary-foreground/20" />
+                    </div>
+                </div>
+            </section>
+            ) : (
             <section className="section-padding bg-primary">
                 <div className="container-premium">
                     <motion.div
@@ -280,6 +347,7 @@ export default function About() {
                     </motion.div>
                 </div>
             </section>
+            )}
 
             <CtaSection
                 title={ctaTitle}
