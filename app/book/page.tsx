@@ -46,7 +46,8 @@ import {
   MapPin,
   Search,
   Copy,
-  Check
+  Check,
+  Loader2
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -237,6 +238,7 @@ export default function Book() {
   const [isAvailable, setIsAvailable] = useState(true);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const [isConfirmingBooking, setIsConfirmingBooking] = useState(false);
   const [bookingReference, setBookingReference] = useState("");
   const [referenceCopied, setReferenceCopied] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, boolean>>({});
@@ -1108,6 +1110,8 @@ export default function Book() {
         },
         theme: { color: "#B7974B" },
         handler: async (response: any) => {
+          // Show confirming state immediately so there's no gap after payment modal closes
+          setIsConfirmingBooking(true);
           try {
             const verifyRes = await fetch("/api/razorpay/verify-payment", {
               method: "POST",
@@ -1122,6 +1126,7 @@ export default function Book() {
 
             const verifyJson = await verifyRes.json();
             if (!verifyRes.ok || !verifyJson.success) {
+              setIsConfirmingBooking(false);
               const details = typeof verifyJson.details === "string" ? verifyJson.details : "";
               const isCredentialsError = verifyRes.status === 502 && /401|Unauthorized|invalid credentials/i.test(details);
               const description = isCredentialsError
@@ -1135,6 +1140,7 @@ export default function Book() {
               return;
             }
 
+            setIsConfirmingBooking(false);
             setBookingReference(verifyJson.referenceNumber || "");
             setShowConfirmation(true);
             toast({
@@ -1142,6 +1148,7 @@ export default function Book() {
               description: `Your booking has been confirmed. Reference: ${verifyJson.referenceNumber || ""}`,
             });
           } catch (error) {
+            setIsConfirmingBooking(false);
             const msg = error instanceof Error ? error.message : "Something went wrong. Please contact support.";
             toast({
               title: "Error",
@@ -1344,6 +1351,23 @@ export default function Book() {
         sectionClassName="py-32 md:py-28"
         titleClassName="text-[#B7974B]"
       />
+
+      {/* Confirming booking (shown immediately after payment success while API completes) */}
+      <Dialog open={isConfirmingBooking} onOpenChange={(open) => { if (!open) return; }}>
+        <DialogContent className="sm:max-w-md" onPointerDownOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
+          <DialogHeader className="text-center space-y-4">
+            <div className="mx-auto w-16 h-16 bg-accent/10 rounded-full flex items-center justify-center">
+              <Loader2 className="h-10 w-10 text-accent animate-spin" />
+            </div>
+            <DialogTitle className="heading-card">
+              Confirming your booking
+            </DialogTitle>
+            <DialogDescription className="text-body">
+              Please wait while we save your booking and send your confirmation.
+            </DialogDescription>
+          </DialogHeader>
+        </DialogContent>
+      </Dialog>
 
       {/* Booking Confirmation Modal */}
       <Dialog open={showConfirmation} onOpenChange={setShowConfirmation}>
