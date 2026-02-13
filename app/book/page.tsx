@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import Image from "next/image";
 import { motion } from "framer-motion";
@@ -32,6 +33,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Layout } from "@/components/layout/layout";
 import { PageHero, PageHeroSkeleton } from "@/components/sections";
 import { useToast } from "@/hooks/use-toast";
@@ -231,6 +242,7 @@ function AddOnCard({
 }
 
 export default function Book() {
+  const router = useRouter();
   const { toast } = useToast();
   const [currentStep, setCurrentStep] = useState(1);
   const [date, setDate] = useState<Date>();
@@ -244,6 +256,8 @@ export default function Book() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, boolean>>({});
   const [emailErrorMessage, setEmailErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+  const pendingNavigationRef = useRef<string | "back" | null>(null);
 
   const { data: bookPageData, isLoading: bookPageLoading, isError: bookPageError } = useQuery({
     queryKey: ["strapi", "book-from-page"],
@@ -368,6 +382,70 @@ export default function Book() {
     message: "",
   });
 
+  // Form has unsaved data (before completing booking)
+  const hasUnsavedData = useMemo(() => {
+    if (showConfirmation) return false; // Booking completed
+    const d = formData;
+    return !!(
+      d.eventType?.trim() ||
+      d.serviceType?.trim() ||
+      d.date?.trim() ||
+      d.attendees?.trim() ||
+      d.name?.trim() ||
+      d.email?.trim() ||
+      d.phone?.trim() ||
+      (d.addOns && d.addOns.length > 0) ||
+      d.roomSpace?.trim() ||
+      d.layoutId?.trim()
+    );
+  }, [formData, showConfirmation]);
+
+  // beforeunload: browser dialog for tab close, refresh, or external navigation
+  useEffect(() => {
+    if (!hasUnsavedData) return;
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [hasUnsavedData]);
+
+  // Intercept in-app link clicks (Next.js Link and plain <a> tags)
+  useEffect(() => {
+    if (!hasUnsavedData) return;
+
+    const handleClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const anchor = target.closest("a");
+      if (!anchor || !anchor.href) return;
+      const url = new URL(anchor.href, window.location.origin);
+      if (url.origin !== window.location.origin) return;
+      const path = url.pathname + url.search;
+      if (path === "/book" || path.startsWith("/book?")) return;
+      e.preventDefault();
+      e.stopPropagation();
+      pendingNavigationRef.current = path;
+      setShowLeaveConfirm(true);
+    };
+
+    document.addEventListener("click", handleClick, true);
+    return () => document.removeEventListener("click", handleClick, true);
+  }, [hasUnsavedData]);
+
+  const handleLeaveConfirm = () => {
+    const pending = pendingNavigationRef.current;
+    pendingNavigationRef.current = null;
+    setShowLeaveConfirm(false);
+    if (pending && pending.startsWith("/")) {
+      router.push(pending);
+    }
+  };
+
+  const handleLeaveCancel = () => {
+    pendingNavigationRef.current = null;
+    setShowLeaveConfirm(false);
+  };
+
   // Fetch existing bookings for selected date to check availability
   const { data: dateBookingsData, isError: bookingsApiError } = useQuery({
     queryKey: ["bookings", formData.date],
@@ -430,6 +508,32 @@ export default function Book() {
   const selectedEventType = eventTypesList.find((e) => e.id === formData.eventType);
   const isMultiDay = selectedEventType?.isMultiDay ?? false;
 
+  // Date and time are selected (required before showing Room/Space and Layout)
+  const hasDateTimeSelected = Boolean(
+    formData.date && formData.startTime && formData.endTime &&
+    (!isMultiDay || formData.endDate)
+  );
+
+  // Rooms available for the selected time slot: filter by participant count AND no conflict
+  const getRoomsWithConflictForSlot = useMemo(() => {
+    if (!formData.date || !formData.startTime || !formData.endTime || existingBookings.length === 0) {
+      return new Set<string>();
+    }
+    const startM = timeToMinutes(formData.startTime);
+    const endM = timeToMinutes(formData.endTime);
+    const conflictingRoomIds = new Set<string>();
+    for (const b of existingBookings as { roomSpace?: string; startTime: string; endTime: string }[]) {
+      const roomId = b.roomSpace ?? "";
+      if (!roomId) continue;
+      const bStart = timeToMinutes(b.startTime);
+      const bEnd = timeToMinutes(b.endTime);
+      if (startM < bEnd && endM > bStart) {
+        conflictingRoomIds.add(roomId);
+      }
+    }
+    return conflictingRoomIds;
+  }, [formData.date, formData.startTime, formData.endTime, existingBookings]);
+
   // Sync endDate (Date) from formData.endDate for calendar display
   useEffect(() => {
     if (formData.endDate) {
@@ -485,6 +589,11 @@ export default function Book() {
     }
     setValidationErrors(errors);
   }, [formData.date, formData.endDate, formData.startTime, formData.endTime, isMultiDay]);
+
+  // Clear room and layout when date or time changes (slot availability may have changed)
+  useEffect(() => {
+    setFormData((prev) => (prev.roomSpace || prev.layoutId ? { ...prev, roomSpace: "", layoutId: "" } : prev));
+  }, [formData.date, formData.startTime, formData.endTime, formData.endDate]);
 
   useEffect(() => {
     const count = formData.attendees ? parseInt(formData.attendees, 10) : 0;
@@ -1021,50 +1130,15 @@ export default function Book() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const loadRazorpayScript = (): Promise<void> => {
-    if (typeof window === "undefined") return Promise.reject(new Error("No window"));
-    if ((window as unknown as { Razorpay?: unknown }).Razorpay) return Promise.resolve();
-    return new Promise((resolve, reject) => {
-      const script = document.createElement("script");
-      script.src = "https://checkout.razorpay.com/v1/checkout.js";
-      script.async = true;
-      script.onload = () => resolve();
-      script.onerror = () => reject(new Error("Failed to load Razorpay"));
-      document.body.appendChild(script);
-    });
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateStep(3)) return;
 
     setIsSubmitting(true);
+    setIsConfirmingBooking(true);
 
     try {
       const eventTypeName = getEventTypeName();
-
-      // 1) Create Razorpay order only (booking is created after payment success)
-      const orderRes = await fetch("/api/razorpay/create-order", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          amount: Math.round(totalPrice * 100), // amount in paise
-          currency: "INR",
-          receipt: `order-${Date.now()}`,
-        }),
-      });
-
-      const orderJson = await orderRes.json();
-      if (!orderRes.ok || !orderJson.orderId || !orderJson.keyId) {
-        toast({
-          title: "Payment Error",
-          description: orderJson.error || "Unable to start payment. Please try again.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // 2) Build booking payload for after payment (same shape as POST /api/booking)
       const addOnIds = (formData.addOns?.length
         ? formData.addOns
             .map((selectedId) => {
@@ -1098,96 +1172,37 @@ export default function Book() {
         addOnIds,
         message: formData.message || undefined,
         totalPrice,
-        currency: "INR",
       };
+      const res = await fetch("/api/booking", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(bookingPayload),
+      });
 
-      // 3) Load Razorpay checkout and open default Checkout UI
-      await loadRazorpayScript();
-      const RazorpayConstructor = (window as unknown as { Razorpay?: any }).Razorpay;
-      if (!RazorpayConstructor) {
+      const json = await res.json();
+      setIsConfirmingBooking(false);
+
+      if (!res.ok || !json.success) {
+        const is401 = res.status === 502 && /401|Unauthorized|invalid credentials/i.test(String(json.details || ""));
+        const description = is401
+          ? "We couldn't save your booking. Please try again or contact us."
+          : (json.error || "Failed to create booking. Please try again.");
         toast({
-          title: "Error",
-          description: "Payment could not be loaded. Please try again.",
+          title: "Booking failed",
+          description,
           variant: "destructive",
         });
         return;
       }
 
-      const options = {
-        key: orderJson.keyId,
-        amount: orderJson.amount,
-        currency: orderJson.currency,
-        name: "Visionary House",
-        description: eventTypeName || "Booking Payment",
-        order_id: orderJson.orderId,
-        prefill: {
-          name: formData.name,
-          email: formData.email,
-          contact: formData.phone,
-        },
-        theme: { color: "#B7974B" },
-        handler: async (response: any) => {
-          // Show confirming state immediately so there's no gap after payment modal closes
-          setIsConfirmingBooking(true);
-          try {
-            const verifyRes = await fetch("/api/razorpay/verify-payment", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                razorpay_order_id: response.razorpay_order_id,
-                razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_signature: response.razorpay_signature,
-                booking: bookingPayload,
-              }),
-            });
-
-            const verifyJson = await verifyRes.json();
-            if (!verifyRes.ok || !verifyJson.success) {
-              setIsConfirmingBooking(false);
-              const details = typeof verifyJson.details === "string" ? verifyJson.details : "";
-              const isCredentialsError = verifyRes.status === 502 && /401|Unauthorized|invalid credentials/i.test(details);
-              const description = isCredentialsError
-                ? "Your payment was successful, but we couldn't save your booking in our system. Please contact us with your payment details and email so we can confirm your booking."
-                : (verifyJson.error || "We couldn't confirm your booking. Please contact support.");
-              toast({
-                title: verifyRes.status === 502 ? "Booking save failed" : "Payment verification failed",
-                description,
-                variant: "destructive",
-              });
-              return;
-            }
-
-            setIsConfirmingBooking(false);
-            setBookingReference(verifyJson.referenceNumber || "");
-            setShowConfirmation(true);
-            toast({
-              title: "Booking confirmed",
-              description: `Your booking has been confirmed. Reference: ${verifyJson.referenceNumber || ""}`,
-            });
-          } catch (error) {
-            setIsConfirmingBooking(false);
-            const msg = error instanceof Error ? error.message : "Something went wrong. Please contact support.";
-            toast({
-              title: "Error",
-              description: msg,
-              variant: "destructive",
-            });
-          }
-        },
-        modal: {
-          ondismiss: () => {
-            toast({
-              title: "Payment cancelled",
-              description: "Your booking was not confirmed because payment was cancelled.",
-              variant: "destructive",
-            });
-          },
-        },
-      };
-
-      const razorpayInstance = new RazorpayConstructor(options);
-      razorpayInstance.open();
+      setBookingReference(json.referenceNumber || "");
+      setShowConfirmation(true);
+      toast({
+        title: "Booking submitted",
+        description: `Your booking request has been received. Reference: ${json.referenceNumber || ""}`,
+      });
     } catch (err) {
+      setIsConfirmingBooking(false);
       const errorMessage = err instanceof Error ? err.message : "Something went wrong";
       toast({
         title: "Error",
@@ -1232,8 +1247,11 @@ export default function Book() {
   const participantCount = formData.attendees ? parseInt(formData.attendees, 10) : 0;
   const isValidParticipantCount = !Number.isNaN(participantCount) && participantCount > 0;
   const participantsExceedMax = participantCount > 70;
-  const availableRoomSpaces =
+  const allRoomSpacesByCapacity =
     isValidParticipantCount && !participantsExceedMax ? getAvailableRoomSpaces(participantCount) : [];
+  // Room/Space: show all rooms that fit capacity (availability filtered at layout level, not room level)
+  const availableRoomSpaces =
+    hasDateTimeSelected && allRoomSpacesByCapacity.length > 0 ? allRoomSpacesByCapacity : [];
   const isHallSelected = formData.roomSpace === "main-hall" || formData.roomSpace === "combined-hall";
   const isLoungeSelected = formData.roomSpace === "lounge";
   const availableLayoutsForHall =
@@ -1246,7 +1264,7 @@ export default function Book() {
     ? serviceLayoutsMap[formData.serviceType] || []
     : [];
 
-  // Filter by room space and participant capacity dynamically
+  // Filter by room space, participant capacity, and per-layout availability for the selected date/time
   let availableLayouts = availableLayoutsAll.filter((l: ServiceLayout & { roomSpace?: string }) => {
     // 1. Filter by room space if selected
     if (formData.roomSpace) {
@@ -1272,6 +1290,11 @@ export default function Book() {
       }
     }
 
+    // 3. Filter by availability: hide layouts whose room is booked for the selected date/time
+    if (hasDateTimeSelected && l.roomSpace && getRoomsWithConflictForSlot.has(l.roomSpace)) {
+      return false;
+    }
+
     return true;
   });
 
@@ -1285,11 +1308,15 @@ export default function Book() {
     availableLayoutsForHall.length > 0;
 
   if (useHallFallbackLayouts) {
-    availableLayouts = availableLayoutsForHall.map((l) => ({
-      ...l,
-      description: getLayoutDisplayLabel(formData.roomSpace!, l.id),
-      image: HALL_LAYOUT_IMAGES[l.id] ?? undefined,
-    }));
+    // Apply availability filter: hide all layouts if the hall is booked for the selected date/time
+    const hallHasConflict = hasDateTimeSelected && formData.roomSpace && getRoomsWithConflictForSlot.has(formData.roomSpace);
+    availableLayouts = hallHasConflict
+      ? []
+      : availableLayoutsForHall.map((l) => ({
+          ...l,
+          description: getLayoutDisplayLabel(formData.roomSpace!, l.id),
+          image: HALL_LAYOUT_IMAGES[l.id] ?? undefined,
+        }));
   }
 
   // Clear layoutId if the currently selected layout is no longer in availableLayouts
@@ -1342,6 +1369,20 @@ export default function Book() {
 
   return (
     <Layout>
+    <AlertDialog open={showLeaveConfirm} onOpenChange={(open) => { if (!open) handleLeaveCancel(); }}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Leave booking form?</AlertDialogTitle>
+          <AlertDialogDescription>
+            If you leave this page, your booking data will be lost. Are you sure you want to continue?
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel onClick={handleLeaveCancel}>Cancel</AlertDialogCancel>
+            <Button variant="gold" onClick={handleLeaveConfirm} size="default">OK</Button>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
     <main className="min-h-screen pb-20">
       {isLoadingBookPage && (
         <div className="fixed top-0 left-0 right-0 z-50 h-1 bg-muted overflow-hidden">
@@ -1373,7 +1414,7 @@ export default function Book() {
       />
       )}
 
-      {/* Confirming booking (shown immediately after payment success while API completes) */}
+      {/* Confirming booking (shown while API completes) */}
       <Dialog open={isConfirmingBooking} onOpenChange={(open) => { if (!open) return; }}>
         <DialogContent className="sm:max-w-md" onPointerDownOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
           <DialogHeader className="text-center space-y-4">
@@ -1381,27 +1422,27 @@ export default function Book() {
               <Loader2 className="h-10 w-10 text-accent animate-spin" />
             </div>
             <DialogTitle className="heading-card">
-              Confirming your booking
+              Creating your booking
             </DialogTitle>
             <DialogDescription className="text-body">
-              Please wait while we save your booking and send your confirmation.
+              Please wait while we save your booking request.
             </DialogDescription>
           </DialogHeader>
         </DialogContent>
       </Dialog>
 
-      {/* Booking Confirmation Modal */}
+      {/* Booking Success Modal */}
       <Dialog open={showConfirmation} onOpenChange={setShowConfirmation}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader className="text-center space-y-4">
-            <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
-              <CheckCircle2 className="h-10 w-10 text-green-600" />
+            <div className="mx-auto w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center">
+              <CheckCircle2 className="h-10 w-10 text-amber-600" />
             </div>
             <DialogTitle className="heading-card">
-              Booking Confirmed!
+              Booking Request Received
             </DialogTitle>
             <DialogDescription className="text-body">
-              Your booking has been successfully confirmed. We&apos;ve sent a confirmation email to {formData.email}
+              Your booking is currently <strong>pending</strong>. Once the admin reviews and approves your request, you will be notified via email at {formData.email}.
             </DialogDescription>
           </DialogHeader>
 
@@ -1447,15 +1488,14 @@ export default function Book() {
               </p>
             </div>
 
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-2">
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 space-y-2">
               <div className="flex items-start gap-3">
-                <Info className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                <div className="text-sm text-blue-900">
+                <Info className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                <div className="text-sm text-amber-900">
                   <p className="font-medium mb-1">What&apos;s Next?</p>
                   <ul className="space-y-1 text-xs">
-                    <li>• Check your email for booking details</li>
-                    <li>• You&apos;ll receive a reminder 24 hours before</li>
-                    <li>• Contact us if you need to make changes</li>
+                    <li>• You will receive an email once your booking is approved</li>
+                    <li>• Contact us if you need to make changes or have questions</li>
                   </ul>
                 </div>
               </div>
@@ -1898,123 +1938,7 @@ export default function Book() {
                               </Alert>
                           )}
 
-                          {/* Room/Space — visibility by participant count; hidden when > 70 */}
-                          {!participantsExceedMax && availableRoomSpaces.length > 0 && (
-                              <div className="space-y-2">
-                                <Label htmlFor="roomSpace" className="text-base font-medium">
-                                  Room / Space
-                                </Label>
-                                <Select
-                                    value={formData.roomSpace ?? ""}
-                                    onValueChange={handleRoomSpaceChange}
-                                >
-                                  <SelectTrigger
-                                      id="roomSpace"
-                                      className="h-14 text-base border-2 hover:border-accent/50 focus:border-accent transition-colors"
-                                  >
-                                    <SelectValue placeholder="Select room or space" />
-                                  </SelectTrigger>
-                                  <SelectContent className="shadow-elevated overflow-y-auto w-[var(--radix-select-trigger-width)] sm:w-auto">
-                                    {availableRoomSpaces.map((room) => (
-                                        <SelectItem key={room.id} value={room.id} className="text-base py-3">
-                                          {room.name}
-                                        </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                                {formData.roomSpace === "combined-hall" && (
-                                    <p className="text-xs text-muted-foreground">
-                                      Combined Hall supports the largest groups (up to 70 theatre style).
-                                    </p>
-                                )}
-                                {availableRoomSpaces.some((r) => r.id === "combined-hall") && !formData.roomSpace && (
-                                    <p className="text-xs text-muted-foreground">
-                                      Combined Hall supports the largest groups (up to 70 theatre style).
-                                    </p>
-                                )}
-                                {isLoungeSelected && (
-                                    <>
-                                      <p className="text-xs text-muted-foreground italic">
-                                        Lounge is a shared space; longer bookings may require admin approval.
-                                      </p>
-                                      <Badge variant="outline" className="text-amber-700 border-amber-300 bg-amber-50">
-                                        May Require Admin Approval
-                                      </Badge>
-                                    </>
-                                )}
-                              </div>
-                          )}
-
-                            {/* Layout — show for any selected room with available layouts */}
-                            {formData.roomSpace &&
-                              availableLayouts.length > 0 && (
-                              <div className="space-y-3">
-                                <Label className="text-base font-medium">
-                                  Layout
-                                </Label>
-                                <button
-                                  type="button"
-                                  onClick={() => setIsLayoutDialogOpen(true)}
-                                  className={cn(
-                                    "flex h-14 w-full items-center justify-between rounded-md border-2 bg-background px-4 text-left text-base transition-colors hover:border-accent/50 focus:border-accent focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 cursor-pointer",
-                                    formData.layoutId && "border-accent/30"
-                                  )}
-                                >
-                                  <span className={formData.layoutId ? "text-foreground" : "text-muted-foreground"}>
-                                    {formData.layoutId
-                                      ? (availableLayouts.find(l => l.id === formData.layoutId)?.name || "Layout selected")
-                                      : "Choose layout"}
-                                  </span>
-                                  <MapPin className="h-5 w-5 shrink-0 text-accent" />
-                                </button>
-
-                                {/* Selected Layout Details Display */}
-                                {formData.layoutId && (() => {
-                                  const selectedLayout = availableLayouts.find(l => l.id === formData.layoutId);
-                                  if (!selectedLayout) return null;
-                                  return (
-                                    <motion.div
-                                      initial={{ opacity: 0, y: -10 }}
-                                      animate={{ opacity: 1, y: 0 }}
-                                      className="rounded-lg border-2 border-accent/20 bg-accent/5 p-4"
-                                    >
-                                      <div className="flex gap-4">
-                                        {selectedLayout.image && (
-                                          <div className="relative w-24 h-24 rounded-md overflow-hidden flex-shrink-0">
-                                            <Image
-                                              src={selectedLayout.image}
-                                              alt={selectedLayout.name}
-                                              fill
-                                              className="object-cover"
-                                              sizes="96px"
-                                            />
-                                          </div>
-                                        )}
-                                        <div className="flex-1 min-w-0">
-                                          <div className="flex items-start justify-between gap-2 mb-1">
-                                            <h4 className="font-semibold text-base text-foreground">
-                                              {selectedLayout.name}
-                                            </h4>
-                                            <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0" />
-                                          </div>
-                                          <div className="flex items-center gap-2 mb-2">
-                                            <Badge variant="outline" className="text-xs border-accent/40 bg-background">
-                                              <Users className="h-3 w-3 mr-1" />
-                                              Capacity: {selectedLayout.capacity} people
-                                            </Badge>
-                                          </div>
-                                          <p className="text-sm text-muted-foreground leading-relaxed">
-                                            {selectedLayout.description}
-                                          </p>
-                                        </div>
-                                      </div>
-                                    </motion.div>
-                                  );
-                                })()}
-                              </div>
-                            )}
-
-                          {/* Date & Time - Multi-day: row1 Start Date + Start Time, row2 End Date + End Time; Single-day: Date then Start/End time */}
+                          {/* Date & Time - shown after Participants; Room/Space and Layout appear only after date/time are selected */}
                           <div className="space-y-6">
                             {isMultiDay ? (
                               <>
@@ -2574,10 +2498,127 @@ export default function Book() {
                               </>
                             )}
 
-
+                            {/* Room/Space & Layout — only after date and time are selected; layouts filtered by availability individually */}
+                            {hasDateTimeSelected && availableRoomSpaces.length > 0 && (
+                              <div className="space-y-2">
+                                <Label htmlFor="roomSpace" className="text-base font-medium">
+                                  Room / Space
+                                </Label>
+                                <Select
+                                  value={formData.roomSpace ?? ""}
+                                  onValueChange={handleRoomSpaceChange}
+                                >
+                                  <SelectTrigger
+                                    id="roomSpace"
+                                    className="h-14 text-base border-2 hover:border-accent/50 focus:border-accent transition-colors"
+                                  >
+                                    <SelectValue placeholder="Select room or space" />
+                                  </SelectTrigger>
+                                  <SelectContent className="shadow-elevated overflow-y-auto w-[var(--radix-select-trigger-width)] sm:w-auto">
+                                    {availableRoomSpaces.map((room) => (
+                                      <SelectItem key={room.id} value={room.id} className="text-base py-3">
+                                        {room.name}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                {formData.roomSpace === "combined-hall" && (
+                                  <p className="text-xs text-muted-foreground">
+                                    Combined Hall supports the largest groups (up to 70 theatre style).
+                                  </p>
+                                )}
+                                {availableRoomSpaces.some((r) => r.id === "combined-hall") && !formData.roomSpace && (
+                                  <p className="text-xs text-muted-foreground">
+                                    Combined Hall supports the largest groups (up to 70 theatre style).
+                                  </p>
+                                )}
+                                {isLoungeSelected && (
+                                  <>
+                                    <p className="text-xs text-muted-foreground italic">
+                                      Lounge is a shared space; longer bookings may require admin approval.
+                                    </p>
+                                    <Badge variant="outline" className="text-amber-700 border-amber-300 bg-amber-50">
+                                      May Require Admin Approval
+                                    </Badge>
+                                  </>
+                                )}
+                              </div>
+                            )}
+                            {formData.roomSpace && hasDateTimeSelected && availableLayouts.length === 0 && (
+                              <Alert className="border-amber-200 bg-amber-50 text-amber-900">
+                                <Info className="h-4 w-4" />
+                                <AlertDescription>
+                                  Booking slot not available for the selected date and time.
+                                </AlertDescription>
+                              </Alert>
+                            )}
+                            {formData.roomSpace && availableLayouts.length > 0 && (
+                              <div className="space-y-3">
+                                <Label className="text-base font-medium">
+                                  Layout
+                                </Label>
+                                <button
+                                  type="button"
+                                  onClick={() => setIsLayoutDialogOpen(true)}
+                                  className={cn(
+                                    "flex h-14 w-full items-center justify-between rounded-md border-2 bg-background px-4 text-left text-base transition-colors hover:border-accent/50 focus:border-accent focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 cursor-pointer",
+                                    formData.layoutId && "border-accent/30"
+                                  )}
+                                >
+                                  <span className={formData.layoutId ? "text-foreground" : "text-muted-foreground"}>
+                                    {formData.layoutId
+                                      ? (availableLayouts.find(l => l.id === formData.layoutId)?.name || "Layout selected")
+                                      : "Choose layout"}
+                                  </span>
+                                  <MapPin className="h-5 w-5 shrink-0 text-accent" />
+                                </button>
+                                {formData.layoutId && (() => {
+                                  const selectedLayout = availableLayouts.find(l => l.id === formData.layoutId);
+                                  if (!selectedLayout) return null;
+                                  return (
+                                    <motion.div
+                                      initial={{ opacity: 0, y: -10 }}
+                                      animate={{ opacity: 1, y: 0 }}
+                                      className="rounded-lg border-2 border-accent/20 bg-accent/5 p-4"
+                                    >
+                                      <div className="flex gap-4">
+                                        {selectedLayout.image && (
+                                          <div className="relative w-24 h-24 rounded-md overflow-hidden flex-shrink-0">
+                                            <Image
+                                              src={selectedLayout.image}
+                                              alt={selectedLayout.name}
+                                              fill
+                                              className="object-cover"
+                                              sizes="96px"
+                                            />
+                                          </div>
+                                        )}
+                                        <div className="flex-1 min-w-0">
+                                          <div className="flex items-start justify-between gap-2 mb-1">
+                                            <h4 className="font-semibold text-base text-foreground">
+                                              {selectedLayout.name}
+                                            </h4>
+                                            <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0" />
+                                          </div>
+                                          <div className="flex items-center gap-2 mb-2">
+                                            <Badge variant="outline" className="text-xs border-accent/40 bg-background">
+                                              <Users className="h-3 w-3 mr-1" />
+                                              Capacity: {selectedLayout.capacity} people
+                                            </Badge>
+                                          </div>
+                                          <p className="text-sm text-muted-foreground leading-relaxed">
+                                            {selectedLayout.description}
+                                          </p>
+                                        </div>
+                                      </div>
+                                    </motion.div>
+                                  );
+                                })()}
+                              </div>
+                            )}
 
                             {/* Legacy Layout / Setup — only when no room/space options exist (e.g. no participant count); never show layout before room is selected when room flow is active */}
-                            {availableLayouts.length > 0 && !formData.roomSpace && isValidParticipantCount && availableRoomSpaces.length === 0 && (
+                            {availableLayouts.length > 0 && !formData.roomSpace && isValidParticipantCount && allRoomSpacesByCapacity.length === 0 && (
                               <div className="space-y-3">
                                 <Label className="text-base font-medium">Layout / Setup</Label>
                                 <button
@@ -3170,7 +3211,7 @@ export default function Book() {
                             disabled={isSubmitting}
                             className="h-14 px-10 text-base font-semibold shadow-gold hover:shadow-elevated transition-all"
                           >
-                            {isSubmitting ? "Processing…" : "Pay & Confirm Booking"}
+                            {isSubmitting ? "Processing…" : "Confirm Booking"}
                             <CheckCircle2 className="ml-2 h-5 w-5" />
                           </Button>
                         </div>

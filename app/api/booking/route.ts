@@ -41,17 +41,11 @@ export type CreateBookingBody = {
   message?: string;
   totalPrice: number;
   currency?: string;
-  status?: string;
-  /** Set when creating booking after successful payment */
-  razorpayOrderId?: string;
-  razorpayPaymentId?: string;
-  paidAt?: string;
 };
 
 /**
  * POST /api/booking
- * Creates a booking in Strapi with the specified status (default: pending_payment) and returns reference + bookingId.
- * Pass status: "confirmed" to skip payment and create booking directly.
+ * Creates a booking in Strapi. Status is not sent; Strapi uses schema default (statusOfBooking: Pending).
  */
 export async function POST(request: NextRequest) {
   try {
@@ -75,11 +69,7 @@ export async function POST(request: NextRequest) {
       addOnIds,
       message,
       totalPrice,
-      currency = "INR",
-      status = "pending_payment",
-      razorpayOrderId,
-      razorpayPaymentId,
-      paidAt,
+      currency = "USD",
     } = body;
 
     if (!customerName || !customerEmail || !customerPhone || !date || !startTime || !endTime || totalPrice == null) {
@@ -167,6 +157,7 @@ export async function POST(request: NextRequest) {
 
     // Strapi v5 create: POST /api/bookings with { data: { ... } }
     // For relations use connect: [documentId] (array of documentId strings)
+    // Do not send status - Strapi uses schema default or rejects the key
     const payload: Record<string, unknown> = {
       referenceNumber,
       customerName,
@@ -182,14 +173,9 @@ export async function POST(request: NextRequest) {
       attendees: attendees ?? null,
       roomSpace: roomSpace || null,
       message: message || null,
-      status: status || "pending_payment",
       totalPrice: Number(totalPrice),
       currency,
     };
-
-    if (razorpayOrderId) payload.razorpayOrderId = razorpayOrderId;
-    if (razorpayPaymentId) payload.razorpayPaymentId = razorpayPaymentId;
-    if (paidAt) payload.paidAt = paidAt;
 
     // Service relation (many-to-one) – Strapi v5 accepts id or documentId for connect
     if (serviceId != null && serviceId !== undefined) {
@@ -227,6 +213,8 @@ export async function POST(request: NextRequest) {
 
     const created = await res.json();
     const bookingId = created?.data?.id ?? created?.data?.documentId ?? created?.data?.document?.id;
+
+    // Pending email is sent by Strapi when the booking is created (Document Service middleware)
     return NextResponse.json({
       success: true,
       referenceNumber,
@@ -268,9 +256,9 @@ export async function GET(request: NextRequest) {
       Authorization: `Bearer ${token}`,
     };
 
-    // Fetch bookings for the specified date (only confirmed bookings)
+    // Fetch all bookings for the date (no status filter to avoid Strapi "Invalid key status")
     const url = strapiUrl(
-      `/api/bookings?filters[date][$eq]=${encodeURIComponent(date)}&filters[status][$in][0]=confirmed&filters[status][$in][1]=pending_payment&fields[0]=referenceNumber&fields[1]=date&fields[2]=endDate&fields[3]=startTime&fields[4]=endTime&fields[5]=roomSpace&fields[6]=status&fields[7]=attendees`
+      `/api/bookings?filters[date][$eq]=${encodeURIComponent(date)}&fields[0]=referenceNumber&fields[1]=date&fields[2]=endDate&fields[3]=startTime&fields[4]=endTime&fields[5]=roomSpace&fields[6]=attendees`
     );
 
     const res = await fetch(url, {
@@ -301,7 +289,7 @@ export async function GET(request: NextRequest) {
       startTime: item.startTime,
       endTime: item.endTime,
       roomSpace: item.roomSpace,
-      status: item.status,
+      status: item.status ?? undefined,
       attendees: item.attendees,
     }));
 

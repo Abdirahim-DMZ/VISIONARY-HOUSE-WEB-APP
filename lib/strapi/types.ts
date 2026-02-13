@@ -376,7 +376,7 @@ export interface StrapiGalleryItem {
 }
 
 // ---- Booking (collection) ----
-export type BookingStatus = "pending_payment" | "confirmed" | "cancelled" | "completed";
+export type BookingStatus = "Pending" | "Completed" | "Cancelled";
 
 export interface BookingAttr {
   referenceNumber?: string | null;
@@ -395,9 +395,6 @@ export interface BookingAttr {
   status?: BookingStatus | null;
   totalPrice?: number | null;
   currency?: string | null;
-  razorpayOrderId?: string | null;
-  razorpayPaymentId?: string | null;
-  paidAt?: string | null;
   service?: { data: StrapiService | null };
   addOns?: { data: StrapiAddOn[] };
 }
