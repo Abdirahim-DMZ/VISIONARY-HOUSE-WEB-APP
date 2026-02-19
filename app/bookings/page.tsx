@@ -17,7 +17,7 @@ import { Layout } from "@/components/layout/layout";
 import { PageHero, PageHeroSkeleton } from "@/components/sections";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { Search, Calendar, Clock, MapPin, Mail, Phone } from "lucide-react";
+import { Search, Calendar, Clock, MapPin, Mail, Phone, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { fetchBookingSettings, findBookingByReference, isStrapiConfigured } from "@/lib/strapi";
 import { getBookingSettingsHeroImageUrl } from "@/lib/strapi/mappers";
@@ -37,7 +37,14 @@ export default function Bookings() {
   const [referenceNumber, setReferenceNumber] = useState("");
   const [email, setEmail] = useState("");
   const [booking, setBooking] = useState<any>(null);
+  const [isSearching, setIsSearching] = useState(false);
+  const status = booking?.statusOfBooking?.toLowerCase() || "confirmed";
 
+  const statusStyles: Record<string, string> = {
+    pending: "bg-yellow-50 text-yellow-700 border-yellow-200",
+    confirmed: "bg-green-50 text-green-700 border-green-200",
+    canceled: "bg-red-50 text-red-700 border-red-200",
+  };
   const { data: bookingSettingsData, isLoading: bookingSettingsLoading, isError: bookingSettingsError } = useQuery({
     queryKey: ["strapi", "booking-settings"],
     queryFn: fetchBookingSettings,
@@ -79,6 +86,7 @@ export default function Bookings() {
       return;
     }
 
+    setIsSearching(true);
     try {
       const result = await findBookingByReference(referenceNumber.trim(), email.trim());
 
@@ -108,7 +116,7 @@ export default function Bookings() {
         endTime: attrs.endTime ?? raw.endTime ?? "",
         attendees: attrs.attendees ?? raw.attendees ?? null,
         message: attrs.message ?? raw.message ?? "",
-        status: attrs.status ?? raw.status ?? "",
+        statusOfBooking: attrs.statusOfBooking ?? raw.statusOfBooking ?? "",
         totalPrice: attrs.totalPrice ?? raw.totalPrice ?? null,
         currency: attrs.currency ?? raw.currency ?? "",
         eventType: attrs.eventType ?? raw.eventType ?? "",
@@ -124,6 +132,8 @@ export default function Bookings() {
         description: "Something went wrong while looking up your booking. Please try again.",
         variant: "destructive",
       });
+    } finally {
+      setIsSearching(false);
     }
   };
 
@@ -215,17 +225,58 @@ export default function Bookings() {
                         required
                       />
                     </div>
-                    <Button type="submit" variant="gold" className="w-full">
-                      <Search className="mr-2 h-4 w-4" />
-                      Find My Booking
+                    <Button
+                      type="submit"
+                      variant="gold"
+                      className="w-full"
+                      disabled={isSearching}
+                    >
+                      {isSearching ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Searching...
+                        </>
+                      ) : (
+                        <>
+                          <Search className="mr-2 h-4 w-4" />
+                          Find My Booking
+                        </>
+                      )}
                     </Button>
                   </form>
                 </CardContent>
               </Card>
             </motion.div>
 
+            {/* Loading placeholder while searching */}
+            {isSearching && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+                className="mt-8"
+              >
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                      <CardTitle className="heading-card text-muted-foreground">Finding your booking...</CardTitle>
+                    </div>
+                    <CardDescription className="text-body">Please wait while we look up your booking details.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    <div className="grid md:grid-cols-2 gap-6">
+                      {[1, 2, 3, 4].map((i) => (
+                        <Skeleton key={i} className="h-14 w-full" />
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            )}
+
             {/* Booking Details (shown when found) */}
-            {booking && (
+            {!isSearching && booking && (
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -235,10 +286,14 @@ export default function Bookings() {
                   <CardHeader>
                     <div className="flex items-center justify-between">
                       <CardTitle className="heading-card">Booking Details</CardTitle>
-                      <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                        {booking.status
-                          ? booking.status.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())
-                          : "Confirmed"}
+
+                      <Badge
+                          variant="outline"
+                          className={statusStyles[status] || "bg-gray-50 text-gray-700 border-gray-200"}
+                      >
+                        {status
+                            .replace(/_/g, " ")
+                            .replace(/\b\w/g, (c: string) => c.toUpperCase())}
                       </Badge>
                     </div>
                     <CardDescription className="text-body">Reference: {booking.referenceNumber}</CardDescription>
