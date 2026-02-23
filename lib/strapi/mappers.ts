@@ -4,7 +4,7 @@
  */
 
 import { getMediaUrl, type StrapiMedia } from "./types";
-import type { HomepageAttr, AboutPageAttr, ServicePageAttr, GalleryPageAttr, ContactPageAttr, BookingSettingsAttr, BookPageAttr, PoliciesPageAttr, StrapiService, StrapiTestimonial, StrapiFaq, StrapiAddOn, StrapiEventType, StrapiServiceLayout, StrapiGuestType } from "./types";
+import type { HomepageAttr, AboutPageAttr, ServicePageAttr, GalleryPageAttr, ContactPageAttr, BookingSettingsAttr, BookPageAttr, PoliciesPageAttr, StrapiService, StrapiTestimonial, StrapiFaq, StrapiAddOn, StrapiEventType, StrapiServiceLayout, StrapiRoomSpace, StrapiGuestType } from "./types";
 import type { BookingAddOn, ServiceLayout } from "@/lib/types/booking";
 
 const STRAPI_BASE = process.env.NEXT_PUBLIC_STRAPI_URL || "";
@@ -365,13 +365,10 @@ export function mapStrapiEventTypes(items: StrapiEventType[]): MappedEventType[]
   });
 }
 
-// Map serviceLayout string field to service slug (event-space, lounge, etc.)
-// Store room info in the layout object itself for filtering
-function serviceLayoutToSlug(layoutName: string | null | undefined): string {
-  if (!layoutName) return "event-space";
-  const lower = layoutName.toLowerCase();
-  if (lower.includes("lounge")) return "lounge";
-  if (lower.includes("small meeting") || lower.includes("main hall") || lower.includes("combined hall")) return "event-space";
+// Map room-space slug to service key (event-space, lounge, etc.) for grouping layouts by service type
+function roomSpaceSlugToServiceKey(slug: string | null | undefined): string {
+  if (!slug) return "event-space";
+  if (slug === "lounge") return "lounge";
   return "event-space";
 }
 
@@ -379,20 +376,12 @@ export function mapStrapiServiceLayouts(items: StrapiServiceLayout[]): Record<st
   if (!items?.length) return {};
   const byService: Record<string, ServiceLayoutWithRoom[]> = {};
   for (const item of items) {
-    const a:any = getAttr(item);
-    const layoutName = (a as { serviceLayout?: string }).serviceLayout;
-    const key = serviceLayoutToSlug(layoutName);
-    
-    // Determine room space from layout name for filtering
-    let roomSpace: string | undefined;
-    if (layoutName) {
-      const lower = layoutName.toLowerCase();
-      if (lower.includes("small meeting")) roomSpace = "small-meeting-room";
-      else if (lower.includes("lounge")) roomSpace = "lounge";
-      else if (lower.includes("main hall")) roomSpace = "main-hall";
-      else if (lower.includes("combined hall")) roomSpace = "combined-hall";
-    }
-    
+    const a: any = getAttr(item);
+    const roomSpaceRel = (a as { roomSpace?: { data?: StrapiRoomSpace | null } | null }).roomSpace;
+    const roomSpaceData = roomSpaceRel?.data ?? (roomSpaceRel as StrapiRoomSpace | null) ?? null;
+    const slug = roomSpaceData?.attributes?.slug ?? (roomSpaceData as { slug?: string } | null)?.slug ?? null;
+    const key = roomSpaceSlugToServiceKey(slug ?? undefined);
+
     if (!byService[key]) byService[key] = [];
     byService[key].push({
       id: String(item.id ?? item.documentId ?? ""),
@@ -400,10 +389,27 @@ export function mapStrapiServiceLayouts(items: StrapiServiceLayout[]): Record<st
       capacity: Number(a?.capacity) || 0,
       description: a?.description ?? "",
       image: getDirectImageUrl(a?.image as StrapiMedia | null),
-      roomSpace,
+      roomSpace: slug ?? undefined,
     });
   }
   return byService;
+}
+
+export interface MappedRoomSpace {
+  id: string;
+  name: string;
+  imageUrl?: string;
+}
+
+export function mapStrapiRoomSpaces(items: StrapiRoomSpace[]): MappedRoomSpace[] {
+  if (!items?.length) return [];
+  return items.map((item) => {
+    const att = getAttr(item) as { slug?: string; title?: string; image?: StrapiMedia | { data?: StrapiMedia | null } | null };
+    const slug = att?.slug ?? String((item as { documentId?: string; id?: number }).documentId ?? (item as { id?: number }).id ?? "");
+    const title = att?.title ?? slug;
+    const imageUrl = getDirectImageUrl(att?.image as StrapiMedia | null);
+    return { id: slug, name: title, imageUrl: imageUrl || undefined };
+  });
 }
 
 export function mapStrapiGuestTypes(items: StrapiGuestType[]): string[] {

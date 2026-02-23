@@ -12,6 +12,7 @@ import type {
   AboutPageAttr,
   StrapiService,
   StrapiServiceLayout,
+  StrapiRoomSpace,
   StrapiAddOn,
   StrapiEventType,
   StrapiTestimonial,
@@ -177,6 +178,18 @@ export async function fetchServiceLayouts(serviceSlug?: string): Promise<StrapiS
     const filter = serviceSlug ? `&filters[service][slug][$eq]=${encodeURIComponent(serviceSlug)}` : "";
     const res = await strapiFetch<StrapiCollectionResponse<StrapiServiceLayout>>(
       `/api/service-layouts?${POPULATE_DEEP}&sort=sortOrder:asc${filter}`
+    );
+    return res?.data ?? [];
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchRoomSpaces(): Promise<StrapiRoomSpace[]> {
+  if (!isStrapiConfigured()) return [];
+  try {
+    const res = await strapiFetch<StrapiCollectionResponse<StrapiRoomSpace>>(
+      `/api/room-spaces?${POPULATE_DEEP}&sort=sortOrder:asc`
     );
     return res?.data ?? [];
   } catch {

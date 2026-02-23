@@ -78,6 +78,18 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+    if (!roomSpace?.trim()) {
+      return NextResponse.json(
+        { error: "Room / Space is required." },
+        { status: 400 }
+      );
+    }
+    if (layout == null || layout === "" || (typeof layout === "string" && !layout.trim())) {
+      return NextResponse.json(
+        { error: "Service Layout is required." },
+        { status: 400 }
+      );
+    }
 
     const referenceNumber = generateBookingReference();
     const strapiBase = (process.env.NEXT_PUBLIC_STRAPI_URL || "").trim().replace(/\/$/, "");

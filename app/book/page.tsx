@@ -58,7 +58,8 @@ import {
   Search,
   Copy,
   Check,
-  Loader2
+  Loader2,
+  ChevronDown
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -76,9 +77,10 @@ import {
   generateBookingReference,
   getTotalDurationMinutes
 } from "@/lib/utils/booking-utils";
+import { validateInternationalPhone, normalizeInternationalPhone } from "@/lib/utils/phone";
 import type { BookingFormData, BookingAddOn, ServiceLayout } from "@/lib/types/booking";
-import { fetchBookPage, fetchAddOns, fetchEventTypes, fetchServiceLayouts, fetchGuestTypes, isStrapiConfigured } from "@/lib/strapi";
-import { getBookPageHeroImageUrl, mapBookPageFeatures, mapStrapiAddOns, mapStrapiEventTypes, mapStrapiServiceLayouts, mapStrapiGuestTypes } from "@/lib/strapi/mappers";
+import { fetchBookPage, fetchAddOns, fetchEventTypes, fetchServiceLayouts, fetchGuestTypes, fetchRoomSpaces, isStrapiConfigured } from "@/lib/strapi";
+import { getBookPageHeroImageUrl, mapBookPageFeatures, mapStrapiAddOns, mapStrapiEventTypes, mapStrapiServiceLayouts, mapStrapiGuestTypes, mapStrapiRoomSpaces } from "@/lib/strapi/mappers";
 import coffee from '../../public/assets/coffee.jpg'
 
 // Visionary House room matching (UI-only) — fallback when APIs not used
@@ -255,6 +257,7 @@ export default function Book() {
   const [referenceCopied, setReferenceCopied] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, boolean>>({});
   const [emailErrorMessage, setEmailErrorMessage] = useState<string | null>(null);
+  const [phoneErrorMessage, setPhoneErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const pendingNavigationRef = useRef<string | "back" | null>(null);
@@ -289,8 +292,19 @@ export default function Book() {
     enabled: isStrapiConfigured(),
     staleTime: 60_000,
   });
+  const { data: apiRoomSpaces = [], isLoading: roomSpacesLoading } = useQuery({
+    queryKey: ["strapi", "room-spaces"],
+    queryFn: fetchRoomSpaces,
+    enabled: isStrapiConfigured(),
+    staleTime: 60_000,
+  });
 
   const strapiConfigured = isStrapiConfigured();
+  const roomSpaceOptionsFromApi = useMemo(() => mapStrapiRoomSpaces(apiRoomSpaces ?? []), [apiRoomSpaces]);
+  const roomSpaceLabels = useMemo(() => {
+    if (!roomSpaceOptionsFromApi.length) return ROOM_SPACE_LABELS;
+    return Object.fromEntries(roomSpaceOptionsFromApi.map((r) => [r.id, r.name]));
+  }, [roomSpaceOptionsFromApi]);
   const addOnsList = useMemo(() => {
     const mapped = mapStrapiAddOns(apiAddOns);
     if (strapiConfigured && addOnsLoading) return [];
@@ -362,6 +376,8 @@ export default function Book() {
   const emailRef = useRef<HTMLInputElement>(null);
   const phoneRef = useRef<HTMLInputElement>(null);
   const attendeesRef = useRef<HTMLInputElement>(null);
+  const roomSpaceRef = useRef<HTMLButtonElement>(null);
+  const layoutRef = useRef<HTMLButtonElement>(null);
 
   const [formData, setFormData] = useState<BookingFormData>({
     name: "",
@@ -495,7 +511,7 @@ export default function Book() {
     }
 
     // Generate detailed conflict message
-    const roomName = formData.roomSpace ? ROOM_SPACE_LABELS[formData.roomSpace] || formData.roomSpace : "this space";
+    const roomName = formData.roomSpace ? roomSpaceLabels[formData.roomSpace] || formData.roomSpace : "this space";
     const conflictTimes = conflicts.map((c: any) => `${c.startTime} - ${c.endTime}`).join(", ");
     
     const message = formData.roomSpace
@@ -503,7 +519,7 @@ export default function Book() {
       : `Time slots ${conflictTimes} are already booked on this date. Please select a different time.`;
 
     return { available: false, conflicts, message };
-  }, [formData.date, formData.startTime, formData.endTime, formData.roomSpace, existingBookings]);
+  }, [formData.date, formData.startTime, formData.endTime, formData.roomSpace, existingBookings, roomSpaceLabels]);
 
   const selectedEventType = eventTypesList.find((e) => e.id === formData.eventType);
   const isMultiDay = selectedEventType?.isMultiDay ?? false;
@@ -595,30 +611,6 @@ export default function Book() {
     setFormData((prev) => (prev.roomSpace || prev.layoutId ? { ...prev, roomSpace: "", layoutId: "" } : prev));
   }, [formData.date, formData.startTime, formData.endTime, formData.endDate]);
 
-  useEffect(() => {
-    const count = formData.attendees ? parseInt(formData.attendees, 10) : 0;
-    if (Number.isNaN(count) || count <= 0) return;
-    if (count > 70) {
-      setFormData((prev) => ({ ...prev, roomSpace: "", layoutId: "" }));
-      return;
-    }
-    if (!formData.roomSpace) return;
-    const available = getAvailableRoomSpaces(count);
-    const isStillAvailable = available.some((r) => r.id === formData.roomSpace);
-    if (!isStillAvailable) {
-      setFormData((prev) => ({ ...prev, roomSpace: "", layoutId: "" }));
-      return;
-    }
-    // Clear layoutId if the currently selected layout is no longer valid for the selected room/capacity
-    // This check works for ALL rooms (main-hall, lounge, small-meeting-room, etc.)
-    if (formData.layoutId) {
-      // The availableLayouts will be computed based on roomSpace and attendees
-      // We need to check if the current layoutId is still valid
-      // Note: We can't use the availableLayouts useMemo here directly as it would create a circular dependency
-      // So we'll defer this check to a separate useEffect that runs after availableLayouts is computed
-    }
-  }, [formData.attendees, formData.roomSpace]);
-
   const handleChange = (
       e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => {
@@ -677,18 +669,22 @@ export default function Book() {
     }
 
     if (fieldName === "phone") {
-      value = value.replace(/\D/g, "");
-
-      if (value.length > 10) {
-        value = value.slice(0, 10);
-      }
+      // Allow international format: +, digits, spaces, dashes, parentheses, dots
+      value = value.replace(/[^\d+\s\-().]/g, "");
+      if (value.length > 25) value = value.slice(0, 25);
 
       if (value.length === 0) {
         setFieldErrors((prev) => ({ ...prev, phone: false }));
-      } else if (value.length < 10) {
-        setFieldErrors((prev) => ({ ...prev, phone: true }));
+        setPhoneErrorMessage(null);
       } else {
-        setFieldErrors((prev) => ({ ...prev, phone: false }));
+        const result = validateInternationalPhone(value);
+        if (!result.valid) {
+          setFieldErrors((prev) => ({ ...prev, phone: true }));
+          setPhoneErrorMessage(result.errorMessage ?? "Enter a valid international phone number.");
+        } else {
+          setFieldErrors((prev) => ({ ...prev, phone: false }));
+          setPhoneErrorMessage(null);
+        }
       }
     }
 
@@ -734,6 +730,7 @@ export default function Book() {
       roomSpace: value,
       layoutId: isHall ? prev.layoutId : "",
     }));
+    if (fieldErrors.roomSpace) setFieldErrors((prev) => ({ ...prev, roomSpace: false }));
   };
 
   const handleLayoutToggle = (value: string) => {
@@ -763,6 +760,7 @@ export default function Book() {
       ...current,
       layoutId: selectedId,
     }));
+    if (fieldErrors.layoutId) setFieldErrors((prev) => ({ ...prev, layoutId: false }));
     setIsLayoutDialogOpen(false);
     setLayoutSearchQuery("");
   };
@@ -788,6 +786,7 @@ export default function Book() {
   const [isStartTimeOpen, setIsStartTimeOpen] = useState(false);
   const [isEndTimeOpen, setIsEndTimeOpen] = useState(false);
   const [isLayoutDialogOpen, setIsLayoutDialogOpen] = useState(false);
+  const [roomSpacePopoverOpen, setRoomSpacePopoverOpen] = useState(false);
   const [layoutSearchQuery, setLayoutSearchQuery] = useState("");
   const [selectedLayoutIds, setSelectedLayoutIds] = useState<string[]>([]);
   const [dialogLayoutIds, setDialogLayoutIds] = useState<string[]>([]);
@@ -950,6 +949,15 @@ export default function Book() {
           firstInvalidField = attendeesRef as unknown as React.RefObject<HTMLElement>;
         }
       }
+      // Room / Space and Service Layout are required when they are in the flow (date/time selected and options available)
+      if (hasDateTimeSelected && availableRoomSpaces.length > 0 && !formData.roomSpace?.trim()) {
+        errors.roomSpace = true;
+        if (!firstInvalidField) firstInvalidField = roomSpaceRef as React.RefObject<HTMLElement>;
+      }
+      if (formData.roomSpace && availableLayouts.length > 0 && !formData.layoutId?.trim()) {
+        errors.layoutId = true;
+        if (!firstInvalidField) firstInvalidField = layoutRef as React.RefObject<HTMLElement>;
+      }
 
       if (Object.keys(errors).length > 0) {
         setFieldErrors(errors);
@@ -957,7 +965,9 @@ export default function Book() {
           ? "Cannot select a past time."
           : attendeesError
             ? attendeesError
-            : "Please fill in all required fields for booking details";
+            : errors.roomSpace || errors.layoutId
+              ? "Please select Room / Space and Service Layout to continue."
+              : "Please fill in all required fields for booking details";
         toast({
           title: pastTimeErrorStep1 ? "Invalid Time" : "Missing Information",
           description: toastDescriptionStep1,
@@ -1010,7 +1020,17 @@ export default function Book() {
       }
       if (!formData.phone?.trim()) {
         errors.phone = true;
+        setPhoneErrorMessage("Please enter your phone number with country code (e.g. +1 555 000 0000).");
         if (!firstInvalidField) firstInvalidField = phoneRef;
+      } else {
+        const phoneResult = validateInternationalPhone(formData.phone);
+        if (!phoneResult.valid) {
+          errors.phone = true;
+          setPhoneErrorMessage(phoneResult.errorMessage ?? "Enter a valid international phone number.");
+          if (!firstInvalidField) firstInvalidField = phoneRef;
+        } else {
+          setPhoneErrorMessage(null);
+        }
       }
 
       if (Object.keys(errors).length > 0) {
@@ -1098,7 +1118,25 @@ export default function Book() {
       }
       if (!formData.phone?.trim()) {
         errors.phone = true;
+        setPhoneErrorMessage("Please enter your phone number with country code (e.g. +1 555 000 0000).");
         if (!firstInvalidField) firstInvalidField = phoneRef;
+      } else {
+        const phoneResult = validateInternationalPhone(formData.phone);
+        if (!phoneResult.valid) {
+          errors.phone = true;
+          setPhoneErrorMessage(phoneResult.errorMessage ?? "Enter a valid international phone number.");
+          if (!firstInvalidField) firstInvalidField = phoneRef;
+        } else {
+          setPhoneErrorMessage(null);
+        }
+      }
+      if (hasDateTimeSelected && availableRoomSpaces.length > 0 && !formData.roomSpace?.trim()) {
+        errors.roomSpace = true;
+        if (!firstInvalidField) firstInvalidField = roomSpaceRef as React.RefObject<HTMLElement>;
+      }
+      if (formData.roomSpace && availableLayouts.length > 0 && !formData.layoutId?.trim()) {
+        errors.layoutId = true;
+        if (!firstInvalidField) firstInvalidField = layoutRef as React.RefObject<HTMLElement>;
       }
 
       if (Object.keys(errors).length > 0) {
@@ -1153,7 +1191,7 @@ export default function Book() {
       const bookingPayload = {
         customerName: formData.name,
         customerEmail: formData.email,
-        customerPhone: formData.phone,
+        customerPhone: normalizeInternationalPhone(formData.phone),
         companyName: formData.company || undefined,
         guestType: formData.guestType || undefined,
         eventType: eventTypeName,
@@ -1246,22 +1284,58 @@ export default function Book() {
 
   const participantCount = formData.attendees ? parseInt(formData.attendees, 10) : 0;
   const isValidParticipantCount = !Number.isNaN(participantCount) && participantCount > 0;
-  const participantsExceedMax = participantCount > 70;
-  const allRoomSpacesByCapacity =
-    isValidParticipantCount && !participantsExceedMax ? getAvailableRoomSpaces(participantCount) : [];
-  // Room/Space: show all rooms that fit capacity (availability filtered at layout level, not room level)
+  // Max capacity from all layouts (API + hall fallback); fallback 70 when no API data
+  const maxParticipantCapacity = useMemo(() => {
+    const fallbackHallMax = 70;
+    let max = fallbackHallMax;
+    for (const key of Object.keys(serviceLayoutsMap)) {
+      const layouts = serviceLayoutsMap[key] || [];
+      for (const l of layouts) {
+        const cap = (l as { capacity?: number }).capacity ?? 0;
+        if (cap > max) max = cap;
+      }
+    }
+    return max;
+  }, [serviceLayoutsMap]);
+  const participantsExceedMax = participantCount > maxParticipantCapacity;
+
+  // Clear room and layout when participant count exceeds max capacity
+  useEffect(() => {
+    const count = formData.attendees ? parseInt(formData.attendees, 10) : 0;
+    if (Number.isNaN(count) || count <= 0) return;
+    if (count > maxParticipantCapacity) {
+      setFormData((prev) => (prev.roomSpace || prev.layoutId ? { ...prev, roomSpace: "", layoutId: "" } : prev));
+    }
+  }, [formData.attendees, maxParticipantCapacity]);
+  // Show ALL room/space options from API (or fallback); no participant filter at room level—filtering by capacity happens at Layout step
   const availableRoomSpaces =
-    hasDateTimeSelected && allRoomSpacesByCapacity.length > 0 ? allRoomSpacesByCapacity : [];
+    hasDateTimeSelected && (roomSpaceOptionsFromApi.length > 0 || ROOM_SPACE_OPTIONS.length > 0)
+      ? (roomSpaceOptionsFromApi.length > 0
+          ? roomSpaceOptionsFromApi.map((r) => ({
+              id: r.id,
+              name: r.name,
+              imageUrl: r.imageUrl,
+            }))
+          : ROOM_SPACE_OPTIONS.map((r) => ({
+              id: r.id,
+              name: roomSpaceLabels[r.id] ?? r.name,
+              imageUrl: undefined as string | undefined,
+            })))
+      : [];
   const isHallSelected = formData.roomSpace === "main-hall" || formData.roomSpace === "combined-hall";
   const isLoungeSelected = formData.roomSpace === "lounge";
+  // When room is selected, derive service key for layouts if serviceType not set (so Layout field always shows)
+  const serviceKeyForLayouts =
+    formData.serviceType ||
+    (formData.roomSpace ? (formData.roomSpace === "lounge" ? "lounge" : "event-space") : "");
   const availableLayoutsForHall =
     isHallSelected && formData.roomSpace
       ? getAvailableLayoutsForHall(formData.roomSpace, participantCount)
       : [];
 
-  // Get layouts from service type and filter by room space + capacity
-  const availableLayoutsAll = formData.serviceType
-    ? serviceLayoutsMap[formData.serviceType] || []
+  // Get layouts from service type (or derived from room) and filter by room space + capacity
+  const availableLayoutsAll = serviceKeyForLayouts
+    ? serviceLayoutsMap[serviceKeyForLayouts] || []
     : [];
 
   // Filter by room space, participant capacity, and per-layout availability for the selected date/time
@@ -1543,18 +1617,20 @@ export default function Book() {
         <DialogContent className="max-w-6xl w-[95vw] max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>Choose a Layout</DialogTitle>
-            <DialogDescription>
-              Select one layout to see capacity and setup details. Click an image to select.
-              {formData.roomSpace && (
-                <span className="block mt-1 text-accent font-medium">
-                  Showing layouts for: {ROOM_SPACE_LABELS[formData.roomSpace] || formData.roomSpace}
-                </span>
-              )}
-              {isValidParticipantCount && (
-                <span className="block mt-1 text-accent font-medium">
-                  Filtered for {participantCount} participant{participantCount !== 1 ? 's' : ''}
-                </span>
-              )}
+            <DialogDescription asChild>
+              <div>
+                <p>Select one layout that fits your group. Only layouts that accommodate your participant count are shown.</p>
+                {formData.roomSpace && (
+                  <span className="block mt-1.5 text-accent font-medium">
+                    Room: {roomSpaceLabels[formData.roomSpace] || formData.roomSpace}
+                  </span>
+                )}
+                {isValidParticipantCount && !participantsExceedMax && participantCount > 0 && (
+                  <span className="block mt-0.5 text-accent font-medium">
+                    Capacity filter: layouts for {participantCount}+ participant{participantCount !== 1 ? "s" : ""}
+                  </span>
+                )}
+              </div>
             </DialogDescription>
           </DialogHeader>
 
@@ -1565,7 +1641,7 @@ export default function Book() {
                 <Alert className="border-amber-200 bg-amber-50 text-amber-900 mb-4">
                   <Info className="h-4 w-4" />
                   <AlertDescription>
-                    No hall is available for more than 70 participants.
+                    No hall is available for more than {maxParticipantCapacity} participants.
                   </AlertDescription>
                 </Alert>
               );
@@ -1836,6 +1912,7 @@ export default function Book() {
                             <Select
                                 value={formData.eventType}
                                 onValueChange={handleEventTypeChange}
+                                disabled={strapiConfigured && eventTypesLoading}
                             >
                               <SelectTrigger
                                   ref={serviceTypeRef}
@@ -1845,7 +1922,7 @@ export default function Book() {
                                       fieldErrors.serviceType && "border-red-500 hover:border-red-600 focus:border-red-600"
                                   )}
                               >
-                                <SelectValue placeholder="Choose your event type (small or large)" />
+                                <SelectValue placeholder={strapiConfigured && eventTypesLoading ? "Loading..." : "Choose your event type (small or large)"} />
                               </SelectTrigger>
                               <SelectContent className="shadow-elevated  overflow-y-auto w-[var(--radix-select-trigger-width)] sm:w-auto">
                                 {eventTypesList.map((event) => (
@@ -1876,12 +1953,13 @@ export default function Book() {
                             <Select
                               value={formData.guestType ?? ""}
                               onValueChange={(value) => setFormData((prev) => ({ ...prev, guestType: value }))}
+                              disabled={strapiConfigured && guestTypesLoading}
                             >
                               <SelectTrigger
                                 id="guestType"
                                 className="h-14 text-base border-2 hover:border-accent/50 focus:border-accent transition-colors"
                               >
-                                <SelectValue placeholder="Select guest type" />
+                                <SelectValue placeholder={strapiConfigured && guestTypesLoading ? "Loading..." : "Select guest type"} />
                               </SelectTrigger>
                               <SelectContent className="shadow-elevated overflow-y-auto w-[var(--radix-select-trigger-width)] sm:w-auto">
                                 {guestTypesList.map((type) => (
@@ -1928,12 +2006,12 @@ export default function Book() {
                             )}
                           </div>
 
-                          {/* Message when participants exceed 70 */}
+                          {/* Message when participants exceed max capacity */}
                           {participantsExceedMax && (
                               <Alert className="border-amber-200 bg-amber-50 text-amber-900">
                                 <Info className="h-4 w-4" />
                                 <AlertDescription>
-                                  No hall or room is available for more than 70 participants.
+                                  No hall or room is available for more than {maxParticipantCapacity} participants.
                                 </AlertDescription>
                               </Alert>
                           )}
@@ -2499,29 +2577,98 @@ export default function Book() {
                             )}
 
                             {/* Room/Space & Layout — only after date and time are selected; layouts filtered by availability individually */}
-                            {hasDateTimeSelected && availableRoomSpaces.length > 0 && (
-                              <div className="space-y-2">
+                            {hasDateTimeSelected && (roomSpacesLoading || availableRoomSpaces.length > 0) && (
+                              <div className="space-y-2 w-full min-w-0">
                                 <Label htmlFor="roomSpace" className="text-base font-medium">
-                                  Room / Space
+                                  Room / Space *
                                 </Label>
-                                <Select
-                                  value={formData.roomSpace ?? ""}
-                                  onValueChange={handleRoomSpaceChange}
-                                >
-                                  <SelectTrigger
-                                    id="roomSpace"
-                                    className="h-14 text-base border-2 hover:border-accent/50 focus:border-accent transition-colors"
-                                  >
-                                    <SelectValue placeholder="Select room or space" />
-                                  </SelectTrigger>
-                                  <SelectContent className="shadow-elevated overflow-y-auto w-[var(--radix-select-trigger-width)] sm:w-auto">
-                                    {availableRoomSpaces.map((room) => (
-                                      <SelectItem key={room.id} value={room.id} className="text-base py-3">
-                                        {room.name}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
+                                <div className="w-full min-w-0">
+                                  <Popover open={roomSpacePopoverOpen} onOpenChange={setRoomSpacePopoverOpen}>
+                                  <PopoverTrigger asChild>
+                                    <button
+                                      ref={roomSpaceRef}
+                                      type="button"
+                                      id="roomSpace"
+                                      disabled={roomSpacesLoading}
+                                      className={cn(
+                                        "flex h-16 w-full min-w-0 items-center gap-4 rounded-md border-2 bg-background px-4 text-left text-base transition-colors hover:border-accent/50 focus:border-accent focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 cursor-pointer",
+                                        roomSpacesLoading && "cursor-wait opacity-90",
+                                        !formData.roomSpace && !roomSpacesLoading && "text-muted-foreground",
+                                        fieldErrors.roomSpace && "border-red-500 hover:border-red-600 focus:border-red-500"
+                                      )}
+                                    >
+                                        {roomSpacesLoading ? (
+                                          <>
+                                            <Loader2 className="h-5 w-5 flex-shrink-0 animate-spin text-muted-foreground" />
+                                            <span className="flex-1 min-w-0 text-left">Loading rooms...</span>
+                                          </>
+                                        ) : formData.roomSpace ? (
+                                          <>
+                                            {availableRoomSpaces.find((r) => r.id === formData.roomSpace)?.imageUrl ? (
+                                              <span className="relative h-12 w-20 flex-shrink-0 overflow-hidden rounded-md bg-muted">
+                                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                                <img
+                                                  src={availableRoomSpaces.find((r) => r.id === formData.roomSpace)?.imageUrl}
+                                                  alt=""
+                                                  className="h-full w-full object-cover"
+                                                />
+                                              </span>
+                                            ) : null}
+                                            <span className="flex-1 truncate min-w-0">
+                                              {roomSpaceLabels[formData.roomSpace] ?? formData.roomSpace}
+                                            </span>
+                                          </>
+                                        ) : (
+                                          <span className="flex-1 min-w-0">Select room or space</span>
+                                        )}
+                                        {!roomSpacesLoading && <ChevronDown className="h-5 w-5 flex-shrink-0 text-muted-foreground" />}
+                                      </button>
+                                    </PopoverTrigger>
+                                    <PopoverContent
+                                      className="!w-[var(--radix-popover-trigger-width)] min-w-[280px] max-w-[calc(100vw-2rem)] p-0 shadow-elevated"
+                                      align="start"
+                                      sideOffset={4}
+                                    >
+                                    <div className="max-h-[min(70vh,380px)] overflow-y-auto py-1">
+                                      {availableRoomSpaces.map((room) => (
+                                        <button
+                                          key={room.id}
+                                          type="button"
+                                          className={cn(
+                                            "flex w-full items-center gap-4 px-4 py-3.5 text-left transition-colors hover:bg-accent/10 focus:bg-accent/10 focus:outline-none cursor-pointer",
+                                            formData.roomSpace === room.id && "bg-accent/10"
+                                          )}
+                                          onClick={() => {
+                                            handleRoomSpaceChange(room.id);
+                                            setRoomSpacePopoverOpen(false);
+                                          }}
+                                        >
+                                          {room.imageUrl ? (
+                                            <span className="relative h-16 w-24 flex-shrink-0 overflow-hidden rounded-md bg-muted">
+                                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                                              <img
+                                                src={room.imageUrl}
+                                                alt=""
+                                                className="h-full w-full object-cover"
+                                              />
+                                            </span>
+                                          ) : (
+                                            <span className="flex h-16 w-24 flex-shrink-0 items-center justify-center rounded-md bg-muted">
+                                              <MapPin className="h-8 w-8 text-muted-foreground" />
+                                            </span>
+                                          )}
+                                          <span className="flex-1 truncate font-medium min-w-0">{room.name}</span>
+                                        </button>
+                                      ))}
+                                    </div>
+                                  </PopoverContent>
+                                </Popover>
+                                </div>
+                                {fieldErrors.roomSpace && (
+                                  <p className="text-xs text-red-600">
+                                    Please select a room or space to continue.
+                                  </p>
+                                )}
                                 {formData.roomSpace === "combined-hall" && (
                                   <p className="text-xs text-muted-foreground">
                                     Combined Hall supports the largest groups (up to 70 theatre style).
@@ -2544,7 +2691,7 @@ export default function Book() {
                                 )}
                               </div>
                             )}
-                            {formData.roomSpace && hasDateTimeSelected && availableLayouts.length === 0 && (
+                            {formData.roomSpace && hasDateTimeSelected && availableLayouts.length === 0 && getRoomsWithConflictForSlot.has(formData.roomSpace) && (
                               <Alert className="border-amber-200 bg-amber-50 text-amber-900">
                                 <Info className="h-4 w-4" />
                                 <AlertDescription>
@@ -2552,25 +2699,50 @@ export default function Book() {
                                 </AlertDescription>
                               </Alert>
                             )}
-                            {formData.roomSpace && availableLayouts.length > 0 && (
+                            {formData.roomSpace && hasDateTimeSelected && availableLayouts.length === 0 && !getRoomsWithConflictForSlot.has(formData.roomSpace) && (
+                              <Alert className="border-amber-200 bg-amber-50 text-amber-900">
+                                <Info className="h-4 w-4" />
+                                <AlertDescription>
+                                  Service layout is currently not available for {roomSpaceLabels[formData.roomSpace] ?? formData.roomSpace}. Please select a different room or contact us for assistance.
+                                </AlertDescription>
+                              </Alert>
+                            )}
+                            {formData.roomSpace && (serviceLayoutsLoading || availableLayouts.length > 0) && (
                               <div className="space-y-3">
-                                <Label className="text-base font-medium">
-                                  Layout
-                                </Label>
+                                <div className="space-y-1">
+                                  <Label className="text-base font-medium">
+                                    Layout *
+                                  </Label>
+                                  {isValidParticipantCount && !participantsExceedMax && participantCount > 0 && (
+                                    <p className="text-xs text-muted-foreground">
+                                      Showing layouts that fit your group ({participantCount} participant{participantCount !== 1 ? "s" : ""})
+                                    </p>
+                                  )}
+                                </div>
                                 <button
+                                  ref={layoutRef}
                                   type="button"
-                                  onClick={() => setIsLayoutDialogOpen(true)}
+                                  onClick={() => !serviceLayoutsLoading && setIsLayoutDialogOpen(true)}
+                                  disabled={serviceLayoutsLoading}
                                   className={cn(
                                     "flex h-14 w-full items-center justify-between rounded-md border-2 bg-background px-4 text-left text-base transition-colors hover:border-accent/50 focus:border-accent focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 cursor-pointer",
-                                    formData.layoutId && "border-accent/30"
+                                    serviceLayoutsLoading && "cursor-wait opacity-90",
+                                    formData.layoutId && "border-accent/30",
+                                    fieldErrors.layoutId && "border-red-500 hover:border-red-600 focus:border-red-500"
                                   )}
                                 >
                                   <span className={formData.layoutId ? "text-foreground" : "text-muted-foreground"}>
-                                    {formData.layoutId
-                                      ? (availableLayouts.find(l => l.id === formData.layoutId)?.name || "Layout selected")
-                                      : "Choose layout"}
+                                    {serviceLayoutsLoading
+                                      ? "Loading layouts..."
+                                      : formData.layoutId
+                                        ? (availableLayouts.find(l => l.id === formData.layoutId)?.name || "Layout selected")
+                                        : "Choose layout"}
                                   </span>
-                                  <MapPin className="h-5 w-5 shrink-0 text-accent" />
+                                  {serviceLayoutsLoading ? (
+                                    <Loader2 className="h-5 w-5 shrink-0 animate-spin text-accent" />
+                                  ) : (
+                                    <MapPin className="h-5 w-5 shrink-0 text-accent" />
+                                  )}
                                 </button>
                                 {formData.layoutId && (() => {
                                   const selectedLayout = availableLayouts.find(l => l.id === formData.layoutId);
@@ -2614,92 +2786,14 @@ export default function Book() {
                                     </motion.div>
                                   );
                                 })()}
-                              </div>
-                            )}
-
-                            {/* Legacy Layout / Setup — only when no room/space options exist (e.g. no participant count); never show layout before room is selected when room flow is active */}
-                            {availableLayouts.length > 0 && !formData.roomSpace && isValidParticipantCount && allRoomSpacesByCapacity.length === 0 && (
-                              <div className="space-y-3">
-                                <Label className="text-base font-medium">Layout / Setup</Label>
-                                <button
-                                  type="button"
-                                  onClick={() => setIsLayoutDialogOpen(true)}
-                                  className={cn(
-                                    "flex h-14 w-full items-center justify-between rounded-md border-2 bg-background px-4 text-left text-base transition-colors hover:border-accent/50 focus:border-accent focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 cursor-pointer",
-                                    selectedLayouts.length > 0 && "border-accent/30"
-                                  )}
-                                >
-                                  <span className={selectedLayouts.length > 0 ? "text-foreground" : "text-muted-foreground"}>
-                                    {selectedLayouts.length === 0 &&
-                                      "Choose your preferred layout"}
-                                    {selectedLayouts.length === 1 &&
-                                      selectedLayouts[0].name}
-                                  </span>
-                                  <MapPin className="h-5 w-5 shrink-0 text-accent" />
-                                </button>
-
-                                {/* Selected Layout Details Display (Legacy) */}
-                                {selectedLayouts.length === 1 && (() => {
-                                  const selectedLayout = selectedLayouts[0];
-                                  return (
-                                    <motion.div
-                                      initial={{ opacity: 0, y: -10 }}
-                                      animate={{ opacity: 1, y: 0 }}
-                                      className="rounded-lg border-2 border-accent/20 bg-accent/5 p-4"
-                                    >
-                                      <div className="flex gap-4">
-                                        {selectedLayout.image && (
-                                          <div className="relative w-24 h-24 rounded-md overflow-hidden flex-shrink-0">
-                                            <Image
-                                              src={selectedLayout.image}
-                                              alt={selectedLayout.name}
-                                              fill
-                                              className="object-cover"
-                                              sizes="96px"
-                                            />
-                                          </div>
-                                        )}
-                                        <div className="flex-1 min-w-0">
-                                          <div className="flex items-start justify-between gap-2 mb-1">
-                                            <h4 className="font-semibold text-base text-foreground">
-                                              {selectedLayout.name}
-                                            </h4>
-                                            <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0" />
-                                          </div>
-                                          <div className="flex items-center gap-2 mb-2">
-                                            <Badge variant="outline" className="text-xs border-accent/40 bg-background">
-                                              <Users className="h-3 w-3 mr-1" />
-                                              Capacity: {selectedLayout.capacity} people
-                                            </Badge>
-                                          </div>
-                                          <p className="text-sm text-muted-foreground leading-relaxed">
-                                            {selectedLayout.description}
-                                          </p>
-                                        </div>
-                                      </div>
-                                    </motion.div>
-                                  );
-                                })()}
-
-                                {selectedLayouts.length > 0 && (
-                                  <div className="flex flex-wrap gap-2">
-                                    {selectedLayouts.map((layout) => (
-                                      <div
-                                        key={layout.id}
-                                        className="flex items-center gap-2 rounded-full border border-accent/40 bg-background px-3 py-1 text-xs sm:text-sm"
-                                      >
-                                        <span className="font-medium truncate max-w-[8rem] sm:max-w-[10rem]">
-                                          {layout.name}
-                                        </span>
-                                        <span className="text-muted-foreground whitespace-nowrap">
-                                          {layout.capacity} ppl
-                                        </span>
-                                      </div>
-                                    ))}
-                                  </div>
+                                {fieldErrors.layoutId && (
+                                  <p className="text-xs text-red-600">
+                                    Please select a service layout to continue.
+                                  </p>
                                 )}
                               </div>
                             )}
+
                           </div>
 
                           {/* Validation Alerts */}
@@ -2837,18 +2931,23 @@ export default function Book() {
                                 id="phone"
                                 name="phone"
                                 type="tel"
-                                inputMode="numeric"
-                                pattern="[0-9]{10}"
-                                maxLength={10}
+                                inputMode="tel"
+                                autoComplete="tel"
                                 value={formData.phone}
                                 onChange={handleChange}
                                 required
-                                placeholder="+1 (555) 000-0000"
+                                placeholder="e.g. +1 555 000 0000, +44 20 7123 4567, +91 98765 43210"
+                                maxLength={25}
                                 className={cn(
                                   "h-14 text-base border-2 hover:border-accent/50 focus:border-accent transition-colors",
                                   fieldErrors.phone && "border-red-500 hover:border-red-600 focus:border-red-600"
                                 )}
                               />
+                              {fieldErrors.phone && (
+                                <p className="text-xs text-red-600">
+                                  {phoneErrorMessage ?? "Enter a valid international phone number with country code (e.g. +1, +44, +91)."}
+                                </p>
+                              )}
                             </div>
                           </div>
 
@@ -2872,9 +2971,24 @@ export default function Book() {
                             <div>
                               <Label className="text-base font-medium">Add-Ons & Extras</Label>
                               <p className="text-sm text-muted-foreground mt-1">
-                                Choose any extras for your booking. Select multiple options as needed.
+                                {strapiConfigured && addOnsLoading ? (
+                                  <span className="inline-flex items-center gap-2">
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                    Loading add-ons...
+                                  </span>
+                                ) : (
+                                  "Choose any extras for your booking. Select multiple options as needed."
+                                )}
                               </p>
                             </div>
+                            {strapiConfigured && addOnsLoading ? (
+                              <div className="flex items-center justify-center py-12 rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/30">
+                                <div className="flex flex-col items-center gap-3">
+                                  <Loader2 className="h-10 w-10 animate-spin text-accent" />
+                                  <p className="text-sm text-muted-foreground">Loading add-ons...</p>
+                                </div>
+                              </div>
+                            ) : (
                             <div className="space-y-6 max-h-[28rem] overflow-y-auto pr-2 custom-scrollbar">
                               {/* Food — Breakfast, Lunch */}
                               {(() => {
@@ -3017,6 +3131,7 @@ export default function Book() {
                                 );
                               })()}
                             </div>
+                            )}
                           </div>
                         </div>
 
@@ -3077,7 +3192,7 @@ export default function Book() {
                               {formData.roomSpace && (
                                 <div>
                                   <p className="text-muted-foreground mb-1">Selected Space</p>
-                                  <p className="font-medium">{ROOM_SPACE_LABELS[formData.roomSpace] ?? formData.roomSpace}</p>
+                                  <p className="font-medium">{roomSpaceLabels[formData.roomSpace] ?? formData.roomSpace}</p>
                                   {isLoungeSelected && (
                                     <Badge variant="outline" className="mt-1.5 text-amber-700 border-amber-300 bg-amber-50 text-xs">
                                       May Require Admin Approval
@@ -3250,7 +3365,7 @@ export default function Book() {
                             {formData.roomSpace && (
                               <div className="flex justify-between items-baseline">
                                 <span className="text-muted-foreground">Selected Space</span>
-                                <span className="font-medium">{ROOM_SPACE_LABELS[formData.roomSpace] ?? formData.roomSpace}</span>
+                                <span className="font-medium">{roomSpaceLabels[formData.roomSpace] ?? formData.roomSpace}</span>
                               </div>
                             )}
                             {formData.layoutId && formData.roomSpace && (

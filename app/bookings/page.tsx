@@ -17,7 +17,7 @@ import { Layout } from "@/components/layout/layout";
 import { PageHero, PageHeroSkeleton } from "@/components/sections";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { Search, Calendar, Clock, MapPin, Mail, Phone, Loader2 } from "lucide-react";
+import { Search, Calendar, Clock, MapPin, Mail, Phone, Loader2, SearchX } from "lucide-react";
 import { motion } from "framer-motion";
 import { fetchBookingSettings, findBookingByReference, isStrapiConfigured } from "@/lib/strapi";
 import { getBookingSettingsHeroImageUrl } from "@/lib/strapi/mappers";
@@ -37,14 +37,30 @@ export default function Bookings() {
   const [referenceNumber, setReferenceNumber] = useState("");
   const [email, setEmail] = useState("");
   const [booking, setBooking] = useState<any>(null);
+  const [bookingNotFound, setBookingNotFound] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
-  const status = booking?.statusOfBooking?.toLowerCase() || "confirmed";
-
+  const rawStatus = (booking?.statusOfBooking ?? "").trim();
+  const statusKey = rawStatus.toLowerCase();
+  // Treat "Completed" (legacy) same as "Confirm": green style, display "Confirm"
+  const styleKey =
+    statusKey === "confirm" || statusKey === "completed"
+      ? "confirmed"
+      : statusKey === "cancelled"
+        ? "canceled"
+        : statusKey || "pending";
   const statusStyles: Record<string, string> = {
-    pending: "bg-yellow-50 text-yellow-700 border-yellow-200",
-    confirmed: "bg-green-50 text-green-700 border-green-200",
-    canceled: "bg-red-50 text-red-700 border-red-200",
+    pending: "bg-yellow-100 text-yellow-800 border-yellow-300",
+    confirmed: "bg-emerald-100 text-emerald-800 border-emerald-400",
+    canceled: "bg-red-100 text-red-800 border-red-300",
   };
+  const statusLabel =
+    rawStatus
+      ? statusKey === "completed" || statusKey === "confirm"
+        ? "Confirm"
+        : rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1)
+      : booking
+        ? "Pending"
+        : "";
   const { data: bookingSettingsData, isLoading: bookingSettingsLoading, isError: bookingSettingsError } = useQuery({
     queryKey: ["strapi", "booking-settings"],
     queryFn: fetchBookingSettings,
@@ -87,18 +103,17 @@ export default function Bookings() {
     }
 
     setIsSearching(true);
+    setBookingNotFound(false);
     try {
       const result = await findBookingByReference(referenceNumber.trim(), email.trim());
 
       if (!result) {
         setBooking(null);
-        toast({
-          title: "Booking Not Found",
-          description: "No booking found with the provided details. Please check your reference number and email.",
-          variant: "destructive",
-        });
+        setBookingNotFound(true);
         return;
       }
+
+      setBookingNotFound(false);
 
       const raw: any = result;
       const attrs = (raw.attributes ?? raw) || {};
@@ -127,6 +142,7 @@ export default function Bookings() {
     } catch (error) {
       console.error("Error finding booking:", error);
       setBooking(null);
+      setBookingNotFound(false);
       toast({
         title: "Error",
         description: "Something went wrong while looking up your booking. Please try again.",
@@ -289,11 +305,9 @@ export default function Bookings() {
 
                       <Badge
                           variant="outline"
-                          className={statusStyles[status] || "bg-gray-50 text-gray-700 border-gray-200"}
+                          className={statusStyles[styleKey] || "bg-gray-50 text-gray-700 border-gray-200"}
                       >
-                        {status
-                            .replace(/_/g, " ")
-                            .replace(/\b\w/g, (c: string) => c.toUpperCase())}
+                        {statusLabel}
                       </Badge>
                     </div>
                     <CardDescription className="text-body">Reference: {booking.referenceNumber}</CardDescription>
@@ -341,6 +355,36 @@ export default function Bookings() {
                         </div>
                       </div>
                     </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            )}
+
+            {/* Booking Not Found (shown in same card area when search returns no result) */}
+            {!isSearching && bookingNotFound && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6 }}
+              >
+                <Card className="mt-8 border-amber-200 bg-amber-50/50">
+                  <CardHeader>
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-100">
+                        <SearchX className="h-5 w-5 text-amber-700" />
+                      </div>
+                      <div>
+                        <CardTitle className="heading-card text-amber-900">Booking Not Found</CardTitle>
+                        <CardDescription className="text-body text-amber-800 mt-1">
+                          No booking found with the provided details. Please check your reference number and email.
+                        </CardDescription>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-amber-800">
+                      Make sure the reference number and email address match the ones used when you made the booking. If you need help, use the contact options below.
+                    </p>
                   </CardContent>
                 </Card>
               </motion.div>

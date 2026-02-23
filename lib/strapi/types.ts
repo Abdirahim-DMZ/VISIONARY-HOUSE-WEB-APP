@@ -176,6 +176,25 @@ export interface StrapiService {
   attributes: ServiceAttr & { createdAt?: string; updatedAt?: string; publishedAt?: string | null };
 }
 
+// ---- Room / Space (collection) ----
+export interface RoomSpaceAttr {
+  title?: string | null;
+  slug?: string | null;
+  image?: StrapiMedia | { data: StrapiMedia | null } | null;
+  sortOrder?: number | null;
+}
+
+export interface StrapiRoomSpace {
+  id: number;
+  documentId: string;
+  attributes?: RoomSpaceAttr & { createdAt?: string; updatedAt?: string; publishedAt?: string | null };
+  /** Strapi v5 flat response: fields at top level */
+  title?: string | null;
+  slug?: string | null;
+  image?: StrapiMedia | { data: StrapiMedia | null } | null;
+  sortOrder?: number | null;
+}
+
 // ---- Service Layout (collection) ----
 export interface ServiceLayoutAttr {
   name?: string | null;
@@ -183,7 +202,7 @@ export interface ServiceLayoutAttr {
   description?: string | null;
   image?: StrapiMedia | { data: StrapiMedia | null } | null;
   sortOrder?: number | null;
-  serviceLayout?: string | null;
+  roomSpace?: { data: StrapiRoomSpace | null } | null;
   service?: { data: StrapiService | null };
 }
 
@@ -376,7 +395,7 @@ export interface StrapiGalleryItem {
 }
 
 // ---- Booking (collection) ----
-export type BookingStatus = "Pending" | "Completed" | "Cancelled";
+export type BookingStatus = "Pending" | "Confirm" | "Cancelled";
 
 export interface BookingAttr {
   referenceNumber?: string | null;
