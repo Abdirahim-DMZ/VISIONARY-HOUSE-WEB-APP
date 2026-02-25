@@ -263,10 +263,8 @@ export function generateInvoicePdf(data: InvoiceBookingData): Promise<Buffer> {
         doc.moveDown(CHARGES_ROW_GAP);
         y = doc.y;
       });
-      doc.font("Helvetica").text("Subtotal", LABEL_X, y);
-      doc.font("Helvetica-Bold").text(formatCurrency(totalPrice, currency), AMOUNT_X, y, { width: AMOUNT_WIDTH, align: "right" });
     } else {
-      doc.font("Helvetica").text("Subtotal", LABEL_X, y);
+      doc.font("Helvetica").text("Service (hourly / base)", LABEL_X, y);
       doc.font("Helvetica").text(formatCurrency(totalPrice, currency), AMOUNT_X, y, { width: AMOUNT_WIDTH, align: "right" });
     }
     doc.moveDown(CHARGES_GAP_AFTER_BLOCK);
