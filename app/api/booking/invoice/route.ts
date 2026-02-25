@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { strapiUrl, getStrapiHeaders } from "@/lib/strapi/client";
+import type { InvoiceBookingData } from "@/lib/invoice-pdf";
 
 // PDFKit requires Node.js runtime (Buffer, streams). Edge would fail.
 export const runtime = "nodejs";
@@ -78,14 +79,14 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    let invoiceData: { referenceNumber: string };
+    let invoiceData: InvoiceBookingData;
     try {
       const { buildInvoiceDataFromBooking, generateInvoicePdf } = await import("@/lib/invoice-pdf");
       invoiceData = buildInvoiceDataFromBooking(booking);
       const pdfBuffer = await generateInvoicePdf(invoiceData);
 
       const filename = `invoice-${invoiceData.referenceNumber}.pdf`;
-      return new NextResponse(pdfBuffer, {
+      return new NextResponse(new Uint8Array(pdfBuffer), {
         status: 200,
         headers: {
           "Content-Type": "application/pdf",
