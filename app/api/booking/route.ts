@@ -78,12 +78,6 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-    if (!roomSpace?.trim()) {
-      return NextResponse.json(
-        { error: "Room / Space is required." },
-        { status: 400 }
-      );
-    }
     if (layout == null || layout === "" || (typeof layout === "string" && !layout.trim())) {
       return NextResponse.json(
         { error: "Service Layout is required." },
@@ -268,9 +262,9 @@ export async function GET(request: NextRequest) {
       Authorization: `Bearer ${token}`,
     };
 
-    // Fetch all bookings for the date (no status filter to avoid Strapi "Invalid key status")
+    // Fetch all bookings for the date; include statusOfBooking for availability (only Confirm/Partial Payment/Pay Later block slots)
     const url = strapiUrl(
-      `/api/bookings?filters[date][$eq]=${encodeURIComponent(date)}&fields[0]=referenceNumber&fields[1]=date&fields[2]=endDate&fields[3]=startTime&fields[4]=endTime&fields[5]=roomSpace&fields[6]=attendees`
+      `/api/bookings?filters[date][$eq]=${encodeURIComponent(date)}&fields[0]=referenceNumber&fields[1]=date&fields[2]=endDate&fields[3]=startTime&fields[4]=endTime&fields[5]=roomSpace&fields[6]=attendees&fields[7]=statusOfBooking`
     );
 
     const res = await fetch(url, {
@@ -301,7 +295,7 @@ export async function GET(request: NextRequest) {
       startTime: item.startTime,
       endTime: item.endTime,
       roomSpace: item.roomSpace,
-      status: item.status ?? undefined,
+      status: item.statusOfBooking ?? item.status ?? undefined,
       attendees: item.attendees,
     }));
 

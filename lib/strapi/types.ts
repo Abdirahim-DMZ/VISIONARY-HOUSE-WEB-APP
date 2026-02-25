@@ -395,7 +395,7 @@ export interface StrapiGalleryItem {
 }
 
 // ---- Booking (collection) ----
-export type BookingStatus = "Pending" | "Confirm" | "Cancelled";
+export type BookingStatus = "Pending" | "Confirm" | "Cancelled" | "Partial Payment" | "Pay Later";
 
 export interface BookingAttr {
   referenceNumber?: string | null;
@@ -468,6 +468,12 @@ export interface BookingSettingsAttr {
   bookingRefPlaceholder?: string | null;
   emailLabel?: string | null;
   emailPlaceholder?: string | null;
+}
+
+// ---- Configs (single type) ----
+export interface ConfigsAttr {
+  hourlyPrice?: number | string | null;
+  adminEmail?: string | null;
 }
 
 // Helpers: get media URL from Strapi response

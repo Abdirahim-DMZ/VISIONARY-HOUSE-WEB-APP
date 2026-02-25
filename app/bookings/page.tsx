@@ -17,7 +17,7 @@ import { Layout } from "@/components/layout/layout";
 import { PageHero, PageHeroSkeleton } from "@/components/sections";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { Search, Calendar, Clock, MapPin, Mail, Phone, Loader2, SearchX } from "lucide-react";
+import { Search, Calendar, Clock, MapPin, Mail, Phone, Loader2, SearchX, Download } from "lucide-react";
 import { motion } from "framer-motion";
 import { fetchBookingSettings, findBookingByReference, isStrapiConfigured } from "@/lib/strapi";
 import { getBookingSettingsHeroImageUrl } from "@/lib/strapi/mappers";
@@ -40,14 +40,15 @@ export default function Bookings() {
   const [bookingNotFound, setBookingNotFound] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const rawStatus = (booking?.statusOfBooking ?? "").trim();
-  const statusKey = rawStatus.toLowerCase();
-  // Treat "Completed" (legacy) same as "Confirm": green style, display "Confirm"
+  const statusKey = rawStatus.toLowerCase().replace(/\s+/g, "");
   const styleKey =
     statusKey === "confirm" || statusKey === "completed"
       ? "confirmed"
-      : statusKey === "cancelled"
-        ? "canceled"
-        : statusKey || "pending";
+      : statusKey === "partialpayment" || statusKey === "paylater"
+        ? "confirmed"
+        : statusKey === "cancelled"
+          ? "canceled"
+          : statusKey || "pending";
   const statusStyles: Record<string, string> = {
     pending: "bg-yellow-100 text-yellow-800 border-yellow-300",
     confirmed: "bg-emerald-100 text-emerald-800 border-emerald-400",
@@ -57,10 +58,77 @@ export default function Bookings() {
     rawStatus
       ? statusKey === "completed" || statusKey === "confirm"
         ? "Confirm"
-        : rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1)
+        : rawStatus
       : booking
         ? "Pending"
         : "";
+  const canDownloadInvoice =
+    booking &&
+    (rawStatus === "Confirm" || rawStatus === "Partial Payment") &&
+    Boolean(booking.referenceNumber && booking.customerEmail);
+  const invoiceDownloadUrl = canDownloadInvoice
+    ? `/api/booking/invoice?reference=${encodeURIComponent(booking.referenceNumber)}&email=${encodeURIComponent(booking.customerEmail)}`
+    : null;
+
+  const [invoiceDownloading, setInvoiceDownloading] = useState(false);
+  const handleDownloadInvoice = async () => {
+    if (!invoiceDownloadUrl || !booking?.referenceNumber) return;
+    setInvoiceDownloading(true);
+    try {
+      const res = await fetch(invoiceDownloadUrl, { method: "GET" });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        const msg =
+          typeof body?.error === "string"
+            ? body.error
+            : typeof body?.message === "string"
+              ? body.message
+              : "Invoice could not be generated. Please try again.";
+        const detail = typeof body?.detail === "string" ? body.detail : undefined;
+        toast({
+          title: "Download failed",
+          description: detail ? `${msg} (${detail})` : msg,
+          variant: "destructive",
+        });
+        return;
+      }
+      const blob = await res.blob();
+      const contentType = res.headers.get("content-type") || "";
+      if (!contentType.includes("pdf")) {
+        toast({
+          title: "Download failed",
+          description: "Server did not return a valid invoice. Please try again.",
+          variant: "destructive",
+        });
+        return;
+      }
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = objectUrl;
+      a.download = `invoice-${booking.referenceNumber}.pdf`;
+      a.style.display = "none";
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(objectUrl);
+      }, 200);
+      toast({ title: "Download started", description: "Your invoice is downloading." });
+    } catch {
+      toast({
+        title: "Download failed",
+        description: "Could not download invoice. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setInvoiceDownloading(false);
+    }
+  };
+  // Fallback: direct link so user can right-click "Save link as" or open in new tab if needed
+  const invoiceDownloadFullUrl =
+    typeof window !== "undefined" && invoiceDownloadUrl
+      ? `${window.location.origin}${invoiceDownloadUrl}`
+      : invoiceDownloadUrl;
   const { data: bookingSettingsData, isLoading: bookingSettingsLoading, isError: bookingSettingsError } = useQuery({
     queryKey: ["strapi", "booking-settings"],
     queryFn: fetchBookingSettings,
@@ -300,15 +368,35 @@ export default function Bookings() {
               >
                 <Card className="mt-8">
                   <CardHeader>
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
                       <CardTitle className="heading-card">Booking Details</CardTitle>
+                      <div className="flex items-center gap-2">
+                        <Badge
+                            variant="outline"
+                            className={statusStyles[styleKey] || "bg-gray-50 text-gray-700 border-gray-200"}
+                        >
+                          {statusLabel}
+                        </Badge>
+                        {canDownloadInvoice && invoiceDownloadUrl && (
+                          <>
+                            <Button
+                              variant="gold"
+                              size="icon"
+                              className="h-8 w-8 shrink-0"
+                              title="Download Invoice"
+                              onClick={handleDownloadInvoice}
+                              disabled={invoiceDownloading}
+                            >
+                              {invoiceDownloading ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Download className="h-4 w-4" />
+                              )}
+                            </Button>
 
-                      <Badge
-                          variant="outline"
-                          className={statusStyles[styleKey] || "bg-gray-50 text-gray-700 border-gray-200"}
-                      >
-                        {statusLabel}
-                      </Badge>
+                          </>
+                        )}
+                      </div>
                     </div>
                     <CardDescription className="text-body">Reference: {booking.referenceNumber}</CardDescription>
                   </CardHeader>

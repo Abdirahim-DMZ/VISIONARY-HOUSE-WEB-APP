@@ -79,8 +79,8 @@ import {
 } from "@/lib/utils/booking-utils";
 import { validateInternationalPhone, normalizeInternationalPhone } from "@/lib/utils/phone";
 import type { BookingFormData, BookingAddOn, ServiceLayout } from "@/lib/types/booking";
-import { fetchBookPage, fetchAddOns, fetchEventTypes, fetchServiceLayouts, fetchGuestTypes, fetchRoomSpaces, isStrapiConfigured } from "@/lib/strapi";
-import { getBookPageHeroImageUrl, mapBookPageFeatures, mapStrapiAddOns, mapStrapiEventTypes, mapStrapiServiceLayouts, mapStrapiGuestTypes, mapStrapiRoomSpaces } from "@/lib/strapi/mappers";
+import { fetchBookPage, fetchAddOns, fetchEventTypes, fetchServiceLayouts, fetchGuestTypes, fetchConfigs, isStrapiConfigured } from "@/lib/strapi";
+import { getBookPageHeroImageUrl, mapBookPageFeatures, mapStrapiAddOns, mapStrapiEventTypes, mapStrapiServiceLayouts, mapStrapiGuestTypes } from "@/lib/strapi/mappers";
 import coffee from '../../public/assets/coffee.jpg'
 
 // Visionary House room matching (UI-only) — fallback when APIs not used
@@ -292,19 +292,16 @@ export default function Book() {
     enabled: isStrapiConfigured(),
     staleTime: 60_000,
   });
-  const { data: apiRoomSpaces = [], isLoading: roomSpacesLoading } = useQuery({
-    queryKey: ["strapi", "room-spaces"],
-    queryFn: fetchRoomSpaces,
+  const { data: configsData } = useQuery({
+    queryKey: ["strapi", "configs"],
+    queryFn: fetchConfigs,
     enabled: isStrapiConfigured(),
     staleTime: 60_000,
   });
 
   const strapiConfigured = isStrapiConfigured();
-  const roomSpaceOptionsFromApi = useMemo(() => mapStrapiRoomSpaces(apiRoomSpaces ?? []), [apiRoomSpaces]);
-  const roomSpaceLabels = useMemo(() => {
-    if (!roomSpaceOptionsFromApi.length) return ROOM_SPACE_LABELS;
-    return Object.fromEntries(roomSpaceOptionsFromApi.map((r) => [r.id, r.name]));
-  }, [roomSpaceOptionsFromApi]);
+  // Room/Space is derived from selected layout; display names for review/display only
+  const roomSpaceLabels = useMemo(() => ({ ...ROOM_SPACE_LABELS }), []);
   const addOnsList = useMemo(() => {
     const mapped = mapStrapiAddOns(apiAddOns);
     if (strapiConfigured && addOnsLoading) return [];
@@ -376,7 +373,6 @@ export default function Book() {
   const emailRef = useRef<HTMLInputElement>(null);
   const phoneRef = useRef<HTMLInputElement>(null);
   const attendeesRef = useRef<HTMLInputElement>(null);
-  const roomSpaceRef = useRef<HTMLButtonElement>(null);
   const layoutRef = useRef<HTMLButtonElement>(null);
 
   const [formData, setFormData] = useState<BookingFormData>({
@@ -482,11 +478,18 @@ export default function Book() {
   });
 
   const existingBookings = useMemo(() => dateBookingsData?.bookings || [], [dateBookingsData]);
+  // Only Confirm, Partial Payment, Pay Later block the slot. Pending and Cancelled do NOT block – other users can book the same date/time.
+  const BLOCKING_STATUSES = useMemo(() => ['Confirm', 'Partial Payment', 'Pay Later'], []);
+  const blockingBookings = useMemo(
+    () =>
+      existingBookings.filter((b: { status?: string }) => b.status && BLOCKING_STATUSES.includes(b.status)),
+    [existingBookings, BLOCKING_STATUSES]
+  );
   const availabilityLoadFailed = Boolean(isStrapiConfigured() && formData.date && bookingsApiError);
 
-  // Check for time slot conflicts with existing bookings
+  // Check for time slot conflicts with existing bookings (only blocking statuses block the slot)
   const availabilityStatus = useMemo(() => {
-    if (!formData.date || !formData.startTime || !formData.endTime || existingBookings.length === 0) {
+    if (!formData.date || !formData.startTime || !formData.endTime || blockingBookings.length === 0) {
       return { available: true, conflicts: [], message: null };
     }
 
@@ -495,8 +498,8 @@ export default function Book() {
 
     // Filter conflicts by room if room is selected
     const relevantBookings = formData.roomSpace
-      ? existingBookings.filter((b: any) => b.roomSpace === formData.roomSpace)
-      : existingBookings;
+      ? blockingBookings.filter((b: any) => b.roomSpace === formData.roomSpace)
+      : blockingBookings;
 
     const conflicts = relevantBookings.filter((booking: any) => {
       const bookingStart = timeToMinutes(booking.startTime);
@@ -519,7 +522,7 @@ export default function Book() {
       : `Time slots ${conflictTimes} are already booked on this date. Please select a different time.`;
 
     return { available: false, conflicts, message };
-  }, [formData.date, formData.startTime, formData.endTime, formData.roomSpace, existingBookings, roomSpaceLabels]);
+  }, [formData.date, formData.startTime, formData.endTime, formData.roomSpace, blockingBookings, roomSpaceLabels]);
 
   const selectedEventType = eventTypesList.find((e) => e.id === formData.eventType);
   const isMultiDay = selectedEventType?.isMultiDay ?? false;
@@ -530,15 +533,15 @@ export default function Book() {
     (!isMultiDay || formData.endDate)
   );
 
-  // Rooms available for the selected time slot: filter by participant count AND no conflict
+  // Rooms with a conflicting booking for the selected time slot (only blocking statuses count)
   const getRoomsWithConflictForSlot = useMemo(() => {
-    if (!formData.date || !formData.startTime || !formData.endTime || existingBookings.length === 0) {
+    if (!formData.date || !formData.startTime || !formData.endTime || blockingBookings.length === 0) {
       return new Set<string>();
     }
     const startM = timeToMinutes(formData.startTime);
     const endM = timeToMinutes(formData.endTime);
     const conflictingRoomIds = new Set<string>();
-    for (const b of existingBookings as { roomSpace?: string; startTime: string; endTime: string }[]) {
+    for (const b of blockingBookings as { roomSpace?: string; startTime: string; endTime: string }[]) {
       const roomId = b.roomSpace ?? "";
       if (!roomId) continue;
       const bStart = timeToMinutes(b.startTime);
@@ -548,7 +551,7 @@ export default function Book() {
       }
     }
     return conflictingRoomIds;
-  }, [formData.date, formData.startTime, formData.endTime, existingBookings]);
+  }, [formData.date, formData.startTime, formData.endTime, blockingBookings]);
 
   // Sync endDate (Date) from formData.endDate for calendar display
   useEffect(() => {
@@ -567,16 +570,18 @@ export default function Book() {
         ? getTotalDurationMinutes(formData.date, formData.startTime, formData.endDate, formData.endTime)
         : timeToMinutes(formData.endTime) - timeToMinutes(formData.startTime);
       if (totalMinutes > 0) {
+        const hourlyFromConfigs = configsData?.hourlyPrice != null ? Number(configsData.hourlyPrice) : undefined;
         const price = calculateBookingPrice(
           formData.serviceType,
           totalMinutes,
           formData.addOns,
-          addOnsList
+          addOnsList,
+          hourlyFromConfigs
         );
         setTotalPrice(price);
       }
     }
-  }, [formData.serviceType, formData.date, formData.endDate, formData.startTime, formData.endTime, formData.addOns, isMultiDay, addOnsList]);
+  }, [formData.serviceType, formData.date, formData.endDate, formData.startTime, formData.endTime, formData.addOns, isMultiDay, addOnsList, configsData?.hourlyPrice]);
 
   // Validate time slot: only require end after start (no min/max duration restriction)
   useEffect(() => {
@@ -625,45 +630,34 @@ export default function Book() {
         setAttendeesError(null);
       } else {
         const num = Number(value);
-        if (formData.roomSpace) {
-          setAttendeesError(null);
-        } else {
-          const hasSelectedLayouts = selectedLayoutIds.length > 0;
-          const layoutsForCapacity = hasSelectedLayouts
-              ? selectedLayoutIds
-              : formData.layoutId
-                  ? [formData.layoutId]
-                  : [];
+        const hasSelectedLayouts = selectedLayoutIds.length > 0;
+        const layoutsForCapacity = hasSelectedLayouts
+            ? selectedLayoutIds
+            : formData.layoutId
+                ? [formData.layoutId]
+                : [];
 
-          let totalCapacity: number | undefined;
-          if (layoutsForCapacity.length > 0 && formData.serviceType) {
-            const allLayouts = serviceLayoutsMap[formData.serviceType] || [];
-            const layouts = formData.roomSpace
-              ? allLayouts.filter((l: ServiceLayout & { roomSpace?: string }) => {
-                  if (!l.roomSpace) return true;
-                  return l.roomSpace === formData.roomSpace;
-                })
-              : allLayouts;
-            const capacities = layouts
-                .filter((l) => layoutsForCapacity.includes(l.id))
-                .map((l) => l.capacity);
-
-            if (capacities.length > 0) {
-              totalCapacity = capacities.reduce((sum, c) => sum + c, 0);
-            }
+        let totalCapacity: number | undefined;
+        if (layoutsForCapacity.length > 0) {
+          const allLayouts = ([] as (ServiceLayout & { roomSpace?: string })[]).concat(
+            ...Object.values(serviceLayoutsMap)
+          );
+          const selectedLayout = allLayouts.find((l) => l.id === formData.layoutId || selectedLayoutIds.includes(l.id));
+          if (selectedLayout) {
+            totalCapacity = selectedLayout.capacity;
           }
+        }
 
-          if (
-              totalCapacity !== undefined &&
-              !Number.isNaN(num) &&
-              num > totalCapacity
-          ) {
+        if (
+            totalCapacity !== undefined &&
+            !Number.isNaN(num) &&
+            num > totalCapacity
+        ) {
             setAttendeesError(
                 `Expected attendees cannot exceed the capacity of the selected layout (${totalCapacity} guests).`
             );
-          } else {
-            setAttendeesError(null);
-          }
+        } else {
+          setAttendeesError(null);
         }
       }
     }
@@ -723,23 +717,19 @@ export default function Book() {
     }
   };
 
-  const handleRoomSpaceChange = (value: string) => {
-    const isHall = value === "main-hall" || value === "combined-hall";
-    setFormData((prev) => ({
-      ...prev,
-      roomSpace: value,
-      layoutId: isHall ? prev.layoutId : "",
-    }));
-    if (fieldErrors.roomSpace) setFieldErrors((prev) => ({ ...prev, roomSpace: false }));
+  const handleRoomSpaceChange = (_value: string) => {
+    // Room/Space is now derived from selected layout; no direct selection
   };
 
   const handleLayoutToggle = (value: string) => {
+    const layout = availableLayouts.find((l) => l.id === value);
     setSelectedLayoutIds((prev) => {
       const isAlreadySelected = prev.length === 1 && prev[0] === value;
       const next = isAlreadySelected ? [] : [value];
       setFormData((current) => ({
         ...current,
         layoutId: next[0] ?? "",
+        roomSpace: next[0] && layout ? (layout as { roomSpace?: string }).roomSpace ?? "" : "",
       }));
       return next;
     });
@@ -753,12 +743,14 @@ export default function Book() {
   };
 
   const handleLayoutDialogSave = () => {
-    setSelectedLayoutIds(dialogLayoutIds);
     const selectedId = dialogLayoutIds[0] ?? "";
-    // Store the layout ID directly (works for both API numeric IDs and static string IDs)
+    const selectedLayout = availableLayouts.find((l) => l.id === selectedId);
+    const roomSpaceFromLayout = selectedLayout ? (selectedLayout as { roomSpace?: string }).roomSpace ?? "" : "";
+    setSelectedLayoutIds(dialogLayoutIds);
     setFormData((current) => ({
       ...current,
       layoutId: selectedId,
+      roomSpace: roomSpaceFromLayout,
     }));
     if (fieldErrors.layoutId) setFieldErrors((prev) => ({ ...prev, layoutId: false }));
     setIsLayoutDialogOpen(false);
@@ -786,7 +778,6 @@ export default function Book() {
   const [isStartTimeOpen, setIsStartTimeOpen] = useState(false);
   const [isEndTimeOpen, setIsEndTimeOpen] = useState(false);
   const [isLayoutDialogOpen, setIsLayoutDialogOpen] = useState(false);
-  const [roomSpacePopoverOpen, setRoomSpacePopoverOpen] = useState(false);
   const [layoutSearchQuery, setLayoutSearchQuery] = useState("");
   const [selectedLayoutIds, setSelectedLayoutIds] = useState<string[]>([]);
   const [dialogLayoutIds, setDialogLayoutIds] = useState<string[]>([]);
@@ -949,12 +940,8 @@ export default function Book() {
           firstInvalidField = attendeesRef as unknown as React.RefObject<HTMLElement>;
         }
       }
-      // Room / Space and Service Layout are required when they are in the flow (date/time selected and options available)
-      if (hasDateTimeSelected && availableRoomSpaces.length > 0 && !formData.roomSpace?.trim()) {
-        errors.roomSpace = true;
-        if (!firstInvalidField) firstInvalidField = roomSpaceRef as React.RefObject<HTMLElement>;
-      }
-      if (formData.roomSpace && availableLayouts.length > 0 && !formData.layoutId?.trim()) {
+      // Layout is required when date/time selected and layouts are available (Room/Space is derived from layout)
+      if (hasDateTimeSelected && availableLayouts.length > 0 && !formData.layoutId?.trim()) {
         errors.layoutId = true;
         if (!firstInvalidField) firstInvalidField = layoutRef as React.RefObject<HTMLElement>;
       }
@@ -965,8 +952,8 @@ export default function Book() {
           ? "Cannot select a past time."
           : attendeesError
             ? attendeesError
-            : errors.roomSpace || errors.layoutId
-              ? "Please select Room / Space and Service Layout to continue."
+            : errors.layoutId
+              ? "Please select a Service Layout to continue."
               : "Please fill in all required fields for booking details";
         toast({
           title: pastTimeErrorStep1 ? "Invalid Time" : "Missing Information",
@@ -1130,11 +1117,7 @@ export default function Book() {
           setPhoneErrorMessage(null);
         }
       }
-      if (hasDateTimeSelected && availableRoomSpaces.length > 0 && !formData.roomSpace?.trim()) {
-        errors.roomSpace = true;
-        if (!firstInvalidField) firstInvalidField = roomSpaceRef as React.RefObject<HTMLElement>;
-      }
-      if (formData.roomSpace && availableLayouts.length > 0 && !formData.layoutId?.trim()) {
+      if (hasDateTimeSelected && availableLayouts.length > 0 && !formData.layoutId?.trim()) {
         errors.layoutId = true;
         if (!firstInvalidField) firstInvalidField = layoutRef as React.RefObject<HTMLElement>;
       }
@@ -1307,74 +1290,38 @@ export default function Book() {
       setFormData((prev) => (prev.roomSpace || prev.layoutId ? { ...prev, roomSpace: "", layoutId: "" } : prev));
     }
   }, [formData.attendees, maxParticipantCapacity]);
-  // Show ALL room/space options from API (or fallback); no participant filter at room level—filtering by capacity happens at Layout step
-  const availableRoomSpaces =
-    hasDateTimeSelected && (roomSpaceOptionsFromApi.length > 0 || ROOM_SPACE_OPTIONS.length > 0)
-      ? (roomSpaceOptionsFromApi.length > 0
-          ? roomSpaceOptionsFromApi.map((r) => ({
-              id: r.id,
-              name: r.name,
-              imageUrl: r.imageUrl,
-            }))
-          : ROOM_SPACE_OPTIONS.map((r) => ({
-              id: r.id,
-              name: roomSpaceLabels[r.id] ?? r.name,
-              imageUrl: undefined as string | undefined,
-            })))
-      : [];
+  // All layouts from Service Layout API (flattened); filter by participants, date/time availability only
+  const availableLayoutsAll = useMemo(() => {
+    const map = serviceLayoutsMap;
+    const list: (ServiceLayout & { roomSpace?: string })[] = [];
+    for (const key of Object.keys(map)) {
+      const arr = map[key] || [];
+      for (const l of arr) {
+        list.push({ ...l, roomSpace: (l as { roomSpace?: string }).roomSpace });
+      }
+    }
+    return list;
+  }, [serviceLayoutsMap]);
+
   const isHallSelected = formData.roomSpace === "main-hall" || formData.roomSpace === "combined-hall";
   const isLoungeSelected = formData.roomSpace === "lounge";
-  // When room is selected, derive service key for layouts if serviceType not set (so Layout field always shows)
-  const serviceKeyForLayouts =
-    formData.serviceType ||
-    (formData.roomSpace ? (formData.roomSpace === "lounge" ? "lounge" : "event-space") : "");
   const availableLayoutsForHall =
     isHallSelected && formData.roomSpace
       ? getAvailableLayoutsForHall(formData.roomSpace, participantCount)
       : [];
 
-  // Get layouts from service type (or derived from room) and filter by room space + capacity
-  const availableLayoutsAll = serviceKeyForLayouts
-    ? serviceLayoutsMap[serviceKeyForLayouts] || []
-    : [];
-
-  // Filter by room space, participant capacity, and per-layout availability for the selected date/time
+  // Filter layouts by participant capacity and date/time availability (no room selection)
   let availableLayouts = availableLayoutsAll.filter((l: ServiceLayout & { roomSpace?: string }) => {
-    // 1. Filter by room space if selected
-    if (formData.roomSpace) {
-      // If layout has roomSpace defined, it must match the selected room
-      if (l.roomSpace) {
-        // Strict match: only show layouts that belong to the selected room
-        if (l.roomSpace !== formData.roomSpace) {
-          return false;
-        }
-      }
-      // If layout has no roomSpace defined (static fallback), don't show it when a room is selected
-      // This ensures ONLY layouts from the API with matching roomSpace are shown
-      else {
-        return false;
-      }
-    }
-
-    // 2. Filter by participant capacity if attendees entered
     if (isValidParticipantCount && !participantsExceedMax) {
-      // Only show layouts that can accommodate the participant count
-      if (l.capacity < participantCount) {
-        return false;
-      }
+      if (l.capacity < participantCount) return false;
     }
-
-    // 3. Filter by availability: hide layouts whose room is booked for the selected date/time
     if (hasDateTimeSelected && l.roomSpace && getRoomsWithConflictForSlot.has(l.roomSpace)) {
       return false;
     }
-
     return true;
   });
 
-  // Fallback (dummy data): only when there is genuinely no layout data from the source—
-  // i.e. original data length is 0 before any filters. Do NOT use dummy data when filters
-  // have been applied and the filtered result is empty (that should show "no matching data").
+  // Fallback (dummy) only when no API layouts at all and we have hall selected from a previously selected layout
   const useHallFallbackLayouts =
     isHallSelected &&
     formData.roomSpace &&
@@ -1382,7 +1329,6 @@ export default function Book() {
     availableLayoutsForHall.length > 0;
 
   if (useHallFallbackLayouts) {
-    // Apply availability filter: hide all layouts if the hall is booked for the selected date/time
     const hallHasConflict = hasDateTimeSelected && formData.roomSpace && getRoomsWithConflictForSlot.has(formData.roomSpace);
     availableLayouts = hallHasConflict
       ? []
@@ -1390,20 +1336,20 @@ export default function Book() {
           ...l,
           description: getLayoutDisplayLabel(formData.roomSpace!, l.id),
           image: HALL_LAYOUT_IMAGES[l.id] ?? undefined,
+          roomSpace: formData.roomSpace,
         }));
   }
 
-  // Clear layoutId if the currently selected layout is no longer in availableLayouts
-  // This ensures only valid layouts can be selected based on room and capacity filters
+  // Clear layoutId and roomSpace when the selected layout is no longer in availableLayouts, or when date/time/attendees change
   useEffect(() => {
-    if (formData.layoutId && formData.roomSpace) {
+    if (formData.layoutId) {
       const isLayoutStillValid = availableLayouts.some((l) => l.id === formData.layoutId);
       if (!isLayoutStillValid) {
-        setFormData((prev) => ({ ...prev, layoutId: "" }));
+        setFormData((prev) => ({ ...prev, layoutId: "", roomSpace: "" }));
         setSelectedLayoutIds([]);
       }
     }
-  }, [availableLayouts, formData.layoutId, formData.roomSpace]);
+  }, [availableLayouts, formData.layoutId]);
 
   const selectedService = formData.serviceType
     ? serviceTypeNames[formData.serviceType]
@@ -1694,6 +1640,9 @@ export default function Book() {
                   return layout.capacity >= participantCount;
                 });
               }
+
+              // Sort by capacity (low to high)
+              filteredLayouts = [...filteredLayouts].sort((a, b) => a.capacity - b.capacity);
 
               if (filteredLayouts.length === 0) {
                 return (
@@ -1991,7 +1940,7 @@ export default function Book() {
                                 )}
                                 min="1"
                             />
-                            {totalAttendeesCapacity !== undefined && selectedLayouts.length > 0 && !formData.roomSpace && (
+                            {totalAttendeesCapacity !== undefined && (selectedLayouts.length > 0 || formData.layoutId) && (
                                 <p className="text-xs text-muted-foreground">
                                   Capacity for selected layout:{" "}
                                   <span className="font-semibold">
@@ -2576,138 +2525,17 @@ export default function Book() {
                               </>
                             )}
 
-                            {/* Room/Space & Layout — only after date and time are selected; layouts filtered by availability individually */}
-                            {hasDateTimeSelected && (roomSpacesLoading || availableRoomSpaces.length > 0) && (
-                              <div className="space-y-2 w-full min-w-0">
-                                <Label htmlFor="roomSpace" className="text-base font-medium">
-                                  Room / Space *
-                                </Label>
-                                <div className="w-full min-w-0">
-                                  <Popover open={roomSpacePopoverOpen} onOpenChange={setRoomSpacePopoverOpen}>
-                                  <PopoverTrigger asChild>
-                                    <button
-                                      ref={roomSpaceRef}
-                                      type="button"
-                                      id="roomSpace"
-                                      disabled={roomSpacesLoading}
-                                      className={cn(
-                                        "flex h-16 w-full min-w-0 items-center gap-4 rounded-md border-2 bg-background px-4 text-left text-base transition-colors hover:border-accent/50 focus:border-accent focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 cursor-pointer",
-                                        roomSpacesLoading && "cursor-wait opacity-90",
-                                        !formData.roomSpace && !roomSpacesLoading && "text-muted-foreground",
-                                        fieldErrors.roomSpace && "border-red-500 hover:border-red-600 focus:border-red-500"
-                                      )}
-                                    >
-                                        {roomSpacesLoading ? (
-                                          <>
-                                            <Loader2 className="h-5 w-5 flex-shrink-0 animate-spin text-muted-foreground" />
-                                            <span className="flex-1 min-w-0 text-left">Loading rooms...</span>
-                                          </>
-                                        ) : formData.roomSpace ? (
-                                          <>
-                                            {availableRoomSpaces.find((r) => r.id === formData.roomSpace)?.imageUrl ? (
-                                              <span className="relative h-12 w-20 flex-shrink-0 overflow-hidden rounded-md bg-muted">
-                                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                                <img
-                                                  src={availableRoomSpaces.find((r) => r.id === formData.roomSpace)?.imageUrl}
-                                                  alt=""
-                                                  className="h-full w-full object-cover"
-                                                />
-                                              </span>
-                                            ) : null}
-                                            <span className="flex-1 truncate min-w-0">
-                                              {roomSpaceLabels[formData.roomSpace] ?? formData.roomSpace}
-                                            </span>
-                                          </>
-                                        ) : (
-                                          <span className="flex-1 min-w-0">Select room or space</span>
-                                        )}
-                                        {!roomSpacesLoading && <ChevronDown className="h-5 w-5 flex-shrink-0 text-muted-foreground" />}
-                                      </button>
-                                    </PopoverTrigger>
-                                    <PopoverContent
-                                      className="!w-[var(--radix-popover-trigger-width)] min-w-[280px] max-w-[calc(100vw-2rem)] p-0 shadow-elevated"
-                                      align="start"
-                                      sideOffset={4}
-                                    >
-                                    <div className="max-h-[min(70vh,380px)] overflow-y-auto py-1">
-                                      {availableRoomSpaces.map((room) => (
-                                        <button
-                                          key={room.id}
-                                          type="button"
-                                          className={cn(
-                                            "flex w-full items-center gap-4 px-4 py-3.5 text-left transition-colors hover:bg-accent/10 focus:bg-accent/10 focus:outline-none cursor-pointer",
-                                            formData.roomSpace === room.id && "bg-accent/10"
-                                          )}
-                                          onClick={() => {
-                                            handleRoomSpaceChange(room.id);
-                                            setRoomSpacePopoverOpen(false);
-                                          }}
-                                        >
-                                          {room.imageUrl ? (
-                                            <span className="relative h-16 w-24 flex-shrink-0 overflow-hidden rounded-md bg-muted">
-                                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                                              <img
-                                                src={room.imageUrl}
-                                                alt=""
-                                                className="h-full w-full object-cover"
-                                              />
-                                            </span>
-                                          ) : (
-                                            <span className="flex h-16 w-24 flex-shrink-0 items-center justify-center rounded-md bg-muted">
-                                              <MapPin className="h-8 w-8 text-muted-foreground" />
-                                            </span>
-                                          )}
-                                          <span className="flex-1 truncate font-medium min-w-0">{room.name}</span>
-                                        </button>
-                                      ))}
-                                    </div>
-                                  </PopoverContent>
-                                </Popover>
-                                </div>
-                                {fieldErrors.roomSpace && (
-                                  <p className="text-xs text-red-600">
-                                    Please select a room or space to continue.
-                                  </p>
-                                )}
-                                {formData.roomSpace === "combined-hall" && (
-                                  <p className="text-xs text-muted-foreground">
-                                    Combined Hall supports the largest groups (up to 70 theatre style).
-                                  </p>
-                                )}
-                                {availableRoomSpaces.some((r) => r.id === "combined-hall") && !formData.roomSpace && (
-                                  <p className="text-xs text-muted-foreground">
-                                    Combined Hall supports the largest groups (up to 70 theatre style).
-                                  </p>
-                                )}
-                                {isLoungeSelected && (
-                                  <>
-                                    <p className="text-xs text-muted-foreground italic">
-                                      Lounge is a shared space; longer bookings may require admin approval.
-                                    </p>
-                                    <Badge variant="outline" className="text-amber-700 border-amber-300 bg-amber-50">
-                                      May Require Admin Approval
-                                    </Badge>
-                                  </>
-                                )}
-                              </div>
-                            )}
-                            {formData.roomSpace && hasDateTimeSelected && availableLayouts.length === 0 && getRoomsWithConflictForSlot.has(formData.roomSpace) && (
+                            {/* No layouts available for current filters */}
+                            {hasDateTimeSelected && !serviceLayoutsLoading && availableLayouts.length === 0 && (
                               <Alert className="border-amber-200 bg-amber-50 text-amber-900">
                                 <Info className="h-4 w-4" />
                                 <AlertDescription>
-                                  Booking slot not available for the selected date and time.
+                                  No layouts available for the selected date, time, and participant count. Try a different time slot or contact us for assistance.
                                 </AlertDescription>
                               </Alert>
                             )}
-                            {formData.roomSpace && hasDateTimeSelected && availableLayouts.length === 0 && !getRoomsWithConflictForSlot.has(formData.roomSpace) && (
-                              <Alert className="border-amber-200 bg-amber-50 text-amber-900">
-                                <Info className="h-4 w-4" />
-                                <AlertDescription>
-                                  Service layout is currently not available for {roomSpaceLabels[formData.roomSpace] ?? formData.roomSpace}. Please select a different room or contact us for assistance.
-                                </AlertDescription>
-                              </Alert>
-                            )}
-                            {formData.roomSpace && (serviceLayoutsLoading || availableLayouts.length > 0) && (
+                            {/* Layout — shown when date/time selected; filtered by participants and availability */}
+                            {hasDateTimeSelected && (serviceLayoutsLoading || availableLayouts.length > 0) && (
                               <div className="space-y-3">
                                 <div className="space-y-1">
                                   <Label className="text-base font-medium">
@@ -3200,7 +3028,7 @@ export default function Book() {
                                   )}
                                 </div>
                               )}
-                              {formData.layoutId && formData.roomSpace && (
+                              {formData.layoutId && (
                                 <div>
                                   <p className="text-muted-foreground mb-1">Layout</p>
                                   <p className="font-medium">
@@ -3208,7 +3036,7 @@ export default function Book() {
                                   </p>
                                 </div>
                               )}
-                              {selectedLayouts.length > 0 && !formData.roomSpace && (
+                              {(selectedLayouts.length > 0 || formData.layoutId) && (
                                 <div>
                                   <p className="text-muted-foreground mb-1">Layout</p>
                                   <div className="space-y-1">
@@ -3360,7 +3188,7 @@ export default function Book() {
                         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Itemized receipt</p>
 
                         {/* Selected Space, Layout (if applicable), Participants, Booking Duration — placeholders */}
-                        {(formData.roomSpace || formData.attendees || duration > 0) && (
+                        {(formData.layoutId || formData.roomSpace || formData.attendees || duration > 0) && (
                           <div className="space-y-1.5 text-sm">
                             {formData.roomSpace && (
                               <div className="flex justify-between items-baseline">
@@ -3368,7 +3196,7 @@ export default function Book() {
                                 <span className="font-medium">{roomSpaceLabels[formData.roomSpace] ?? formData.roomSpace}</span>
                               </div>
                             )}
-                            {formData.layoutId && formData.roomSpace && (
+                            {formData.layoutId && (
                               <div className="flex justify-between items-baseline">
                                 <span className="text-muted-foreground">Layout</span>
                                 <span className="font-medium text-right">

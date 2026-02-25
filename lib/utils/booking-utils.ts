@@ -225,32 +225,34 @@ export function checkAvailability(
 }
 
 /**
- * Calculate total price for booking with add-ons
+ * Calculate total price for booking with add-ons.
+ * If hourlyPriceFromConfigs is provided (from Strapi Configs), it is used as the base hourly rate for all service types; otherwise falls back to built-in base prices.
  */
 export function calculateBookingPrice(
   serviceType: string,
   duration: number,
   addOnIds: string[],
-  addOnsData: any[]
+  addOnsData: any[],
+  hourlyPriceFromConfigs?: number | null
 ): number {
-  // Base prices per hour for each service type
   const basePrices: Record<string, number> = {
     'event-space': 200,
     'lounge': 100,
     'virtual-office': 50,
     'media-studio': 150,
   };
-  
-  const basePrice = basePrices[serviceType] || 0;
+  const basePrice =
+    hourlyPriceFromConfigs != null && Number.isFinite(Number(hourlyPriceFromConfigs))
+      ? Number(hourlyPriceFromConfigs)
+      : basePrices[serviceType] ?? 0;
   const hours = duration / 60;
   const serviceCost = basePrice * hours;
-  
-  // Calculate add-ons cost
+
   const addOnsCost = addOnIds.reduce((total, addOnId) => {
     const addOn = addOnsData.find((a) => a.id === addOnId);
     return total + (addOn?.price || 0);
   }, 0);
-  
+
   return serviceCost + addOnsCost;
 }
 

@@ -23,6 +23,7 @@ import type {
   StrapiBooking,
   StrapiGuestType,
   BookingSettingsAttr,
+  ConfigsAttr,
   ServicePageAttr,
   GalleryPageAttr,
   ContactPageAttr,
@@ -138,6 +139,20 @@ export async function fetchBookingSettings(): Promise<BookingSettingsAttr | null
     const raw = res?.data;
     if (!raw) return null;
     return (raw as { attributes?: BookingSettingsAttr }).attributes ?? (raw as BookingSettingsAttr);
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchConfigs(): Promise<ConfigsAttr | null> {
+  if (!isStrapiConfigured()) return null;
+  try {
+    const res = await strapiFetch<
+      StrapiSingleResponse<{ id: number; attributes?: ConfigsAttr } & Partial<ConfigsAttr>>
+    >(`/api/configs`);
+    const raw = res?.data;
+    if (!raw) return null;
+    return (raw as { attributes?: ConfigsAttr }).attributes ?? (raw as ConfigsAttr);
   } catch {
     return null;
   }
