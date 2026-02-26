@@ -33,6 +33,7 @@ export type InvoiceBookingData = {
   customerEmail: string;
   customerPhone?: string | null;
   date: string;
+  endDate?: string | null;
   startTime: string;
   endTime: string;
   roomSpace?: string | null;
@@ -50,15 +51,17 @@ function getAttr<T>(raw: Record<string, unknown>, key: string): T {
   return val as T;
 }
 
+function toDateStr(v: unknown): string {
+  if (v instanceof Date) return v.toISOString().slice(0, 10);
+  if (typeof v === "string") return v.slice(0, 10);
+  return "";
+}
+
 /** Build invoice data from Strapi REST booking (flat or { attributes }). */
 export function buildInvoiceDataFromBooking(raw: Record<string, unknown>): InvoiceBookingData {
-  const dateRaw = getAttr<unknown>(raw, "date");
-  const dateStr =
-    dateRaw instanceof Date
-      ? dateRaw.toISOString().slice(0, 10)
-      : typeof dateRaw === "string"
-        ? dateRaw.slice(0, 10)
-        : "";
+  const dateStr = toDateStr(getAttr<unknown>(raw, "date"));
+  const endDateRaw = getAttr<unknown>(raw, "endDate");
+  const endDateStr = endDateRaw != null ? toDateStr(endDateRaw) : null;
   const paymentsRaw = getAttr<unknown>(raw, "payments");
   const paymentsList = Array.isArray(paymentsRaw) ? paymentsRaw : (paymentsRaw && typeof paymentsRaw === "object" && "data" in paymentsRaw && Array.isArray((paymentsRaw as { data: unknown[] }).data)) ? (paymentsRaw as { data: unknown[] }).data : [];
   const payments = Array.isArray(paymentsList) ? paymentsList : [];
@@ -86,6 +89,7 @@ export function buildInvoiceDataFromBooking(raw: Record<string, unknown>): Invoi
     customerEmail: String(get("customerEmail") ?? ""),
     customerPhone: (get("customerPhone") as string) ?? null,
     date: dateStr,
+    endDate: endDateStr && endDateStr !== dateStr ? endDateStr : null,
     startTime: String(get("startTime") ?? ""),
     endTime: String(get("endTime") ?? ""),
     roomSpace: (get("roomSpace") as string) ?? null,
@@ -137,6 +141,31 @@ function formatDate(d: string | null | undefined): string {
   const s = String(d).slice(0, 10);
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
   return s || "—";
+}
+
+function formatTime12h(t: string | null | undefined): string {
+  const s = String(t ?? "").trim();
+  if (!s) return "—";
+  if (/\s*(AM|PM)\s*$/i.test(s)) return s;
+  const parts = s.split(":");
+  if (parts.length >= 2) {
+    let h = parseInt(parts[0], 10);
+    const m = parts[1].replace(/\D/g, "").padEnd(2, "0").slice(0, 2);
+    if (!Number.isFinite(h)) return s;
+    const ampm = h >= 12 ? "PM" : "AM";
+    if (h === 0) h = 12;
+    else if (h > 12) h -= 12;
+    return `${h}:${m} ${ampm}`;
+  }
+  return s;
+}
+
+function formatDateRange(date: string | null | undefined, endDate: string | null | undefined): string {
+  const d = String(date ?? "").slice(0, 10);
+  const e = endDate != null ? String(endDate).slice(0, 10) : "";
+  if (!d || !/^\d{4}-\d{2}-\d{2}$/.test(d)) return d || "—";
+  if (!e || e === d) return d;
+  return `${d} – ${e}`;
 }
 
 function formatCurrency(amount: number, currency: string): string {
@@ -221,9 +250,9 @@ export function generateInvoicePdf(data: InvoiceBookingData): Promise<Buffer> {
     let y = doc.y;
     writeLabelValue(doc, "Booking Reference:", str(data.referenceNumber), y);
     y += LINE_HEIGHT;
-    writeLabelValue(doc, "Date of Booking:", formatDate(data.date), y);
+    writeLabelValue(doc, "Date of Booking:", formatDateRange(data.date, data.endDate), y);
     y += LINE_HEIGHT;
-    writeLabelValue(doc, "Time:", `${str(data.startTime)} – ${str(data.endTime)}`, y);
+    writeLabelValue(doc, "Time:", `${formatTime12h(data.startTime)} – ${formatTime12h(data.endTime)}`, y);
     y += LINE_HEIGHT;
     if (str(data.roomSpace)) {
       writeLabelValue(doc, "Room/Space:", str(data.roomSpace), y);
