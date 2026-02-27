@@ -3,9 +3,18 @@ import { Footer } from "./footer";
 
 interface LayoutProps {
   children: React.ReactNode;
+  /** When true, hide header and footer (e.g. for reception and chat pages) */
+  bare?: boolean;
 }
 
-export function Layout({ children }: LayoutProps) {
+export function Layout({ children, bare = false }: LayoutProps) {
+  if (bare) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <main className="flex-grow">{children}</main>
+      </div>
+    );
+  }
   return (
     <div className="min-h-screen flex flex-col">
       <Header />
