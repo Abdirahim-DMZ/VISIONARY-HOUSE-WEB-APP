@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
       margin: 2,
       errorCorrectionLevel: "M",
     });
-    return new NextResponse(png, {
+    return new NextResponse(new Uint8Array(png), {
       headers: {
         "Content-Type": "image/png",
         "Cache-Control": "public, max-age=3600",

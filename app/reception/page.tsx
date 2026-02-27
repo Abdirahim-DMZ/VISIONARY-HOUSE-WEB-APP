@@ -283,7 +283,7 @@ export default function ReceptionPage() {
           }
         },
       },
-      cancel: { label: "Cancel" },
+      cancel: { label: "Cancel", onClick: () => {} },
     });
   }, [selectedChat]);
 
