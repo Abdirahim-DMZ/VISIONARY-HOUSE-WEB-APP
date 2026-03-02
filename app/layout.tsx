@@ -8,6 +8,9 @@ import { MaintenancePage } from "@/components/maintenance-page";
 import { fetchConfigs } from "@/lib/strapi";
 import "./globals.css";
 
+// Ensure layout always runs on the server so maintenance_mode from Strapi is read on every request (no static cache).
+export const dynamic = "force-dynamic";
+
 const poppins = Poppins({
   subsets: ["latin"],
   weight: ["300", "400", "500", "600"],

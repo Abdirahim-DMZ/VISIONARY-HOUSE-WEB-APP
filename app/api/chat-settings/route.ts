@@ -24,7 +24,8 @@ export async function GET() {
     const url = strapiUrl("/api/chat-setting?populate=quickActions");
     const res = await fetch(url, {
       headers: getStrapiHeaders(),
-      next: { revalidate: 60 },
+      cache: "no-store",
+      next: { revalidate: 0 },
     });
     if (!res.ok) {
       console.error("[chat-settings] Strapi error", res.status, await res.text());
@@ -46,7 +47,14 @@ export async function GET() {
         internalTitle: String(a.internalTitle ?? "").trim(),
       }))
       .filter((a) => a.displayTitle && a.internalTitle);
-    return NextResponse.json({ quickActions } satisfies ChatSettingsResponse);
+    return NextResponse.json(
+      { quickActions } satisfies ChatSettingsResponse,
+      {
+        headers: {
+          "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+        },
+      }
+    );
   } catch (e) {
     console.error("[chat-settings]", e);
     return NextResponse.json({ quickActions: [] } satisfies ChatSettingsResponse);

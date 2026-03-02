@@ -149,7 +149,10 @@ export async function fetchConfigs(): Promise<ConfigsAttr | null> {
   try {
     const res = await strapiFetch<
       StrapiSingleResponse<{ id: number; attributes?: ConfigsAttr } & Partial<ConfigsAttr>>
-    >(`/api/configs`);
+    >(`/api/configs`, {
+      cache: "no-store",
+      next: { revalidate: 0 },
+    });
     const raw = res?.data;
     if (!raw) return null;
     return (raw as { attributes?: ConfigsAttr }).attributes ?? (raw as ConfigsAttr);

@@ -39,7 +39,7 @@ export default function ChatSlugPage({ params }: { params: Promise<{ slug: strin
   }, [params]);
 
   useEffect(() => {
-    fetch("/api/chat-settings")
+    fetch("/api/chat-settings", { cache: "no-store" })
       .then((res) => res.json())
       .then((data: { quickActions?: QuickActionItem[] }) => {
         if (Array.isArray(data.quickActions) && data.quickActions.length > 0) {
