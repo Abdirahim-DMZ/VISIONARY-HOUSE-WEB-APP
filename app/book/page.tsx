@@ -519,9 +519,10 @@ export default function Book() {
   });
 
   const existingBookings = useMemo(() => dateBookingsData?.bookings || [], [dateBookingsData]);
-  // Confirm, Partial Payment, Pay Later, and Pending all block the slot (prevent duplicate requests).
-  // Only Cancelled does not block – the slot is freed for new bookings.
-  const BLOCKING_STATUSES = useMemo(() => ['Confirm', 'Partial Payment', 'Pay Later', 'Pending'], []);
+  // Only Confirm, Partial Payment, and Pay Later block the slot.
+  // Pending does NOT block – multiple users can book the same room + layout for the same date/time until one is confirmed.
+  // Cancelled does not block – the slot is freed for new bookings.
+  const BLOCKING_STATUSES = useMemo(() => ['Confirm', 'Partial Payment', 'Pay Later'], []);
   const blockingBookings = useMemo(
     () =>
       existingBookings.filter((b: { status?: string }) => b.status && BLOCKING_STATUSES.includes(b.status)),
