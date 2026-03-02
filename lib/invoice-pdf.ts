@@ -316,7 +316,7 @@ export function generateInvoicePdf(data: InvoiceBookingData): Promise<Buffer> {
     const pendingAmount = Math.max(0, finalAmount - paidAmount);
 
     y = doc.y;
-    doc.font("Helvetica-Bold").fillColor(COLORS.dark).text("Total Amount (after discount)", LABEL_X, y);
+    doc.font("Helvetica-Bold").fillColor(COLORS.dark).text("Total Amount", LABEL_X, y);
     doc.font("Helvetica-Bold").text(formatCurrency(finalAmount, currency), AMOUNT_X, y, { width: AMOUNT_WIDTH, align: "right" });
     doc.moveDown(0.4);
     y = doc.y;
@@ -325,7 +325,7 @@ export function generateInvoicePdf(data: InvoiceBookingData): Promise<Buffer> {
     doc.moveDown(0.4);
     if (pendingAmount > 0) {
       y = doc.y;
-      doc.font("Helvetica-Bold").fillColor(COLORS.dark).text("Pending Amount", LABEL_X, y);
+      doc.font("Helvetica-Bold").fillColor(COLORS.dark).text("Payable Amount", LABEL_X, y);
       doc.font("Helvetica-Bold").fillColor(COLORS.gold).text(formatCurrency(pendingAmount, currency), AMOUNT_X, y, { width: AMOUNT_WIDTH, align: "right" });
       doc.moveDown(0.4);
     }
@@ -342,7 +342,7 @@ export function generateInvoicePdf(data: InvoiceBookingData): Promise<Buffer> {
       const PAYMENT_CARD_LEFT = LABEL_X;
       const PAYMENT_CARD_WIDTH = CONTENT_WIDTH;
       const gapHeaderToDetails = 10;
-      const detailLineSpacing = 12;
+      const detailLineSpacing = 20;
       const gapBetweenCards = 14;
 
       payments.forEach((p, i) => {
@@ -352,7 +352,7 @@ export function generateInvoicePdf(data: InvoiceBookingData): Promise<Buffer> {
         const detailLines = mode === "Cash" ? [p.cashReceivedDate, p.cashReceivedBy, p.cashNotes].filter(Boolean).length
           : mode === "Banking" ? [p.bankName, p.bankAccountNumber, p.bankTransactionId, p.bankTransferDate, p.bankReference, p.bankingNotes].filter(Boolean).length
           : [p.cardType, p.cardLastFourDigits, p.cardTransactionId, p.cardTransactionDate, p.cardNotes].filter(Boolean).length;
-        const cardHeight = Math.max(56, cardPaddingV * 2 + LINE_HEIGHT + gapHeaderToDetails + detailLines * detailLineSpacing);
+        const cardHeight = Math.max(56, cardPaddingV + LINE_HEIGHT + gapHeaderToDetails + detailLines * detailLineSpacing + cardPaddingV);
 
         doc.fillColor(COLORS.lightBg).rect(PAYMENT_CARD_LEFT, startY, PAYMENT_CARD_WIDTH, cardHeight).fill();
         doc.strokeColor(COLORS.border).lineWidth(0.5).rect(PAYMENT_CARD_LEFT, startY, PAYMENT_CARD_WIDTH, cardHeight).stroke();
@@ -389,7 +389,6 @@ export function generateInvoicePdf(data: InvoiceBookingData): Promise<Buffer> {
       doc.moveDown(0.3);
     }
 
-    doc.fontSize(9).fillColor(COLORS.muted).text("Thank you for your booking. — Visionary House", MARGIN, doc.page.height - 80, { align: "center", width: doc.page.width - MARGIN * 2 });
     doc.end();
   });
 }

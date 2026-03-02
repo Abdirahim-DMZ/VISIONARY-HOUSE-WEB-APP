@@ -4,6 +4,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryProvider } from "@/components/providers/query-provider";
+import { MaintenancePage } from "@/components/maintenance-page";
+import { fetchConfigs } from "@/lib/strapi";
 import "./globals.css";
 
 const poppins = Poppins({
@@ -92,21 +94,28 @@ export const metadata: Metadata = {
   manifest: "/site.webmanifest",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const configs = await fetchConfigs();
+  const isMaintenance = configs?.maintenance_mode === true;
+
   return (
     <html lang="en" className={`${poppins.variable} ${lora.variable}`}>
       <body className="font-sans">
-        <QueryProvider>
-          <TooltipProvider>
-            {children}
-            <Toaster />
-            <Sonner />
-          </TooltipProvider>
-        </QueryProvider>
+        {isMaintenance ? (
+          <MaintenancePage />
+        ) : (
+          <QueryProvider>
+            <TooltipProvider>
+              {children}
+              <Toaster />
+              <Sonner />
+            </TooltipProvider>
+          </QueryProvider>
+        )}
       </body>
     </html>
   );

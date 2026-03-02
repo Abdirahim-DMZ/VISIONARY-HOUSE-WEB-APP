@@ -7,14 +7,17 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { getEventChatSocket } from "@/lib/event-chat/socket";
 import { startChat, getMessages, type EventChat, type EventChatMessage } from "@/lib/event-chat/api";
-import { Droplets, UserCircle, Phone, Receipt, Loader2, Send, MessageCircle } from "lucide-react";
+import { getChatQuickActionIcon } from "@/lib/chat-quick-actions";
+import { Loader2, Send, MessageCircle } from "lucide-react";
 import type { MessagePayload } from "@/lib/event-chat/socket";
 
-const QUICK_MESSAGES = [
-  { label: "Need water", icon: Droplets, message: "We need water please." },
-  { label: "Need assistance", icon: UserCircle, message: "We need assistance." },
-  { label: "Call manager", icon: Phone, message: "Could someone from management come to our table?" },
-  { label: "Bill request", icon: Receipt, message: "We would like to request the bill." },
+type QuickActionItem = { displayTitle: string; internalTitle: string; icon: string };
+
+const FALLBACK_QUICK_ACTIONS: QuickActionItem[] = [
+  { icon: "Droplets", displayTitle: "Need water", internalTitle: "We need water please." },
+  { icon: "UserCircle", displayTitle: "Need assistance", internalTitle: "We need assistance." },
+  { icon: "Phone", displayTitle: "Call manager", internalTitle: "Could someone from management come to our table?" },
+  { icon: "Receipt", displayTitle: "Bill request", internalTitle: "We would like to request the bill." },
 ];
 
 export default function ChatSlugPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -25,6 +28,7 @@ export default function ChatSlugPage({ params }: { params: Promise<{ slug: strin
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [receptionTyping, setReceptionTyping] = useState(false);
+  const [quickActions, setQuickActions] = useState<QuickActionItem[]>(FALLBACK_QUICK_ACTIONS);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const roomIdRef = useRef<string | null>(null);
@@ -33,6 +37,17 @@ export default function ChatSlugPage({ params }: { params: Promise<{ slug: strin
   useEffect(() => {
     params.then((p) => setSlug(p.slug));
   }, [params]);
+
+  useEffect(() => {
+    fetch("/api/chat-settings")
+      .then((res) => res.json())
+      .then((data: { quickActions?: QuickActionItem[] }) => {
+        if (Array.isArray(data.quickActions) && data.quickActions.length > 0) {
+          setQuickActions(data.quickActions);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const scrollToBottom = useCallback(() => {
     const el = chatContainerRef.current;
@@ -165,18 +180,21 @@ export default function ChatSlugPage({ params }: { params: Promise<{ slug: strin
           </CardHeader>
           <CardContent className="space-y-5">
             <div className="flex flex-wrap gap-2">
-              {QUICK_MESSAGES.map((q) => (
-                <Button
-                  key={q.label}
-                variant="outline"
-                size="sm"
-                className="text-sm"
-                  onClick={() => send(q.message)}
-                >
-                  <q.icon className="h-4 w-4 mr-1.5" />
-                  {q.label}
-                </Button>
-              ))}
+              {quickActions.map((q, idx) => {
+                const Icon = getChatQuickActionIcon(q.icon);
+                return (
+                  <Button
+                    key={`${q.displayTitle}-${idx}`}
+                    variant="outline"
+                    size="sm"
+                    className="text-sm"
+                    onClick={() => send(q.internalTitle)}
+                  >
+                    <Icon className="h-4 w-4 mr-1.5" />
+                    {q.displayTitle}
+                  </Button>
+                );
+              })}
             </div>
             <div
               ref={chatContainerRef}

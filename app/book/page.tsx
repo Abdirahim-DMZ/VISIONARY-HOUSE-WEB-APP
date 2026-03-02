@@ -116,6 +116,47 @@ function getAvailableRoomSpaces(participantCount: number): { id: string; name: s
   return [];
 }
 
+// Rule C1 — Capacity-based suggestion: which room space to suggest first
+function getSuggestedRoomSpaceForParticipants(N: number): string | null {
+  if (N <= 0 || !Number.isFinite(N)) return null;
+  if (N <= 8) return "small-meeting-room";   // Suggest Small Meeting Room first
+  if (N <= 15) return "lounge";               // Suggest Lounge first
+  // N > 15: Layout required. Match Main Hall (Partition ON) or Combined Hall (Partition OFF) by max capacity
+  if (N <= 50) return "main-hall";            // Main Hall max 50 (theatre)
+  if (N <= 70) return "combined-hall";        // Combined Hall max 70 (theatre)
+  return null;
+}
+
+// Fallback chain when suggested room is unavailable (price tier: small < lounge < main-hall < combined-hall)
+function getRoomFallbackChain(suggestedRoom: string): string[] {
+  if (suggestedRoom === "small-meeting-room") return ["lounge", "main-hall"];
+  if (suggestedRoom === "lounge") return ["main-hall"];
+  return [];
+}
+
+// Message when showing fallback room (higher price)
+function getRoomFallbackMessage(
+  suggestedRoom: string,
+  effectiveRoom: string,
+  roomsWithConflict: Set<string>,
+  labels: Record<string, string>
+): string | null {
+  if (suggestedRoom === effectiveRoom) return null;
+  const suggestedLabel = labels[suggestedRoom] ?? suggestedRoom;
+  const effectiveLabel = labels[effectiveRoom] ?? effectiveRoom;
+  if (suggestedRoom === "small-meeting-room" && effectiveRoom === "lounge") {
+    return `${suggestedLabel} is not available for this selected date and time. You may book the ${effectiveLabel} instead; however, please note that the price will be higher.`;
+  }
+  if (suggestedRoom === "small-meeting-room" && effectiveRoom === "main-hall") {
+    const loungeLabel = labels["lounge"] ?? "Lounge";
+    return `${suggestedLabel} and ${loungeLabel} are not available for this selected date and time. Only the ${effectiveLabel} is available; please note that it comes with a higher price.`;
+  }
+  if (suggestedRoom === "lounge" && effectiveRoom === "main-hall") {
+    return `${suggestedLabel} is not available for this selected date and time. You may book the ${effectiveLabel} instead; however, please note that the price will be higher.`;
+  }
+  return null;
+}
+
 // Layout capacity by hall (max people)
 const HALL_LAYOUT_CAPACITIES: Record<string, Record<string, number>> = {
   "main-hall": { "u-shape": 35, meeting: 37, theatre: 50 },
@@ -478,8 +519,9 @@ export default function Book() {
   });
 
   const existingBookings = useMemo(() => dateBookingsData?.bookings || [], [dateBookingsData]);
-  // Only Confirm, Partial Payment, Pay Later block the slot. Pending and Cancelled do NOT block – other users can book the same date/time.
-  const BLOCKING_STATUSES = useMemo(() => ['Confirm', 'Partial Payment', 'Pay Later'], []);
+  // Confirm, Partial Payment, Pay Later, and Pending all block the slot (prevent duplicate requests).
+  // Only Cancelled does not block – the slot is freed for new bookings.
+  const BLOCKING_STATUSES = useMemo(() => ['Confirm', 'Partial Payment', 'Pay Later', 'Pending'], []);
   const blockingBookings = useMemo(
     () =>
       existingBookings.filter((b: { status?: string }) => b.status && BLOCKING_STATUSES.includes(b.status)),
@@ -488,18 +530,24 @@ export default function Book() {
   const availabilityLoadFailed = Boolean(isStrapiConfigured() && formData.date && bookingsApiError);
 
   // Check for time slot conflicts with existing bookings (only blocking statuses block the slot)
+  // IMPORTANT: Availability is per-room only. One room being booked must NOT block other rooms.
+  // When no room is selected, we cannot say "unavailable" - the user may pick an available room.
   const availabilityStatus = useMemo(() => {
     if (!formData.date || !formData.startTime || !formData.endTime || blockingBookings.length === 0) {
+      return { available: true, conflicts: [], message: null };
+    }
+
+    // Only check conflicts when a specific room is selected. Without room selection,
+    // we cannot mark unavailable - other rooms may still be free for the same slot.
+    if (!formData.roomSpace) {
       return { available: true, conflicts: [], message: null };
     }
 
     const startMinutes = timeToMinutes(formData.startTime);
     const endMinutes = timeToMinutes(formData.endTime);
 
-    // Filter conflicts by room if room is selected
-    const relevantBookings = formData.roomSpace
-      ? blockingBookings.filter((b: any) => b.roomSpace === formData.roomSpace)
-      : blockingBookings;
+    // Conflicts are checked ONLY for the selected room - each room is independent
+    const relevantBookings = blockingBookings.filter((b: any) => b.roomSpace === formData.roomSpace);
 
     const conflicts = relevantBookings.filter((booking: any) => {
       const bookingStart = timeToMinutes(booking.startTime);
@@ -940,20 +988,24 @@ export default function Book() {
           firstInvalidField = attendeesRef as unknown as React.RefObject<HTMLElement>;
         }
       }
-      // Layout is required when date/time selected and layouts are available (Room/Space is derived from layout)
-      if (hasDateTimeSelected && availableLayouts.length > 0 && !formData.layoutId?.trim()) {
+      // Layout is required when date/time is selected (Room/Space is derived from layout)
+      // Block whether layouts are available or not—no layouts = must try different time slot
+      if (hasDateTimeSelected && !formData.layoutId?.trim()) {
         errors.layoutId = true;
-        if (!firstInvalidField) firstInvalidField = layoutRef as React.RefObject<HTMLElement>;
+        if (!firstInvalidField) firstInvalidField = layoutRef?.current ? (layoutRef as React.RefObject<HTMLElement>) : startTimeRef;
       }
 
       if (Object.keys(errors).length > 0) {
         setFieldErrors(errors);
+        const layoutErrorMsg = availableLayouts.length === 0
+          ? "No layouts available for the selected date, time, and participant count. Try a different time slot or contact us for assistance."
+          : "Please select a Service Layout to continue.";
         const toastDescriptionStep1 = pastTimeErrorStep1
           ? "Cannot select a past time."
           : attendeesError
             ? attendeesError
             : errors.layoutId
-              ? "Please select a Service Layout to continue."
+              ? layoutErrorMsg
               : "Please fill in all required fields for booking details";
         toast({
           title: pastTimeErrorStep1 ? "Invalid Time" : "Missing Information",
@@ -1117,9 +1169,9 @@ export default function Book() {
           setPhoneErrorMessage(null);
         }
       }
-      if (hasDateTimeSelected && availableLayouts.length > 0 && !formData.layoutId?.trim()) {
+      if (hasDateTimeSelected && !formData.layoutId?.trim()) {
         errors.layoutId = true;
-        if (!firstInvalidField) firstInvalidField = layoutRef as React.RefObject<HTMLElement>;
+        if (!firstInvalidField) firstInvalidField = layoutRef?.current ? (layoutRef as React.RefObject<HTMLElement>) : startTimeRef;
       }
 
       if (Object.keys(errors).length > 0) {
@@ -1310,8 +1362,9 @@ export default function Book() {
       ? getAvailableLayoutsForHall(formData.roomSpace, participantCount)
       : [];
 
-  // Filter layouts by participant capacity and date/time availability (no room selection)
-  let availableLayouts = availableLayoutsAll.filter((l: ServiceLayout & { roomSpace?: string }) => {
+  // Filter layouts by participant capacity and date/time availability.
+  // Per-room only: only layouts in rooms with conflicting bookings are excluded.
+  const layoutsFittingCapacityAndAvailable = availableLayoutsAll.filter((l: ServiceLayout & { roomSpace?: string }) => {
     if (isValidParticipantCount && !participantsExceedMax) {
       if (l.capacity < participantCount) return false;
     }
@@ -1320,6 +1373,60 @@ export default function Book() {
     }
     return true;
   });
+  let availableLayouts = layoutsFittingCapacityAndAvailable;
+
+  // Rule C1 + Fallback: Show suggested room's layouts; if unavailable, use fallback (Lounge → Main Hall)
+  const suggestedRoomSpace = getSuggestedRoomSpaceForParticipants(participantCount);
+  let effectiveRoomSpace = suggestedRoomSpace;
+  let roomFallbackMessage: string | null = null;
+
+  const normalizeRoomSlug = (s: string | undefined | null) => (s ?? "").toLowerCase().trim();
+
+  if (suggestedRoomSpace && isValidParticipantCount && hasDateTimeSelected) {
+    const suggestedHasConflict = getRoomsWithConflictForSlot.has(suggestedRoomSpace);
+    if (suggestedHasConflict) {
+      const fallbacks = getRoomFallbackChain(suggestedRoomSpace);
+      const firstAvailableFallback = fallbacks.find((r) => !getRoomsWithConflictForSlot.has(r));
+      if (firstAvailableFallback) {
+        effectiveRoomSpace = firstAvailableFallback;
+        roomFallbackMessage = getRoomFallbackMessage(
+          suggestedRoomSpace,
+          effectiveRoomSpace,
+          getRoomsWithConflictForSlot,
+          roomSpaceLabels
+        );
+      }
+    }
+    availableLayouts = availableLayouts.filter(
+      (l: ServiceLayout & { roomSpace?: string }) =>
+        normalizeRoomSlug(l.roomSpace) === normalizeRoomSlug(effectiveRoomSpace)
+    );
+  } else if (suggestedRoomSpace && isValidParticipantCount) {
+    availableLayouts = availableLayouts.filter(
+      (l: ServiceLayout & { roomSpace?: string }) =>
+        normalizeRoomSlug(l.roomSpace) === normalizeRoomSlug(suggestedRoomSpace)
+    );
+  }
+
+  // When suggested room yields 0 layouts, show layouts from ANY available room (higher capacity)
+  if (availableLayouts.length === 0 && isValidParticipantCount && layoutsFittingCapacityAndAvailable.length > 0) {
+    availableLayouts = layoutsFittingCapacityAndAvailable;
+    if (suggestedRoomSpace) {
+      roomFallbackMessage = `${roomSpaceLabels[suggestedRoomSpace] ?? suggestedRoomSpace} layouts are not available for this slot. Showing layouts from alternative spaces; please note that pricing may be higher.`;
+    }
+  }
+
+  // Show layouts whose capacity is nearest to participants (difference of 1–2 max)
+  // When that yields 0, show any layout that fits (higher capacity)
+  if (isValidParticipantCount && !participantsExceedMax && participantCount > 0) {
+    const maxOverhead = roomFallbackMessage ? 999 : 2;
+    const strictFiltered = availableLayouts.filter(
+      (l: ServiceLayout & { roomSpace?: string }) => (l.capacity - participantCount) <= maxOverhead
+    );
+    availableLayouts = strictFiltered.length > 0 ? strictFiltered : availableLayouts;
+  }
+  // Sort by capacity (nearest first)
+  availableLayouts = [...availableLayouts].sort((a, b) => a.capacity - b.capacity);
 
   // Fallback (dummy) only when no API layouts at all and we have hall selected from a previously selected layout
   const useHallFallbackLayouts =
@@ -1565,15 +1672,15 @@ export default function Book() {
             <DialogTitle>Choose a Layout</DialogTitle>
             <DialogDescription asChild>
               <div>
-                <p>Select one layout that fits your group. Only layouts that accommodate your participant count are shown.</p>
+                <p>Select one layout that fits your group. Only layouts whose capacity is nearest to your participant count are shown.</p>
                 {formData.roomSpace && (
                   <span className="block mt-1.5 text-accent font-medium">
                     Room: {roomSpaceLabels[formData.roomSpace] || formData.roomSpace}
                   </span>
                 )}
-                {isValidParticipantCount && !participantsExceedMax && participantCount > 0 && (
+                {isValidParticipantCount && !participantsExceedMax && participantCount > 0 && suggestedRoomSpace && (
                   <span className="block mt-0.5 text-accent font-medium">
-                    Capacity filter: layouts for {participantCount}+ participant{participantCount !== 1 ? "s" : ""}
+                    Showing layouts for {participantCount} participant{participantCount !== 1 ? "s" : ""} (capacity matched)
                   </span>
                 )}
               </div>
@@ -1633,15 +1740,8 @@ export default function Book() {
                 );
               });
 
-              // Optional: Filter by participant capacity if attendees are specified
-              if (isValidParticipantCount && !participantsExceedMax) {
-                filteredLayouts = filteredLayouts.filter((layout) => {
-                  // Show layouts that can accommodate the participant count
-                  return layout.capacity >= participantCount;
-                });
-              }
-
-              // Sort by capacity (low to high)
+              // availableLayouts is already filtered to suggested room only (Rule C1) and capacity
+              // Sort by capacity
               filteredLayouts = [...filteredLayouts].sort((a, b) => a.capacity - b.capacity);
 
               if (filteredLayouts.length === 0) {
@@ -1948,6 +2048,14 @@ export default function Book() {
                                 </span>
                                 </p>
                             )}
+                            {isValidParticipantCount && !attendeesError && !fieldErrors.attendees && (() => {
+                              const suggested = getSuggestedRoomSpaceForParticipants(participantCount);
+                              return suggested ? (
+                                <p className="text-xs text-muted-foreground">
+                                  Suggested for your group: {ROOM_SPACE_LABELS[suggested] ?? suggested}
+                                </p>
+                              ) : null;
+                            })()}
                             {(fieldErrors.attendees || attendeesError) && (
                                 <p className="text-xs text-red-600">
                                   {attendeesError ?? "Please enter the expected number of participants."}
@@ -2527,7 +2635,7 @@ export default function Book() {
 
                             {/* No layouts available for current filters */}
                             {hasDateTimeSelected && !serviceLayoutsLoading && availableLayouts.length === 0 && (
-                              <Alert className="border-amber-200 bg-amber-50 text-amber-900">
+                              <Alert className={fieldErrors.layoutId ? "border-red-200 bg-red-50 text-red-900" : "border-amber-200 bg-amber-50 text-amber-900"}>
                                 <Info className="h-4 w-4" />
                                 <AlertDescription>
                                   No layouts available for the selected date, time, and participant count. Try a different time slot or contact us for assistance.
@@ -2618,6 +2726,14 @@ export default function Book() {
                                   <p className="text-xs text-red-600">
                                     Please select a service layout to continue.
                                   </p>
+                                )}
+                                {roomFallbackMessage && (
+                                  <Alert className="border-amber-200 bg-amber-50 text-amber-900 mt-3">
+                                    <Info className="h-4 w-4" />
+                                    <AlertDescription>
+                                      {roomFallbackMessage}
+                                    </AlertDescription>
+                                  </Alert>
                                 )}
                               </div>
                             )}

@@ -472,6 +472,7 @@ export interface BookingSettingsAttr {
 
 // ---- Configs (single type) ----
 export interface ConfigsAttr {
+  maintenance_mode?: boolean | null;
   hourlyPrice?: number | string | null;
   adminEmail?: string | null;
 }
