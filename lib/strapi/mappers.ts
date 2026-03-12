@@ -92,8 +92,8 @@ export function mapHomepageServicesPreview(attr: HomepageAttr | null): MappedSer
 
 export function mapDifferentiators(attr: HomepageAttr | null): string[] | null {
   const fromFeatures = attr?.homeWhyChooseFeature?.length
-    ? attr.homeWhyChooseFeature.map((d) => d.feature ?? "").filter(Boolean)
-    : null;
+      ? attr.homeWhyChooseFeature.map((d) => d.feature ?? "").filter(Boolean)
+      : null;
   if (fromFeatures?.length) return fromFeatures;
   if (!attr?.differentiators?.length) return null;
   return attr.differentiators.map((d) => (d as { text?: string }).text ?? "").filter(Boolean);
@@ -342,6 +342,8 @@ export function mapStrapiAddOns(items: StrapiAddOn[]): BookingAddOn[] {
 
 export interface ServiceLayoutWithRoom extends ServiceLayout {
   roomSpace?: string;
+  rate?: number;
+  pricingType?: string;
 }
 
 export interface MappedEventType {
@@ -379,14 +381,31 @@ export function mapStrapiServiceLayouts(items: StrapiServiceLayout[]): Record<st
     const a: any = getAttr(item);
     const roomSpaceRel = (a as { roomSpace?: { data?: StrapiRoomSpace | null } | null }).roomSpace;
     const roomSpaceData = roomSpaceRel?.data ?? (roomSpaceRel as StrapiRoomSpace | null) ?? null;
-    const slug = roomSpaceData?.attributes?.slug ?? (roomSpaceData as { slug?: string } | null)?.slug ?? null;
+    const slug =
+        roomSpaceData?.attributes?.slug ??
+        (roomSpaceData as { slug?: string } | null)?.slug ??
+        null;
     const key = roomSpaceSlugToServiceKey(slug ?? undefined);
+    const roomCapacity =
+        roomSpaceData?.attributes?.capacity ??
+        (roomSpaceData as { capacity?: number } | null)?.capacity ??
+        null;
+    const roomRate =
+        roomSpaceData?.attributes?.rate ??
+        (roomSpaceData as { rate?: number } | null)?.rate ??
+        null;
+    const roomPricingType =
+        roomSpaceData?.attributes?.pricingType ??
+        (roomSpaceData as { pricingType?: string } | null)?.pricingType ??
+        null;
 
     if (!byService[key]) byService[key] = [];
     byService[key].push({
       id: String(item.id ?? item.documentId ?? ""),
       name: a?.name ?? "",
-      capacity: Number(a?.capacity) || 0,
+      capacity: roomCapacity != null ? Number(roomCapacity) || 0 : Number(a?.capacity) || 0,
+      rate: roomRate != null ? Number(roomRate) || 0 : undefined,
+      pricingType: typeof roomPricingType === "string" ? roomPricingType : undefined,
       description: a?.description ?? "",
       image: getDirectImageUrl(a?.image as StrapiMedia | null),
       roomSpace: slug ?? undefined,
@@ -415,9 +434,9 @@ export function mapStrapiRoomSpaces(items: StrapiRoomSpace[]): MappedRoomSpace[]
 export function mapStrapiGuestTypes(items: StrapiGuestType[]): string[] {
   if (!items?.length) return [];
   return items
-    .map((item) => {
-      const a:any = getAttr(item);
-      return a?.guestType ?? "";
-    })
-    .filter(Boolean);
+      .map((item) => {
+        const a:any = getAttr(item);
+        return a?.guestType ?? "";
+      })
+      .filter(Boolean);
 }

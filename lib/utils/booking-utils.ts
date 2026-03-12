@@ -10,14 +10,14 @@ export function generateBookingReference(): string {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
-  
+
   // Generate random alphanumeric code
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   let code = '';
   for (let i = 0; i < 4; i++) {
     code += chars.charAt(Math.floor(Math.random() * chars.length));
   }
-  
+
   return `VH-${year}${month}${day}-${code}`;
 }
 
@@ -42,23 +42,23 @@ export function minutesToTime(minutes: number): string {
  * Check if two time ranges overlap with buffer consideration
  */
 export function timesOverlap(
-  start1: string,
-  end1: string,
-  start2: string,
-  end2: string,
-  bufferMinutes: number = bookingConfig.bufferMinutes
+    start1: string,
+    end1: string,
+    start2: string,
+    end2: string,
+    bufferMinutes: number = bookingConfig.bufferMinutes
 ): boolean {
   const start1Minutes = timeToMinutes(start1);
   const end1Minutes = timeToMinutes(end1);
   const start2Minutes = timeToMinutes(start2);
   const end2Minutes = timeToMinutes(end2);
-  
+
   // Add buffer to both ranges
   const bufferedStart1 = start1Minutes - bufferMinutes;
   const bufferedEnd1 = end1Minutes + bufferMinutes;
   const bufferedStart2 = start2Minutes - bufferMinutes;
   const bufferedEnd2 = end2Minutes + bufferMinutes;
-  
+
   // Check for overlap
   return bufferedStart1 < bufferedEnd2 && bufferedStart2 < bufferedEnd1;
 }
@@ -67,15 +67,15 @@ export function timesOverlap(
  * Check if a date is within business hours
  */
 export function isWithinBusinessHours(
-  startTime: string,
-  endTime: string,
-  config: BookingConfig = bookingConfig
+    startTime: string,
+    endTime: string,
+    config: BookingConfig = bookingConfig
 ): boolean {
   const startMinutes = timeToMinutes(startTime);
   const endMinutes = timeToMinutes(endTime);
   const businessStart = timeToMinutes(config.businessHours.start);
   const businessEnd = timeToMinutes(config.businessHours.end);
-  
+
   return startMinutes >= businessStart && endMinutes <= businessEnd;
 }
 
@@ -83,26 +83,26 @@ export function isWithinBusinessHours(
  * Check if booking duration is within limits
  */
 export function isValidDuration(
-  startTime: string,
-  endTime: string,
-  config: BookingConfig = bookingConfig
+    startTime: string,
+    endTime: string,
+    config: BookingConfig = bookingConfig
 ): { valid: boolean; message?: string } {
   const duration = timeToMinutes(endTime) - timeToMinutes(startTime);
-  
+
   if (duration < config.minBookingDuration) {
     return {
       valid: false,
       message: `Minimum booking duration is ${config.minBookingDuration} minutes`,
     };
   }
-  
+
   if (duration > config.maxBookingDuration) {
     return {
       valid: false,
       message: `Maximum booking duration is ${config.maxBookingDuration} minutes`,
     };
   }
-  
+
   return { valid: true };
 }
 
@@ -111,24 +111,59 @@ export function isValidDuration(
  * If endDate is omitted or same as start date, uses startTime and endTime only.
  */
 export function getTotalDurationMinutes(
-  startDate: string,
-  startTime: string,
-  endDate: string | undefined,
-  endTime: string
+    startDate: string,
+    startTime: string,
+    endDate: string | undefined,
+    endTime: string
 ): number {
   const start = new Date(`${startDate}T${startTime}:00`);
   const end = endDate
-    ? new Date(`${endDate}T${endTime}:00`)
-    : new Date(`${startDate}T${endTime}:00`);
+      ? new Date(`${endDate}T${endTime}:00`)
+      : new Date(`${startDate}T${endTime}:00`);
   return Math.max(0, Math.round((end.getTime() - start.getTime()) / 60000));
+}
+
+/**
+ * Count how many 12‑hour shifts a booking touches.
+ * Shifts are:
+ * - Shift 1: 00:00 → 12:00
+ * - Shift 2: 12:00 → 24:00
+ * Any overlap with a shift counts as 1 full shift.
+ */
+export function countShiftsInRange(
+    startDate: string,
+    startTime: string,
+    endDate: string | undefined,
+    endTime: string
+): number {
+  const start = new Date(`${startDate}T${startTime}:00`);
+  const end = endDate
+      ? new Date(`${endDate}T${endTime}:00`)
+      : new Date(`${startDate}T${endTime}:00`);
+
+  if (!(end.getTime() > start.getTime())) {
+    return 0;
+  }
+
+  // Anchor at midnight of the start date, then slice time into 12h buckets
+  const anchor = new Date(start);
+  anchor.setHours(0, 0, 0, 0);
+  const shiftMs = 12 * 60 * 60 * 1000;
+
+  const startIndex = Math.floor((start.getTime() - anchor.getTime()) / shiftMs);
+  // Subtract 1ms so bookings ending exactly on a boundary
+  // (e.g. 10:00–12:00) are counted in the correct shift only.
+  const endIndex = Math.floor(((end.getTime() - 1) - anchor.getTime()) / shiftMs);
+
+  return Math.max(0, endIndex - startIndex + 1);
 }
 
 /**
  * Check if date is blocked
  */
 export function isDateBlocked(
-  date: string,
-  config: BookingConfig = bookingConfig
+    date: string,
+    config: BookingConfig = bookingConfig
 ): boolean {
   return config.blockedDates.includes(date);
 }
@@ -137,16 +172,16 @@ export function isDateBlocked(
  * Check if date is within advance booking window
  */
 export function isWithinBookingWindow(
-  date: string,
-  config: BookingConfig = bookingConfig
+    date: string,
+    config: BookingConfig = bookingConfig
 ): boolean {
   const bookingDate = new Date(date);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  
+
   const maxDate = new Date(today);
   maxDate.setDate(maxDate.getDate() + config.advanceBookingDays);
-  
+
   return bookingDate >= today && bookingDate <= maxDate;
 }
 
@@ -154,8 +189,8 @@ export function isWithinBookingWindow(
  * Check availability for a specific booking slot
  */
 export function checkAvailability(
-  check: AvailabilityCheck,
-  existingBookings: Booking[]
+    check: AvailabilityCheck,
+    existingBookings: Booking[]
 ): AvailabilityResult {
   // Validate business hours
   if (!isWithinBusinessHours(check.startTime, check.endTime)) {
@@ -164,7 +199,7 @@ export function checkAvailability(
       message: `Bookings must be within business hours (${bookingConfig.businessHours.start} - ${bookingConfig.businessHours.end})`,
     };
   }
-  
+
   // Validate duration
   const durationCheck = isValidDuration(check.startTime, check.endTime);
   if (!durationCheck.valid) {
@@ -173,7 +208,7 @@ export function checkAvailability(
       message: durationCheck.message,
     };
   }
-  
+
   // Check if date is blocked
   if (isDateBlocked(check.date)) {
     return {
@@ -181,7 +216,7 @@ export function checkAvailability(
       message: 'This date is not available for bookings',
     };
   }
-  
+
   // Check if within booking window
   if (!isWithinBookingWindow(check.date)) {
     return {
@@ -189,27 +224,27 @@ export function checkAvailability(
       message: `Bookings can only be made up to ${bookingConfig.advanceBookingDays} days in advance`,
     };
   }
-  
+
   // Find conflicts with existing bookings
   const conflicts = existingBookings.filter((booking) => {
     // Only check confirmed bookings for the same service and date
     if (
-      booking.status !== 'confirmed' ||
-      booking.serviceType !== check.serviceType ||
-      booking.date !== check.date
+        booking.status !== 'confirmed' ||
+        booking.serviceType !== check.serviceType ||
+        booking.date !== check.date
     ) {
       return false;
     }
-    
+
     // Check for time overlap with buffer
     return timesOverlap(
-      check.startTime,
-      check.endTime,
-      booking.startTime,
-      booking.endTime
+        check.startTime,
+        check.endTime,
+        booking.startTime,
+        booking.endTime
     );
   });
-  
+
   if (conflicts.length > 0) {
     return {
       available: false,
@@ -217,7 +252,7 @@ export function checkAvailability(
       message: 'This time slot conflicts with existing bookings',
     };
   }
-  
+
   return {
     available: true,
     message: 'Time slot is available',
@@ -226,14 +261,20 @@ export function checkAvailability(
 
 /**
  * Calculate total price for booking with add-ons.
- * If hourlyPriceFromConfigs is provided (from Strapi Configs), it is used as the base hourly rate for all service types; otherwise falls back to built-in base prices.
+ * Pricing is driven by Room/Space:
+ * - If roomRate is provided:
+ *   - pricingType "Per Hour": price = roomRate * hours
+ *   - pricingType "Per Shift": price = roomRate * numberOfShifts
+ * - If roomRate is missing, falls back to built-in base prices per serviceType (legacy behaviour).
  */
 export function calculateBookingPrice(
-  serviceType: string,
-  duration: number,
-  addOnIds: string[],
-  addOnsData: any[],
-  hourlyPriceFromConfigs?: number | null
+    serviceType: string,
+    duration: number,
+    addOnIds: string[],
+    addOnsData: any[],
+    roomRate?: number | null,
+    roomPricingType?: string | null,
+    shiftCount?: number
 ): number {
   const basePrices: Record<string, number> = {
     'event-space': 200,
@@ -241,12 +282,22 @@ export function calculateBookingPrice(
     'virtual-office': 50,
     'media-studio': 150,
   };
-  const basePrice =
-    hourlyPriceFromConfigs != null && Number.isFinite(Number(hourlyPriceFromConfigs))
-      ? Number(hourlyPriceFromConfigs)
-      : basePrices[serviceType] ?? 0;
   const hours = duration / 60;
-  const serviceCost = basePrice * hours;
+  let serviceCost = 0;
+
+  if (roomRate != null && Number.isFinite(Number(roomRate))) {
+    const r = Number(roomRate);
+    const type = (roomPricingType || '').toLowerCase();
+    if (type.includes('shift')) {
+      const effectiveShiftCount = shiftCount && shiftCount > 0 ? shiftCount : 1;
+      serviceCost = r * effectiveShiftCount;
+    } else {
+      serviceCost = r * hours;
+    }
+  } else {
+    const basePrice = basePrices[serviceType] ?? 0;
+    serviceCost = basePrice * hours;
+  }
 
   const addOnsCost = addOnIds.reduce((total, addOnId) => {
     const addOn = addOnsData.find((a) => a.id === addOnId);
