@@ -3565,7 +3565,7 @@ export default function Book() {
                                   </p>
                                   {effectiveUnitCount > 0 && (
                                       <p className="text-xs text-muted-foreground">
-                                        ${(totalPrice / effectiveUnitCount).toFixed(2)}/{pricingUnit}
+                                        ${serviceRatePerUnit.toFixed(2)}/{pricingUnit}
                                       </p>
                                   )}
                                 </div>
