@@ -272,6 +272,7 @@ export function calculateBookingPrice(
     duration: number,
     addOnIds: string[],
     addOnsData: any[],
+    participantCount?: number,
     roomRate?: number | null,
     roomPricingType?: string | null,
     shiftCount?: number
@@ -299,9 +300,10 @@ export function calculateBookingPrice(
     serviceCost = basePrice * hours;
   }
 
+  const participants = typeof participantCount === "number" && participantCount > 0 ? participantCount : 1;
   const addOnsCost = addOnIds.reduce((total, addOnId) => {
     const addOn = addOnsData.find((a) => a.id === addOnId);
-    return total + (addOn?.price || 0);
+    return total + (addOn?.price || 0) * participants;
   }, 0);
 
   return serviceCost + addOnsCost;

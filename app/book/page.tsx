@@ -237,12 +237,16 @@ const HALL_LAYOUT_SERVICE_IDS = ["u-shape", "boardroom", "theater"] as const;
 function AddOnCard({
                      addOn,
                      selected,
+                     participantCount,
                      onToggle,
                    }: {
   addOn: BookingAddOn;
   selected: boolean;
+  participantCount: number;
   onToggle: () => void;
 }) {
+  const perPerson = addOn.price;
+  const total = perPerson * participantCount;
   return (
       <div
           role="button"
@@ -269,9 +273,12 @@ function AddOnCard({
               className="object-cover"
               sizes="(max-width: 640px) 112px, 128px"
           />
-          <span className="absolute bottom-2 right-2 rounded-md bg-foreground/90 px-2 py-1 text-xs font-semibold text-background shadow-sm">
-          ${addOn.price}
-        </span>
+          <span className="absolute bottom-2 right-2 rounded-md bg-foreground/90 px-2 py-1 text-xs font-semibold text-background shadow-sm text-right leading-tight">
+            <span className="block">${perPerson.toFixed(2)} × {participantCount}</span>
+            {/* <span className="block text-[10px] font-medium text-background/80">
+              ${total.toFixed(2)}
+            </span> */}
+          </span>
         </div>
         <div className="flex-1 min-w-0 p-4 flex flex-col justify-center text-left">
           <p className="text-base font-semibold leading-tight text-foreground group-hover:text-accent transition-colors">
@@ -625,6 +632,7 @@ export default function Book() {
           ? getTotalDurationMinutes(formData.date, formData.startTime, formData.endDate, formData.endTime)
           : timeToMinutes(formData.endTime) - timeToMinutes(formData.startTime);
       if (totalMinutes > 0) {
+        const participantCountForPrice = formData.attendees ? parseInt(formData.attendees, 10) : 0;
         // Find pricing for the currently selected room/space (from layouts → roomSpace relation).
         let roomRate: number | undefined;
         let roomPricingType: string | undefined;
@@ -661,6 +669,7 @@ export default function Book() {
             totalMinutes,
             formData.addOns,
             addOnsList,
+            participantCountForPrice,
             roomRate,
             roomPricingType,
             shiftCount
@@ -668,7 +677,7 @@ export default function Book() {
         setTotalPrice(price);
       }
     }
-  }, [formData.serviceType, formData.date, formData.endDate, formData.startTime, formData.endTime, formData.addOns, formData.layoutId, isMultiDay, addOnsList, formData.roomSpace, serviceLayoutsMap]);
+  }, [formData.serviceType, formData.date, formData.endDate, formData.startTime, formData.endTime, formData.addOns, formData.layoutId, isMultiDay, addOnsList, formData.roomSpace, serviceLayoutsMap, formData.attendees]);
 
   // Validate time slot: only require end after start (no min/max duration restriction)
   useEffect(() => {
@@ -1563,7 +1572,8 @@ export default function Book() {
               : timeToMinutes(formData.endTime) - timeToMinutes(formData.startTime)
           : 0;
   const duration = totalDurationMinutes / 60;
-  const addOnsSubtotal = selectedAddOns.reduce((s, a) => s + a.price, 0);
+  const participantsForPricing = isValidParticipantCount ? participantCount : 1;
+  const addOnsSubtotal = selectedAddOns.reduce((s, a) => s + a.price * participantsForPricing, 0);
   const serviceCost = totalPrice - addOnsSubtotal;
   // Derive display unit (/hour vs /shift) and effective unit rate for the summary
   let pricingUnit: "hour" | "shift" = "hour";
@@ -3032,7 +3042,7 @@ export default function Book() {
                                 {/* Add-Ons & Extras — Food (Breakfast, Lunch), Refreshments (Snacks, Beverages), Equipment, Services */}
                                 <div className="space-y-6">
                                   <div>
-                                    <Label className="text-base font-medium">Add-Ons & Extras</Label>
+                                    <Label className="text-base font-medium">Add-Ons & Extras (Per Person)</Label>
                                     <p className="text-sm text-muted-foreground mt-1">
                                       {strapiConfigured && addOnsLoading ? (
                                           <span className="inline-flex items-center gap-2">
@@ -3076,6 +3086,7 @@ export default function Book() {
                                                                 key={addOn.id}
                                                                 addOn={addOn}
                                                                 selected={formData.addOns.includes(addOn.id)}
+                                                                participantCount={participantsForPricing}
                                                                 onToggle={() => handleAddOnToggle(addOn.id)}
                                                             />
                                                         ))}
@@ -3091,6 +3102,7 @@ export default function Book() {
                                                                 key={addOn.id}
                                                                 addOn={addOn}
                                                                 selected={formData.addOns.includes(addOn.id)}
+                                                                participantCount={participantsForPricing}
                                                                 onToggle={() => handleAddOnToggle(addOn.id)}
                                                             />
                                                         ))}
@@ -3123,6 +3135,7 @@ export default function Book() {
                                                                 key={addOn.id}
                                                                 addOn={addOn}
                                                                 selected={formData.addOns.includes(addOn.id)}
+                                                                participantCount={participantsForPricing}
                                                                 onToggle={() => handleAddOnToggle(addOn.id)}
                                                             />
                                                         ))}
@@ -3138,6 +3151,7 @@ export default function Book() {
                                                                 key={addOn.id}
                                                                 addOn={addOn}
                                                                 selected={formData.addOns.includes(addOn.id)}
+                                                                participantCount={participantsForPricing}
                                                                 onToggle={() => handleAddOnToggle(addOn.id)}
                                                             />
                                                         ))}
@@ -3163,6 +3177,7 @@ export default function Book() {
                                                           key={addOn.id}
                                                           addOn={addOn}
                                                           selected={formData.addOns.includes(addOn.id)}
+                                                          participantCount={participantsForPricing}
                                                           onToggle={() => handleAddOnToggle(addOn.id)}
                                                       />
                                                   ))}
@@ -3186,6 +3201,7 @@ export default function Book() {
                                                           key={addOn.id}
                                                           addOn={addOn}
                                                           selected={formData.addOns.includes(addOn.id)}
+                                                          participantCount={participantsForPricing}
                                                           onToggle={() => handleAddOnToggle(addOn.id)}
                                                       />
                                                   ))}
@@ -3355,7 +3371,7 @@ export default function Book() {
                                                 <p className="text-xs text-muted-foreground">{addOn.description}</p>
                                               </div>
                                               <Badge variant="outline" className="bg-white">
-                                                ${addOn.price}
+                                                ${(addOn.price * participantsForPricing).toFixed(2)}
                                               </Badge>
                                             </div>
                                         ))}
@@ -3483,19 +3499,19 @@ export default function Book() {
                                           (a) => a.category === 'catering' && (a.subcategory === 'breakfast' || a.subcategory === 'lunch')
                                       );
                                       if (foodItems.length > 0) {
-                                        const subtotal = foodItems.reduce((s, a) => s + a.price, 0);
+                                        const subtotal = foodItems.reduce((s, a) => s + a.price * participantsForPricing, 0);
                                         return (
                                             <div key="food" className="space-y-1.5">
                                               <p className="text-xs font-semibold text-foreground">Food</p>
                                               {foodItems.map((addOn) => (
                                                   <div key={addOn.id} className="flex justify-between text-sm pl-1">
                                                     <span className="text-muted-foreground pr-2">{addOn.name}</span>
-                                                    <span className="font-medium whitespace-nowrap">${addOn.price}</span>
+                                                    <span className="font-medium whitespace-nowrap">${(addOn.price * participantsForPricing).toFixed(2)}</span>
                                                   </div>
                                               ))}
                                               <div className="flex justify-between text-sm pl-1 border-t border-border/60 pt-1">
                                                 <span className="text-muted-foreground italic">Subtotal</span>
-                                                <span className="font-medium whitespace-nowrap">${subtotal}</span>
+                                                <span className="font-medium whitespace-nowrap">${subtotal.toFixed(2)}</span>
                                               </div>
                                             </div>
                                         );
@@ -3507,19 +3523,19 @@ export default function Book() {
                                           (a) => a.category === 'catering' && (a.subcategory === 'snacks' || a.subcategory === 'beverages')
                                       );
                                       if (refreshmentItems.length > 0) {
-                                        const subtotal = refreshmentItems.reduce((s, a) => s + a.price, 0);
+                                        const subtotal = refreshmentItems.reduce((s, a) => s + a.price * participantsForPricing, 0);
                                         return (
                                             <div key="refreshments" className="space-y-1.5">
                                               <p className="text-xs font-semibold text-foreground">Refreshments</p>
                                               {refreshmentItems.map((addOn) => (
                                                   <div key={addOn.id} className="flex justify-between text-sm pl-1">
                                                     <span className="text-muted-foreground pr-2">{addOn.name}</span>
-                                                    <span className="font-medium whitespace-nowrap">${addOn.price}</span>
+                                                    <span className="font-medium whitespace-nowrap">${(addOn.price * participantsForPricing).toFixed(2)}</span>
                                                   </div>
                                               ))}
                                               <div className="flex justify-between text-sm pl-1 border-t border-border/60 pt-1">
                                                 <span className="text-muted-foreground italic">Subtotal</span>
-                                                <span className="font-medium whitespace-nowrap">${subtotal}</span>
+                                                <span className="font-medium whitespace-nowrap">${subtotal.toFixed(2)}</span>
                                               </div>
                                             </div>
                                         );
@@ -3534,19 +3550,19 @@ export default function Book() {
                                     ).map(({ key, label }) => {
                                       const items = selectedAddOns.filter((a) => a.category === key);
                                       if (items.length === 0) return null;
-                                      const subtotal = items.reduce((s, a) => s + a.price, 0);
+                                      const subtotal = items.reduce((s, a) => s + a.price * participantsForPricing, 0);
                                       return (
                                           <div key={key} className="space-y-1.5">
                                             <p className="text-xs font-semibold text-foreground">{label}</p>
                                             {items.map((addOn) => (
                                                 <div key={addOn.id} className="flex justify-between text-sm pl-1">
                                                   <span className="text-muted-foreground pr-2">{addOn.name}</span>
-                                                  <span className="font-medium whitespace-nowrap">${addOn.price}</span>
+                                                  <span className="font-medium whitespace-nowrap">${(addOn.price * participantsForPricing).toFixed(2)}</span>
                                                 </div>
                                             ))}
                                             <div className="flex justify-between text-sm pl-1 border-t border-border/60 pt-1">
                                               <span className="text-muted-foreground italic">Subtotal</span>
-                                              <span className="font-medium whitespace-nowrap">${subtotal}</span>
+                                              <span className="font-medium whitespace-nowrap">${subtotal.toFixed(2)}</span>
                                             </div>
                                           </div>
                                       );
