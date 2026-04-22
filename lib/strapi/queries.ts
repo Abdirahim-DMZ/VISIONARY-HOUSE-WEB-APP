@@ -50,7 +50,7 @@ export async function fetchHomepage(): Promise<HomepageAttr | null> {
   if (!isStrapiConfigured()) return null;
   try {
     const res = await strapiFetch<StrapiSingleResponse<{ id: number; attributes?: HomepageAttr } & Partial<HomepageAttr>>>(
-      `/api/homepage?populate[homeService][populate][serviceImage]=true&populate[heroSection][populate][bgImage]=true&populate[homeWhyChooseFeature][populate]=true&populate[whyChooseUsImage][populate]=true`
+      `/api/homepage?populate[homeService][populate][serviceImage]=true&populate[heroSection][populate][bgImage]=true&populate[heroSection][populate][firstButton]=true&populate[heroSection][populate][secondButton]=true&populate[homeWhyChooseFeature][populate]=true&populate[whyChooseUsImage][populate]=true`
     );
     const raw = res?.data;
     if (!raw) return null;

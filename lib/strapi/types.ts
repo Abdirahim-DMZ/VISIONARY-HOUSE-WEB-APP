@@ -38,11 +38,20 @@ export interface GlobalAttr {
 
 // ---- Homepage (single type) ----
 export interface HeroSlide {
+  id?: number;
   title?: string | null;
   highlight?: string | null;
   subtitle?: string | null;
   description?: string | null;
   heading?: string | null;
+  firstButton?:
+    | { buttonName?: string | null; link?: string | null; attributes?: { buttonName?: string | null; link?: string | null } }
+    | Array<{ buttonName?: string | null; link?: string | null; attributes?: { buttonName?: string | null; link?: string | null } }>
+    | null;
+  secondButton?:
+    | { buttonName?: string | null; link?: string | null; attributes?: { buttonName?: string | null; link?: string | null } }
+    | Array<{ buttonName?: string | null; link?: string | null; attributes?: { buttonName?: string | null; link?: string | null } }>
+    | null;
   image?: { data: StrapiMedia | null } | StrapiMedia | null;
   bgImage?: { data: StrapiMedia | null } | StrapiMedia | null;
 }

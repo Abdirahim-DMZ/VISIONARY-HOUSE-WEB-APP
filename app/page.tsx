@@ -38,9 +38,9 @@ const iconMap = { Building2, Users, Briefcase, Video } as const;
 
 // Fallback data when Strapi is not configured or fetch fails
 const fallbackHeroSlides: MappedHeroSlide[] = [
-  { title: "Where Business", highlight: "Excellence", subtitle: "Meets Premium Experience", description: "A complete business ecosystem designed for visionary founders, leaders, and enterprises seeking an environment that reflects their standard of excellence.", heading: "Welcome to Visionary House", image: "/assets/1.jpg" },
-  { title: "Premium Event", highlight: "Spaces", subtitle: "For Visionary Leaders", description: "Host conferences, board meetings, and corporate gatherings in our sophisticated venues that reflect your professional standards.", heading: "Welcome to Visionary House", image: "/assets/2.jpg" },
-  { title: "Professional", highlight: "Virtual Offices", subtitle: "Your Business Presence", description: "Establish your business with prestigious addresses, mail handling, and call answering services that project confidence.", heading: "Welcome to Visionary House", image: "/assets/3.jpg" },
+  { title: "Where Business", highlight: "Excellence", subtitle: "Meets Premium Experience", description: "A complete business ecosystem designed for visionary founders, leaders, and enterprises seeking an environment that reflects their standard of excellence.", heading: "Welcome to Visionary House", image: "/assets/1.jpg", firstButtonLabel: "Book Your Experience", firstButtonLink: "/book", secondButtonLabel: "Explore Services", secondButtonLink: "/services" },
+  { title: "Premium Event", highlight: "Spaces", subtitle: "For Visionary Leaders", description: "Host conferences, board meetings, and corporate gatherings in our sophisticated venues that reflect your professional standards.", heading: "Welcome to Visionary House", image: "/assets/2.jpg", firstButtonLabel: "Book Your Experience", firstButtonLink: "/book", secondButtonLabel: "Explore Services", secondButtonLink: "/services" },
+  { title: "Professional", highlight: "Virtual Offices", subtitle: "Your Business Presence", description: "Establish your business with prestigious addresses, mail handling, and call answering services that project confidence.", heading: "Welcome to Visionary House", image: "/assets/3.jpg", firstButtonLabel: "Book Your Experience", firstButtonLink: "/book", secondButtonLabel: "Explore Services", secondButtonLink: "/services" },
 ];
 
 const fallbackServices: MappedServicePreview[] = [
@@ -316,9 +316,9 @@ export default function Home() {
                           }}
                           whileTap={{ scale: 0.95 }}
                         >
-                          <Link href="/book">
+                          <Link href={slide.firstButtonLink || "/book"}>
                             <Button variant="hero" size="xl" className="bg-[#B08D39] text-[#FFF] shadow-gold">
-                              Book Your Experience
+                              {slide.firstButtonLabel || "Book Your Experience"}
                               <ArrowRight className="ml-2 h-5 w-5" />
                             </Button>
                           </Link>
@@ -330,9 +330,9 @@ export default function Home() {
                           }}
                           whileTap={{ scale: 0.95 }}
                         >
-                          <Link href="/services">
+                          <Link href={slide.secondButtonLink || "/services"}>
                             <Button variant="hero-outline" size="xl">
-                              Explore Services
+                              {slide.secondButtonLabel || "Explore Services"}
                             </Button>
                           </Link>
                         </motion.div>

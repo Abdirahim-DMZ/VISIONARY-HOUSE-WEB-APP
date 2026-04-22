@@ -24,6 +24,10 @@ export interface MappedHeroSlide {
   description: string;
   heading: string;
   image: string;
+  firstButtonLabel: string;
+  firstButtonLink: string;
+  secondButtonLabel: string;
+  secondButtonLink: string;
 }
 
 const HERO_FALLBACK_IMAGES = ["/assets/1.jpg", "/assets/2.jpg", "/assets/3.jpg"];
@@ -31,9 +35,33 @@ const HERO_FALLBACK_IMAGES = ["/assets/1.jpg", "/assets/2.jpg", "/assets/3.jpg"]
 export function mapHomepageHeroSlides(attr: HomepageAttr | null): MappedHeroSlide[] | null {
   const slides = attr?.heroSection?.length ? attr.heroSection : attr?.heroSlides?.length ? attr.heroSlides : null;
   if (!slides?.length) return null;
+
+  const readButton = (
+    value: unknown,
+    fallbackLabel: string,
+    fallbackLink: string,
+  ): { label: string; link: string } => {
+    const one = Array.isArray(value) ? value[0] : value;
+    if (!one || typeof one !== "object") return { label: fallbackLabel, link: fallbackLink };
+    const rec = one as { buttonName?: unknown; link?: unknown; attributes?: { buttonName?: unknown; link?: unknown } };
+    const labelRaw = rec.buttonName ?? rec.attributes?.buttonName;
+    const linkRaw = rec.link ?? rec.attributes?.link;
+    const label = typeof labelRaw === "string" && labelRaw.trim() ? labelRaw.trim() : fallbackLabel;
+    const link = typeof linkRaw === "string" && linkRaw.trim() ? linkRaw.trim() : fallbackLink;
+    return { label, link };
+  };
+
   return slides.map((s, i) => {
-    const slideWithBg = s as { image?: { data?: StrapiMedia | null } | StrapiMedia | null; bgImage?: { data?: StrapiMedia | null } | StrapiMedia | null; heading?: string | null };
+    const slideWithBg = s as {
+      image?: { data?: StrapiMedia | null } | StrapiMedia | null;
+      bgImage?: { data?: StrapiMedia | null } | StrapiMedia | null;
+      heading?: string | null;
+      firstButton?: unknown;
+      secondButton?: unknown;
+    };
     const media = slideWithBg.bgImage ?? slideWithBg.image;
+    const firstButton = readButton(slideWithBg.firstButton, "Book Your Experience", "/book");
+    const secondButton = readButton(slideWithBg.secondButton, "Explore Services", "/services");
     return {
       title: s.title ?? "",
       highlight: s.highlight ?? "",
@@ -41,6 +69,10 @@ export function mapHomepageHeroSlides(attr: HomepageAttr | null): MappedHeroSlid
       description: s.description ?? "",
       heading: slideWithBg.heading ?? "Welcome to Visionary House",
       image: getImageUrl(media, HERO_FALLBACK_IMAGES[i] ?? "/assets/1.jpg"),
+      firstButtonLabel: firstButton.label,
+      firstButtonLink: firstButton.link,
+      secondButtonLabel: secondButton.label,
+      secondButtonLink: secondButton.link,
     };
   });
 }
