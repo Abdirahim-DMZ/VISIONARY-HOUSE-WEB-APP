@@ -1,7 +1,18 @@
+ "use client";
+
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Mail, Phone, MapPin, Linkedin, Instagram } from "lucide-react";
 import logo from "../../public/assets/logo.png";
 import Image from "next/image";
+
+type FooterContactResponse = {
+  data?: {
+    address?: string;
+    contactPhoneNo?: string;
+    contactEmail?: string;
+  };
+};
 
 const footerLinks = {
   company: [
@@ -25,6 +36,38 @@ const footerLinks = {
 };
 
 export function Footer() {
+  const fallbackAddress = "123 Visionary Boulevard,\nBusiness District, City 10001";
+  const fallbackPhone = "+1 (234) 567-890";
+  const fallbackEmail = "info@visionaryhouse.com";
+  const [address, setAddress] = useState(fallbackAddress);
+  const [contactPhoneNo, setContactPhoneNo] = useState(fallbackPhone);
+  const [contactEmail, setContactEmail] = useState(fallbackEmail);
+
+  useEffect(() => {
+    let isMounted = true;
+    (async () => {
+      try {
+        const response = await fetch("/api/contact-page", { cache: "no-store" });
+        if (!response.ok) return;
+        const json = (await response.json()) as FooterContactResponse;
+        if (!isMounted) return;
+        setAddress(json.data?.address?.trim() || fallbackAddress);
+        setContactPhoneNo(json.data?.contactPhoneNo?.trim() || fallbackPhone);
+        setContactEmail(json.data?.contactEmail?.trim() || fallbackEmail);
+      } catch {
+        // keep fallback values without changing footer UI
+      }
+    })();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const phoneHref = useMemo(
+    () => `tel:${contactPhoneNo.replace(/[^\d+]/g, "")}`,
+    [contactPhoneNo],
+  );
+
   return (
     <footer className="bg-primary text-primary-foreground">
       <div className="container-premium py-8">
@@ -109,27 +152,26 @@ export function Footer() {
             <ul className="space-y-4">
               <li className="flex items-start gap-3">
                 <MapPin size={18} className="text-accent mt-0.5 shrink-0" />
-                <span className="text-sm text-primary-foreground/70">
-                  123 Visionary Boulevard,<br />
-                  Business District, City 10001
+                <span className="text-sm text-primary-foreground/70 whitespace-pre-line">
+                  {address}
                 </span>
               </li>
               <li className="flex items-center gap-3">
                 <Phone size={18} className="text-accent shrink-0" />
                 <a
-                  href="tel:+1234567890"
+                  href={phoneHref}
                   className="text-sm text-primary-foreground/70 hover:text-accent transition-colors"
                 >
-                  +1 (234) 567-890
+                  {contactPhoneNo}
                 </a>
               </li>
               <li className="flex items-center gap-3">
                 <Mail size={18} className="text-accent shrink-0" />
                 <a
-                  href="mailto:info@visionaryhouse.com"
+                  href={`mailto:${contactEmail}`}
                   className="text-sm text-primary-foreground/70 hover:text-accent transition-colors"
                 >
-                  info@visionaryhouse.com
+                  {contactEmail}
                 </a>
               </li>
             </ul>
