@@ -402,6 +402,15 @@ export interface StrapiGalleryItem {
 // ---- Booking (collection) ----
 export type BookingStatus = "Pending" | "Confirm" | "Cancelled" | "Partial Payment" | "Pay Later";
 
+export interface BookingPaymentEntry {
+  id?: number;
+  paymentMode?: "Cash" | "Banking" | "Card" | string | null;
+  amount?: number | string | null;
+  cashReceivedDate?: string | null;
+  bankTransferDate?: string | null;
+  cardTransactionDate?: string | null;
+}
+
 export interface BookingAttr {
   referenceNumber?: string | null;
   customerName?: string | null;
@@ -421,6 +430,10 @@ export interface BookingAttr {
   currency?: string | null;
   service?: { data: StrapiService | null };
   addOns?: { data: StrapiAddOn[] };
+  discount?: number | null;
+  discountReason?: string | null;
+  remainingPayment?: number | null;
+  payments?: BookingPaymentEntry[] | null;
 }
 
 export interface StrapiBooking {
