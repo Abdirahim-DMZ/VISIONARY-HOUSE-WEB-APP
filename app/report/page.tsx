@@ -44,6 +44,7 @@ type ReportBooking = {
   customerEmail: string;
   customerPhone: string;
   eventType: string;
+  roomSpace: string;
   date: string;
   dayOfWeek: string;
   startTime: string;
@@ -120,6 +121,25 @@ function extractAddOnTotalPrice(addOnsValue: unknown, attendees: number): number
   return perPersonTotal * Math.max(attendees, 0);
 }
 
+function extractRoomSpace(layoutValue: unknown): string {
+  if (!layoutValue || typeof layoutValue !== "object") return "-";
+
+  const readName = (value: unknown): string => {
+    if (!value || typeof value !== "object") return "";
+    const record = value as { name?: unknown; title?: unknown; attributes?: { name?: unknown; title?: unknown } };
+    const name = record.attributes?.name ?? record.name ?? record.attributes?.title ?? record.title;
+    return typeof name === "string" ? name.trim() : "";
+  };
+
+  // Strapi relation wrapper: { data: {...} }
+  if ("data" in (layoutValue as Record<string, unknown>)) {
+    const data = (layoutValue as { data?: unknown }).data;
+    return readName(data) || "-";
+  }
+
+  return readName(layoutValue) || "-";
+}
+
 function mapBookings(raw: StrapiBooking[]): ReportBooking[] {
   return raw.map((item) => {
     const source = ((item as unknown as { attributes?: Record<string, unknown> }).attributes ?? item) as Record<string, unknown>;
@@ -127,6 +147,9 @@ function mapBookings(raw: StrapiBooking[]): ReportBooking[] {
     const addOns = extractAddOnNames(source.addOns);
     const attendees = toNumber(source.attendees);
     const addOnsTotalPrice = extractAddOnTotalPrice(source.addOns, attendees);
+    const roomSpace =
+      (typeof source.roomSpace === "string" && source.roomSpace.trim() ? source.roomSpace.trim() : "") ||
+      extractRoomSpace(source.layout);
     const amountPaid = payments.reduce((sum, payment) => sum + toNumber(payment.amount), 0);
     const paymentDates = payments
       .map((payment) =>
@@ -165,6 +188,7 @@ function mapBookings(raw: StrapiBooking[]): ReportBooking[] {
       customerEmail: String(source.customerEmail ?? ""),
       customerPhone: String(source.customerPhone ?? ""),
       eventType: String(source.eventType ?? ""),
+      roomSpace,
       date,
       dayOfWeek,
       startTime,
@@ -311,6 +335,7 @@ export default function ReportPage() {
         dateTimeDay: `${booking.date}\n${booking.startTime} - ${booking.endTime}\n${booking.dayOfWeek || "-"}`,
         customer: `${booking.customerName}\n${booking.customerEmail}\n${booking.customerPhone || "-"}`,
         event: `${booking.eventType || "N/A"}\nStatus: ${booking.statusOfBooking}`,
+        roomSpace: booking.roomSpace || "-",
         duration: booking.eventDuration,
         participants: booking.attendees,
         addOns:
@@ -350,6 +375,7 @@ export default function ReportPage() {
           Email: booking.customerEmail || "-",
           "Phone Number": booking.customerPhone || "-",
           Event: booking.eventType || "N/A",
+          "Room/Space": booking.roomSpace || "-",
           "Booking Status": booking.statusOfBooking || "-",
           Duration: booking.eventDuration || "-",
           Participants: booking.attendees,
@@ -380,6 +406,7 @@ export default function ReportPage() {
             Email: "-",
             "Phone Number": "-",
             Event: "-",
+            "Room/Space": "-",
             "Booking Status": "-",
             Duration: "-",
             Participants: calculations.totalParticipants,
@@ -466,6 +493,7 @@ export default function ReportPage() {
           "Date / Time / Day",
           "Customer",
           "Event",
+          "Room/Space",
           "Duration",
           "Participants",
           "Add-ons",
@@ -478,6 +506,7 @@ export default function ReportPage() {
           row.dateTimeDay,
           row.customer,
           row.event,
+          row.roomSpace,
           row.duration,
           String(row.participants),
           row.addOns,
