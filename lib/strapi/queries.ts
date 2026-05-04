@@ -335,7 +335,7 @@ export async function findBookingByReference(
  * Loads bookings for the admin report UI via Next.js API (requires Strapi admin session cookie).
  * Must run in the browser; uses POST /admin/login–issued token only on the server.
  */
-export async function fetchBookingsForReport(): Promise<StrapiBooking[]> {
+export async function fetchBookingsForReport(): Promise<{ data: StrapiBooking[]; roomSpaces: StrapiRoomSpace[] }> {
   const res = await fetch("/api/report/bookings", { credentials: "include", cache: "no-store" });
   if (res.status === 401) {
     throw new Error("REPORT_UNAUTHORIZED");
@@ -345,6 +345,6 @@ export async function fetchBookingsForReport(): Promise<StrapiBooking[]> {
     const msg = body?.error || `Report fetch failed (${res.status})`;
     throw new Error(body?.detail ? `${msg}: ${body.detail}` : msg);
   }
-  const json = (await res.json()) as { data?: StrapiBooking[] };
-  return json.data ?? [];
+  const json = (await res.json()) as { data?: StrapiBooking[]; roomSpaces?: StrapiRoomSpace[] };
+  return { data: json.data ?? [], roomSpaces: json.roomSpaces ?? [] };
 }

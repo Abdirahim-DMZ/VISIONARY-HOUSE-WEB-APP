@@ -463,6 +463,19 @@ export function mapStrapiRoomSpaces(items: StrapiRoomSpace[]): MappedRoomSpace[]
   });
 }
 
+/** Slug → display title from Room Space collection (report exports / admin UI). */
+export function buildRoomSpaceSlugToTitleMap(items: StrapiRoomSpace[]): Record<string, string> {
+  const map: Record<string, string> = {};
+  if (!items?.length) return map;
+  for (const item of items) {
+    const att = getAttr(item) as { slug?: string | null; title?: string | null };
+    const slug = String(att?.slug ?? "").trim();
+    const title = String(att?.title ?? "").trim();
+    if (slug) map[slug] = title || slug;
+  }
+  return map;
+}
+
 export function mapStrapiGuestTypes(items: StrapiGuestType[]): string[] {
   if (!items?.length) return [];
   return items

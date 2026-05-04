@@ -15,10 +15,9 @@ import { useQuery } from "@tanstack/react-query";
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { Autoplay, EffectFade } from 'swiper/modules';
 import type { Swiper as SwiperType } from 'swiper';
-import { fetchHomepage, fetchServices, fetchTestimonials, fetchFaqs, isStrapiConfigured } from "@/lib/strapi";
+import { fetchHomepage, fetchTestimonials, fetchFaqs, isStrapiConfigured } from "@/lib/strapi";
 import {
   mapHomepageHeroSlides,
-  mapServicesPreview,
   mapHomepageServicesPreview,
   mapDifferentiators,
   mapTestimonials,
@@ -84,12 +83,6 @@ export default function Home() {
     enabled: isStrapiConfigured(),
     staleTime: 60_000,
   });
-  const { data: servicesData, isLoading: servicesLoading, isError: servicesError } = useQuery({
-    queryKey: ["strapi", "services"],
-    queryFn: fetchServices,
-    enabled: isStrapiConfigured(),
-    staleTime: 60_000,
-  });
   const { data: testimonialsData, isLoading: testimonialsLoading, isError: testimonialsError } = useQuery({
     queryKey: ["strapi", "testimonials"],
     queryFn: fetchTestimonials,
@@ -105,12 +98,12 @@ export default function Home() {
 
   const homepage = homepageData ?? null;
   const servicesFromHome = mapHomepageServicesPreview(homepage);
-  const servicesFromApi = mapServicesPreview(servicesData ?? null);
   const strapiConfigured = isStrapiConfigured();
   const isLoading = strapiConfigured && homepageLoading;
   const isError = strapiConfigured && homepageError;
   const heroSlides = isError ? fallbackHeroSlides : (mapHomepageHeroSlides(homepage) || fallbackHeroSlides);
-  const servicesPreview = servicesFromHome ?? servicesFromApi ?? fallbackServices;
+  /** Services preview comes from homepage `homeService` only (no separate `/api/services` call). */
+  const servicesPreview = servicesFromHome ?? fallbackServices;
   const differentiators = isError ? fallbackDifferentiators : (mapDifferentiators(homepage) || fallbackDifferentiators);
   const testimonialsErrorFlag = strapiConfigured && testimonialsError;
   const faqsErrorFlag = strapiConfigured && faqsError;
@@ -374,7 +367,7 @@ export default function Home() {
       )}
 
       {/* Services Preview Section - show skeleton while loading */}
-      {strapiConfigured && (homepageLoading || servicesLoading) ? (
+      {strapiConfigured && homepageLoading ? (
         <section className="section-padding bg-background">
           <div className="container-premium">
             <div className="mb-12">

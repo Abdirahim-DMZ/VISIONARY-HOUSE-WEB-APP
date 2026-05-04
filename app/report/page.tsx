@@ -4,20 +4,40 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { Activity, CalendarRange, CircleDollarSign, CreditCard, FileSpreadsheet, FileText, Loader2, LogOut, TrendingUp, Users } from "lucide-react";
+import {
+  Activity,
+  CalendarRange,
+  ChevronLeft,
+  ChevronRight,
+  CircleDollarSign,
+  CreditCard,
+  FileSpreadsheet,
+  FileText,
+  Loader2,
+  LogOut,
+  TrendingUp,
+  Users,
+} from "lucide-react";
 import { PageHero } from "@/components/sections";
-import { fetchBookingsForReport, isStrapiConfigured, type StrapiBooking } from "@/lib/strapi";
+import {
+  buildRoomSpaceSlugToTitleMap,
+  fetchBookingsForReport,
+  isStrapiConfigured,
+  type StrapiBooking,
+} from "@/lib/strapi";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
+import { cn } from "@/lib/utils";
 
 /**
  * PDF colors aligned with `app/globals.css` light theme (charcoal primary, champagne gold accent,
@@ -37,6 +57,8 @@ const PDF_PALETTE = {
   /** hsl(40 15% 94%) — --muted, subtle stripe */
   surfaceMuted: [245, 244, 242] as const,
 } as const;
+
+const DETAILED_TABLE_PAGE_SIZES = [5, 10, 25, 50, 100] as const;
 
 type ReportBooking = {
   referenceNumber: string;
@@ -217,6 +239,34 @@ function formatMoney(amount: number): string {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 }).format(amount);
 }
 
+/** Prefer CMS Room Space title; otherwise humanize slug (e.g. main-space → Main Space). */
+function displayRoomSpace(raw: string, titleBySlug: Record<string, string>): string {
+  const slug = raw.trim();
+  if (!slug || slug === "-") return "-";
+  const fromCms = titleBySlug[slug];
+  if (fromCms) return fromCms;
+  return slug
+    .split("-")
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(" ");
+}
+
+/** Detailed table preview: color chips — gold/red tuned to site CTA (#B08D39), not bright primaries. */
+function bookingStatusChipClass(status: string): string {
+  const s = status.trim().toLowerCase();
+  if (s === "cancelled" || s === "canceled") {
+    return "border-transparent bg-[#C45A5A] text-white hover:bg-[#B04E4E]";
+  }
+  if (s === "confirm" || s === "confirmed") {
+    return "border-transparent bg-emerald-600 text-white hover:bg-emerald-600/90";
+  }
+  if (s === "pending") {
+    return "border-transparent bg-[#B08D39] text-white hover:opacity-90";
+  }
+  return "";
+}
+
 export default function ReportPage() {
   const router = useRouter();
   const [fromDate, setFromDate] = useState("");
@@ -224,6 +274,8 @@ export default function ReportPage() {
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [isExportingExcel, setIsExportingExcel] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [detailedTablePage, setDetailedTablePage] = useState(1);
+  const [detailedPageSize, setDetailedPageSize] = useState<(typeof DETAILED_TABLE_PAGE_SIZES)[number]>(5);
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["strapi", "report-bookings"],
@@ -250,7 +302,9 @@ export default function ReportPage() {
     }
   };
 
-  const bookings = useMemo(() => mapBookings(data ?? []), [data]);
+  const bookings = useMemo(() => mapBookings(data?.data ?? []), [data]);
+
+  const roomSpaceTitleBySlug = useMemo(() => buildRoomSpaceSlugToTitleMap(data?.roomSpaces ?? []), [data?.roomSpaces]);
 
   const filteredBookings = useMemo(() => {
     return bookings.filter((booking) => {
@@ -262,6 +316,27 @@ export default function ReportPage() {
       return withinStart && withinEnd;
     });
   }, [bookings, fromDate, toDate]);
+
+  const detailedTablePagination = useMemo(() => {
+    const total = filteredBookings.length;
+    const totalPages = total === 0 ? 1 : Math.ceil(total / detailedPageSize);
+    const page = Math.min(Math.max(1, detailedTablePage), totalPages);
+    const start = (page - 1) * detailedPageSize;
+    const pageRows = filteredBookings.slice(start, start + detailedPageSize);
+    const from = total === 0 ? 0 : start + 1;
+    const to = total === 0 ? 0 : start + pageRows.length;
+    return { total, totalPages, page, pageRows, from, to };
+  }, [filteredBookings, detailedTablePage, detailedPageSize]);
+
+  useEffect(() => {
+    setDetailedTablePage(1);
+  }, [fromDate, toDate]);
+
+  useEffect(() => {
+    const totalPages =
+      filteredBookings.length === 0 ? 1 : Math.ceil(filteredBookings.length / detailedPageSize);
+    setDetailedTablePage((p) => Math.min(Math.max(1, p), totalPages));
+  }, [filteredBookings.length, detailedPageSize]);
 
   const summary = useMemo(() => {
     const totalEvents = filteredBookings.length;
@@ -335,7 +410,7 @@ export default function ReportPage() {
         dateTimeDay: `${booking.date}\n${booking.startTime} - ${booking.endTime}\n${booking.dayOfWeek || "-"}`,
         customer: `${booking.customerName}\n${booking.customerEmail}\n${booking.customerPhone || "-"}`,
         event: `${booking.eventType || "N/A"}\nStatus: ${booking.statusOfBooking}`,
-        roomSpace: booking.roomSpace || "-",
+        roomSpace: displayRoomSpace(booking.roomSpace, roomSpaceTitleBySlug),
         duration: booking.eventDuration,
         participants: booking.attendees,
         addOns:
@@ -349,7 +424,7 @@ export default function ReportPage() {
         loanCredit: `${booking.loanStatus}\nOutstanding: ${formatMoney(booking.remainingPayment)}\nDue: ${booking.dueDate || "-"}`,
         bookingDiscountNotes: `Booking: ${booking.bookingDate || "-"}\nDiscount: ${formatMoney(booking.discount)}\nNotes: ${booking.notes || "-"}`,
       })),
-    [filteredBookings],
+    [filteredBookings, roomSpaceTitleBySlug],
   );
 
   const calculations = useMemo(() => {
@@ -375,7 +450,7 @@ export default function ReportPage() {
           Email: booking.customerEmail || "-",
           "Phone Number": booking.customerPhone || "-",
           Event: booking.eventType || "N/A",
-          "Room/Space": booking.roomSpace || "-",
+          "Room/Space": displayRoomSpace(booking.roomSpace, roomSpaceTitleBySlug),
           "Booking Status": booking.statusOfBooking || "-",
           Duration: booking.eventDuration || "-",
           Participants: booking.attendees,
@@ -860,13 +935,15 @@ export default function ReportPage() {
                       <Loader2 className="h-4 w-4 animate-spin" /> Loading report data...
                     </div>
                   ) : (
+                    <div className="space-y-4">
                     <div className="w-full overflow-x-auto rounded-md border border-border/70">
-                      <Table className="min-w-[1180px]">
+                      <Table className="min-w-[1280px]">
                         <TableHeader className="bg-muted/40">
                           <TableRow>
                             <TableHead className="min-w-[180px]">Date / Time / Day</TableHead>
                             <TableHead className="min-w-[230px]">Customer</TableHead>
                             <TableHead className="min-w-[190px]">Event</TableHead>
+                            <TableHead className="min-w-[140px]">Room / Space</TableHead>
                             <TableHead className="min-w-[120px]">Duration</TableHead>
                             <TableHead className="min-w-[110px]">Participants</TableHead>
                             <TableHead className="min-w-[210px]">Add-ons</TableHead>
@@ -877,7 +954,7 @@ export default function ReportPage() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {filteredBookings.map((booking) => (
+                          {detailedTablePagination.pageRows.map((booking) => (
                             <TableRow key={`${booking.referenceNumber}-${booking.date}`}>
                               <TableCell className="align-top whitespace-nowrap">
                                 <div>{booking.date}</div>
@@ -891,7 +968,15 @@ export default function ReportPage() {
                               </TableCell>
                               <TableCell className="align-top">
                                 <div>{booking.eventType || "N/A"}</div>
-                                <Badge variant="outline" className="mt-1">{booking.statusOfBooking}</Badge>
+                                <Badge
+                                  variant="outline"
+                                  className={cn("mt-1", bookingStatusChipClass(booking.statusOfBooking))}
+                                >
+                                  {booking.statusOfBooking}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="align-top whitespace-normal break-words">
+                                {displayRoomSpace(booking.roomSpace, roomSpaceTitleBySlug)}
                               </TableCell>
                               <TableCell className="align-top">{booking.eventDuration}</TableCell>
                               <TableCell className="align-top">{booking.attendees || "-"}</TableCell>
@@ -926,13 +1011,80 @@ export default function ReportPage() {
                           ))}
                           {filteredBookings.length === 0 && (
                             <TableRow>
-                              <TableCell colSpan={10} className="py-10 text-center text-muted-foreground">
+                              <TableCell colSpan={11} className="py-10 text-center text-muted-foreground">
                                 No records for selected date range.
                               </TableCell>
                             </TableRow>
                           )}
                         </TableBody>
                       </Table>
+                    </div>
+                    {filteredBookings.length > 0 ? (
+                      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+                        <p className="text-sm text-muted-foreground">
+                          Showing{" "}
+                          <span className="font-medium text-foreground">{detailedTablePagination.from}</span>
+                          {"–"}
+                          <span className="font-medium text-foreground">{detailedTablePagination.to}</span>
+                          {" of "}
+                          <span className="font-medium text-foreground">{detailedTablePagination.total}</span>
+                        </p>
+                        <div className="flex flex-wrap items-center gap-3 sm:justify-end">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-muted-foreground whitespace-nowrap">Rows per page</span>
+                            <Select
+                              value={String(detailedPageSize)}
+                              onValueChange={(v) => {
+                                setDetailedPageSize(Number(v) as (typeof DETAILED_TABLE_PAGE_SIZES)[number]);
+                                setDetailedTablePage(1);
+                              }}
+                            >
+                              <SelectTrigger className="h-9 w-[4.5rem]" aria-label="Rows per page">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {DETAILED_TABLE_PAGE_SIZES.map((n) => (
+                                  <SelectItem key={n} value={String(n)}>
+                                    {n}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-9 gap-1 px-2.5"
+                              disabled={detailedTablePagination.page <= 1}
+                              onClick={() => setDetailedTablePage((p) => Math.max(1, p - 1))}
+                              aria-label="Previous page"
+                            >
+                              <ChevronLeft className="h-4 w-4" />
+                              <span className="hidden sm:inline">Previous</span>
+                            </Button>
+                            <span className="min-w-[7.5rem] text-center text-sm tabular-nums text-muted-foreground">
+                              Page {detailedTablePagination.page} of {detailedTablePagination.totalPages}
+                            </span>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-9 gap-1 px-2.5"
+                              disabled={detailedTablePagination.page >= detailedTablePagination.totalPages}
+                              onClick={() =>
+                                setDetailedTablePage((p) => Math.min(detailedTablePagination.totalPages, p + 1))
+                              }
+                              aria-label="Next page"
+                            >
+                              <span className="hidden sm:inline">Next</span>
+                              <ChevronRight className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ) : null}
                     </div>
                   )}
                 </CardContent>
