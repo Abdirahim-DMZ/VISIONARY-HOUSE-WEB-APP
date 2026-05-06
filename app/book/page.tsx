@@ -80,8 +80,8 @@ import {
 } from "@/lib/utils/booking-utils";
 import { validateInternationalPhone, normalizeInternationalPhone } from "@/lib/utils/phone";
 import type { BookingFormData, BookingAddOn, ServiceLayout } from "@/lib/types/booking";
-import { fetchBookPage, fetchAddOns, fetchEventTypes, fetchServiceLayouts, fetchGuestTypes, fetchConfigs, isStrapiConfigured } from "@/lib/strapi";
-import { getBookPageHeroImageUrl, mapBookPageFeatures, mapStrapiAddOns, mapStrapiEventTypes, mapStrapiServiceLayouts, mapStrapiGuestTypes } from "@/lib/strapi/mappers";
+import { fetchBookPage, fetchAddOns, fetchEventTypes, fetchServiceLayouts, fetchGuestTypes, fetchConfigs, fetchRoomSpaces, isStrapiConfigured } from "@/lib/strapi";
+import { buildRoomSpaceSlugToTitleMap, getBookPageHeroImageUrl, mapBookPageFeatures, mapStrapiAddOns, mapStrapiEventTypes, mapStrapiServiceLayouts, mapStrapiGuestTypes } from "@/lib/strapi/mappers";
 import coffee from '../../public/assets/coffee.jpg'
 
 // Visionary House room matching (UI-only) — fallback when APIs not used
@@ -347,10 +347,29 @@ export default function Book() {
     enabled: isStrapiConfigured(),
     staleTime: 60_000,
   });
+  const { data: apiRoomSpaces = [] } = useQuery({
+    queryKey: ["strapi", "room-spaces"],
+    queryFn: fetchRoomSpaces,
+    enabled: isStrapiConfigured(),
+    staleTime: 60_000,
+  });
 
   const strapiConfigured = isStrapiConfigured();
+  const roomSpaceTitleBySlug = useMemo(() => buildRoomSpaceSlugToTitleMap(apiRoomSpaces), [apiRoomSpaces]);
   // Room/Space is derived from selected layout; display names for review/display only
-  const roomSpaceLabels = useMemo(() => ({ ...ROOM_SPACE_LABELS }), []);
+  const roomSpaceLabels = useMemo(() => ({ ...ROOM_SPACE_LABELS, ...roomSpaceTitleBySlug }), [roomSpaceTitleBySlug]);
+  const getRoomSpaceLabel = (slug: string | null | undefined): string => {
+    const s = (slug ?? "").trim();
+    if (!s) return "";
+    return (
+      roomSpaceLabels[s] ??
+      s
+        .split("-")
+        .filter(Boolean)
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+        .join(" ")
+    );
+  };
   const addOnsList = useMemo(() => {
     const mapped = mapStrapiAddOns(apiAddOns);
     if (strapiConfigured && addOnsLoading) return [];
@@ -1462,8 +1481,42 @@ export default function Book() {
   });
   let availableLayouts = layoutsFittingCapacityAndAvailable;
 
-  // Rule C1 + Fallback: Show suggested room's layouts; if unavailable, use fallback (Lounge → Main Hall)
-  const suggestedRoomSpace = getSuggestedRoomSpaceForParticipants(participantCount);
+  // Rule C1 + Fallback:
+  // Prefer suggesting by *actual layouts* (capacity + time-slot availability) to avoid slug mismatches
+  // between room-spaces and service-layout roomSpace relations. If no layouts are loaded, fall back to CMS
+  // room-spaces capacity, then to legacy static mapping.
+  const suggestedRoomSpace = (() => {
+    if (!isValidParticipantCount || participantsExceedMax || participantCount <= 0) {
+      return getSuggestedRoomSpaceForParticipants(participantCount);
+    }
+
+    const viableLayouts = availableLayoutsAll
+      .filter((l: ServiceLayout & { roomSpace?: string }) => {
+        if (!l.roomSpace) return false;
+        if (l.capacity < participantCount) return false;
+        if (hasDateTimeSelected && getRoomsWithConflictForSlot.has(l.roomSpace)) return false;
+        return true;
+      })
+      .sort((a, b) => a.capacity - b.capacity);
+
+    const bestFromLayouts = viableLayouts[0]?.roomSpace;
+    if (bestFromLayouts) return bestFromLayouts;
+
+    if (apiRoomSpaces?.length) {
+      const candidates = apiRoomSpaces
+        .map((it: any) => {
+          const a = (it?.attributes ?? it) as { slug?: unknown; capacity?: unknown };
+          const slug = typeof a?.slug === "string" ? a.slug.trim() : "";
+          const cap = Number(a?.capacity ?? 0);
+          return { slug, cap: Number.isFinite(cap) ? cap : 0 };
+        })
+        .filter((x) => x.slug && x.cap > 0 && x.cap >= participantCount)
+        .sort((a, b) => a.cap - b.cap);
+      return candidates[0]?.slug ?? getSuggestedRoomSpaceForParticipants(participantCount);
+    }
+
+    return getSuggestedRoomSpaceForParticipants(participantCount);
+  })();
   let effectiveRoomSpace = suggestedRoomSpace;
   let roomFallbackMessage: string | null = null;
 
@@ -1499,7 +1552,16 @@ export default function Book() {
   if (availableLayouts.length === 0 && isValidParticipantCount && layoutsFittingCapacityAndAvailable.length > 0) {
     availableLayouts = layoutsFittingCapacityAndAvailable;
     if (suggestedRoomSpace) {
-      roomFallbackMessage = `${roomSpaceLabels[suggestedRoomSpace] ?? suggestedRoomSpace} layouts are not available for this slot. Showing layouts from alternative spaces; please note that pricing may be higher.`;
+      const altRoom =
+        [...layoutsFittingCapacityAndAvailable]
+          .sort((a, b) => a.capacity - b.capacity)[0]
+          ?.roomSpace ?? "";
+      // Only show warning when we truly fall back to a *different* space.
+      // Message should name the originally suggested room (the one that wasn't available).
+      if (altRoom && normalizeRoomSlug(altRoom) !== normalizeRoomSlug(suggestedRoomSpace)) {
+        const labelSlug = suggestedRoomSpace;
+        roomFallbackMessage = `${getRoomSpaceLabel(labelSlug) || labelSlug} layouts are not available for this slot. Showing layouts from alternative spaces; please note that pricing may be higher.`;
+      }
     }
   }
 
@@ -1514,6 +1576,11 @@ export default function Book() {
   }
   // Sort by capacity (nearest first)
   availableLayouts = [...availableLayouts].sort((a, b) => a.capacity - b.capacity);
+  // Only show the smallest capacity layout that fits the group.
+  // If that capacity is unavailable for the selected slot (filtered out above), the next capacity becomes the single option.
+  if (isValidParticipantCount && !participantsExceedMax && participantCount > 0 && availableLayouts.length > 1) {
+    availableLayouts = [availableLayouts[0]];
+  }
 
   // Fallback (dummy) only when no API layouts at all and we have hall selected from a previously selected layout
   const useHallFallbackLayouts =
@@ -2171,10 +2238,19 @@ export default function Book() {
                                       </p>
                                   )}
                                   {isValidParticipantCount && !attendeesError && !fieldErrors.attendees && (() => {
-                                    const suggested = getSuggestedRoomSpaceForParticipants(participantCount);
-                                    return suggested ? (
+                                    const effective = (availableLayouts[0] as { roomSpace?: string } | undefined)?.roomSpace || suggestedRoomSpace;
+                                    const label =
+                                      effective && effective.trim()
+                                        ? roomSpaceLabels[effective] ??
+                                          effective
+                                            .split("-")
+                                            .filter(Boolean)
+                                            .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+                                            .join(" ")
+                                        : "";
+                                    return label ? (
                                         <p className="text-xs text-muted-foreground">
-                                          Suggested for your group: {ROOM_SPACE_LABELS[suggested] ?? suggested}
+                                          Suggested for your group: {label}
                                         </p>
                                     ) : null;
                                   })()}

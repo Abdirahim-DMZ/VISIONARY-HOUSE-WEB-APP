@@ -432,10 +432,16 @@ export function mapStrapiServiceLayouts(items: StrapiServiceLayout[]): Record<st
         null;
 
     if (!byService[key]) byService[key] = [];
+    const layoutCapRaw = Number(a?.capacity ?? 0);
+    const roomCapRaw = roomCapacity != null ? Number(roomCapacity) : NaN;
+    const layoutCap = Number.isFinite(layoutCapRaw) && layoutCapRaw > 0 ? layoutCapRaw : 0;
+    const roomCap = Number.isFinite(roomCapRaw) && roomCapRaw > 0 ? roomCapRaw : 0;
     byService[key].push({
       id: String(item.id ?? item.documentId ?? ""),
       name: a?.name ?? "",
-      capacity: roomCapacity != null ? Number(roomCapacity) || 0 : Number(a?.capacity) || 0,
+      // Capacity must come from the Service Layout itself (e.g. 45-seat U-Shape).
+      // Room/Space capacity can be a max for the room and may be blank/0; only use it as fallback.
+      capacity: layoutCap || roomCap || 0,
       rate: roomRate != null ? Number(roomRate) || 0 : undefined,
       pricingType: typeof roomPricingType === "string" ? roomPricingType : undefined,
       description: a?.description ?? "",
